@@ -1,42 +1,128 @@
-#!/usr/bin/env bash
-# Startup report (docs/plan.md §6). Runs on the host, which has the display.
-#
-#   scripts/bench-startup [-n RUNS] [-e NAME=VALUE]... -- [gbk-markdown args...]
-#
-# Spawns the release binary RUNS times with --t0 (spawn time) and --exit-after-first-frame, and
-# prints min / median / p90 of time to first frame submitted, plus the work counters of the
-# last run. The metric is "frame submitted": xfwm4 reports no presentation times.
-set -euo pipefail
-root=$(cd "$(dirname "$0")/.." && pwd)
-bin=${GBK_BIN:-$root/target/docker/release/gbk-markdown}
-runs=20
-envs=()
-while (($#)); do
-  case $1 in
-    -n) runs=$2; shift 2 ;;
-    -e) envs+=("$2"); shift 2 ;;
-    --) shift; break ;;
-    *) echo "usage: $0 [-n RUNS] [-e NAME=VALUE]... -- [args...]" >&2; exit 2 ;;
-  esac
-done
+#!/usr/bin/env python3
+"""Startup report (docs/plan.md §6). Runs on the host, which has the display.
 
-times=()
-last=""
-for ((i = 0; i < runs; i++)); do
-  t0=$(date +%s%N)
-  last=$(env "${envs[@]}" "$bin" --t0="$t0" --exit-after-first-frame "$@")
-  us=$(grep -oE 'first_frame_us=[0-9]+' <<<"$last" | cut -d= -f2)
-  if [[ -z "$us" ]]; then
-    echo "bench-startup: no first_frame_us in: $last" >&2
-    exit 1
-  fi
-  times+=("$us")
-done
+    scripts/bench-startup [-n RUNS] [-c NAME[:VAR=VALUE ...][:ARG ...]]... -- FILE|--spike=empty ...
 
-sorted=$(printf '%s\n' "${times[@]}" | sort -n)
-pick() { sed -n "$1p" <<<"$sorted"; }
-median=$(pick $(((runs + 1) / 2)))
-p90=$(pick $(((runs * 9 + 9) / 10)))
-printf 'runs=%d min_ms=%.1f median_ms=%.1f p90_ms=%.1f | %s\n' "$runs" \
-  "$(bc <<<"scale=1; $(pick 1)/1000")" "$(bc <<<"scale=1; $median/1000")" "$(bc <<<"scale=1; $p90/1000")" \
-  "$(cut -d' ' -f3- <<<"$last")"
+Each configuration (-c) is an environment and extra arguments for the release binary; the
+default is one configuration, "default", with neither. Every configuration x target pair runs
+RUNS times, interleaved run by run (ABAB, not AABB), so drift in machine state hits every pair
+alike. The spawn time is taken immediately before spawning, and passed as --t0.
+
+Reports min, median, p90 of time to first frame submitted (xfwm4 gives no presentation times),
+and, for each configuration after the first, the median difference from the first with a
+bootstrap 95% confidence interval. Records the CPU governor and load; refuses to run when the
+1-minute load is above 1.5 unless --force is given, since background load moves these numbers
+by tens of milliseconds.
+"""
+
+import argparse
+import os
+import random
+import re
+import statistics
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+BIN = Path(os.environ.get("GBK_BIN", ROOT / "target/docker/release/gbk-markdown"))
+FIELD = re.compile(r"(\w+)=(\S+)")
+
+
+def parse_config(spec):
+    name, _, rest = spec.partition(":")
+    env, args = {}, []
+    for word in rest.replace(":", " ").split():
+        if "=" in word and not word.startswith("-"):
+            var, _, value = word.partition("=")
+            env[var] = value
+        else:
+            args.append(word)
+    return name, env, args
+
+
+def run_once(env, args, target):
+    t0 = time.time_ns()
+    out = subprocess.run(
+        [str(BIN), f"--t0={t0}", "--exit-after-first-frame", *args, target],
+        env={**os.environ, **env},
+        capture_output=True,
+        text=True,
+        timeout=120,
+        check=False,
+    )
+    fields = dict(FIELD.findall(out.stdout))
+    if out.returncode != 0 or "first_frame_us" not in fields:
+        sys.exit(f"bench-startup: run failed ({out.returncode}): {out.stdout}{out.stderr}")
+    return int(fields["first_frame_us"]) / 1000, fields
+
+
+def percentile(values, percent):
+    ordered = sorted(values)
+    rank = max(1, -(-len(ordered) * percent // 100))
+    return ordered[rank - 1]
+
+
+def bootstrap_ci(a, b, rounds=4000):
+    rng = random.Random(0)
+    diffs = sorted(
+        statistics.median(rng.choices(b, k=len(b))) - statistics.median(rng.choices(a, k=len(a)))
+        for _ in range(rounds)
+    )
+    return diffs[int(rounds * 0.025)], diffs[int(rounds * 0.975)]
+
+
+def machine_state():
+    try:
+        governor = Path("/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor").read_text().strip()
+    except OSError:
+        governor = "unknown"
+    return governor, os.getloadavg()[0]
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("-n", "--runs", type=int, default=20)
+    parser.add_argument("-c", "--config", action="append", default=[])
+    parser.add_argument("--force", action="store_true", help="run even under load")
+    parser.add_argument("targets", nargs="+")
+    opts = parser.parse_args()
+    configs = [parse_config(spec) for spec in opts.config] or [("default", {}, [])]
+
+    governor, load = machine_state()
+    print(f"# governor={governor} load1={load:.2f} runs={opts.runs} bin={BIN}")
+    if load > 1.5 and not opts.force:
+        sys.exit("bench-startup: 1-minute load is above 1.5; wait, or pass --force and say so")
+
+    samples = {(c[0], t): [] for c in configs for t in opts.targets}
+    last = {}
+    for _ in range(opts.runs):
+        for target in opts.targets:
+            for name, env, args in configs:
+                ms, fields = run_once(env, args, target)
+                samples[(name, target)].append(ms)
+                last[(name, target)] = fields
+
+    for target in opts.targets:
+        print(f"\n{target}")
+        base = samples[(configs[0][0], target)]
+        for name, _env, _args in configs:
+            values = samples[(name, target)]
+            line = (
+                f"  {name:<14} min={min(values):6.1f} median={statistics.median(values):6.1f} "
+                f"p90={percentile(values, 90):6.1f} ms"
+            )
+            if values is not base:
+                low, high = bootstrap_ci(base, values)
+                diff = statistics.median(values) - statistics.median(base)
+                line += f"   vs {configs[0][0]}: {diff:+6.1f} ms (95% CI {low:+.1f} .. {high:+.1f})"
+            print(line)
+            fields = last[(name, target)]
+            keep = ("laid_out_before_first_frame", "bytes_laid_out_before_first_frame",
+                    "width_resets_before_first_frame", "loader_wait_us")
+            print("  " + " " * 15 + " ".join(f"{k}={fields[k]}" for k in keep if k in fields))
+
+
+if __name__ == "__main__":
+    main()

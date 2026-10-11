@@ -77,3 +77,58 @@ No measurable startup difference; fat LTO kept for size.
   inconclusive until M2 removes layout work from the scroll path. Recorded as a decision for the
   user in docs/plan.md §11.
 - **Fat LTO** kept.
+
+## M0 review follow-up (2026-10-11)
+
+Three independent reviews (correctness, performance, coherence) checked M0. Corrections to the
+section above:
+
+- **The phase table overstates what it shows.** "Presented" and "presented → first frame" are
+  bimodal and move in opposite directions (~55/110 ms and ~70/20 ms): one ~50 ms wait lands on
+  either side of `present()`. Only the total and `since_main` are reliable. That xfwm4's map
+  latency dominates the floor is a belief: no control run (compositor off, or no window
+  manager) has been done.
+- **The startup tables used n=10, not interleaved, across sessions.** `scripts/bench-startup`
+  is now a Python harness: configurations interleave run by run, the spawn time is taken just
+  before spawning (the old `date` call added 5-7 ms), medians come with a bootstrap 95% CI on
+  differences, and it refuses to run under load unless forced.
+- **The empty window is the wrong floor.** It pays no text start-up (font loading, first Pango
+  context); a one-line file costs ~15 ms more. `target/fixtures/one-line.md` is the floor now.
+- **The scroll table measured partial scrolls and the wrong things.** The list-1mb rows stopped
+  at the 3000-frame cap (now 6000, and a run that stops short exits 4 with
+  `reached_end=false`). Dropped frames were judged against the median interval, not the
+  refresh interval; "our snapshot" missed layout (done in `value-changed`) and GSK rendering.
+  The probe now judges against the monitor's refresh interval and reports each frame's
+  main-thread busy time, before-paint to after-paint.
+
+### First-screen layout during the window map (`prepare`)
+
+The view now lays out the first screen right after `present()`, at the default size, so the
+work overlaps the window manager mapping the window instead of following it. Interleaved,
+n=20, Cairo with GL disabled; taken under heavy memory pressure (swap full, load 3.8), so the
+differences hold but the absolute numbers are not comparable with the section above:
+
+| Fixture | `prepare` | `--no-prepare` | Difference (95% CI) |
+|---|---|---|---|
+| ripgrep README | 203.0 ms | 213.1 ms | −10.1 ms (−20.3 .. −0.9) |
+| readme-200kb | 202.6 ms | 226.6 ms | −24.1 ms (−35.8 .. −10.9) |
+
+`width_resets_before_first_frame` stayed 1 (the window manager gave the expected width), and
+`loader_wait_us` is 0-1: the loader always finishes before the window is presented.
+
+### Scroll, corrected probe (same memory-pressure conditions; qualitative only)
+
+| Fixture | Renderer | Dropped (two runs) | p50 / p99 busy |
+|---|---|---|---|
+| control-words (3000 one-word paragraphs) | GL | 58, 73 | 12-13 / 23-25 ms |
+| control-words | Cairo | 105, 119 | 11 / 40-45 ms |
+| readme-200kb | GL | 100, 65 | 10-13 / 27-29 ms |
+| readme-200kb | Cairo | 99, 91 | 11 / 38-39 ms |
+| list-1mb | GL | 297, 334 | 12-13 / 29-32 ms |
+| list-1mb | Cairo | 169, 21 | 11 / 20-37 ms |
+
+Not usable for a decision: run-to-run spread is as large as the differences (list-1mb Cairo: 169
+then 21), and "control-words" is not a zero-work control, since each one-word paragraph is laid
+out as it scrolls in (2931 layouts). The ~11 ms median busy time even for the control suggests
+before-paint → after-paint includes waiting (for example on the X server), not only our work;
+to be checked before the metric is trusted. Renderer decision stays with M2 (plan §11).

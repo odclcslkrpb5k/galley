@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# Mutation testing (docs/plan.md §9). Runs inside the build container: scripts/in-docker scripts/mutants
+#
+# CARGO_TARGET_DIR must be unset: scripts/in-docker sets it, and cargo-mutants' per-mutant copies
+# of the tree would then all build into, and test from, one shared directory, so most mutants are
+# never actually built (the first M0 run "missed" 226 of 300 that way). After the run, a known
+# mutant must appear as caught, or the run is refused as untrustworthy.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+out=${CARGO_TARGET_DIR:-target}/mutants
+unset CARGO_TARGET_DIR
+status=0
+cargo mutants --cargo-arg=--locked --test-tool nextest -j 2 --output "$out" "$@" || status=$?
+# A mutant the tests certainly catch: percentile() returning None fails percentile_is_nearest_rank.
+if ! grep -q 'replace percentile -> Option<T> with None' "$out/mutants.out/caught.txt" 2>/dev/null; then
+  echo "mutants: the control mutant was not caught; this run did not test mutated code" >&2
+  exit 1
+fi
+for kind in caught missed timeout unviable; do
+  printf '%s=%s ' "$kind" "$(wc -l <"$out/mutants.out/$kind.txt")"
+done
+echo
+exit "$status"

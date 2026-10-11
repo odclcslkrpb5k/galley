@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Fails if any test binary has fewer tests than its committed floor, or a test binary has no
+# Fails if any test binary has fewer (non-ignored) tests than its committed floor, or a test binary has no
 # floor (docs/plan.md §8). Raise a floor when tests are added; lowering one is a decision to
 # record in the commit message. Runs inside the build container.
 set -euo pipefail
@@ -7,7 +7,8 @@ cd "$(dirname "$0")/.."
 floor=scripts/test-floor.txt
 
 counts=$(cargo nextest list --locked --message-format json 2>/dev/null |
-  jq -r '."rust-suites" | to_entries[] | "\(.key) \(.value.testcases | length)"' | sort)
+  jq -r '."rust-suites" | to_entries[]
+    | "\(.key) \([.value.testcases[] | select(.ignored | not)] | length)"' | sort)
 if [[ -z "$counts" ]]; then
   echo "test floor: nextest listed no test binaries" >&2
   exit 1
@@ -29,6 +30,6 @@ while read -r binary _min; do
     echo "test floor: $binary is in $floor but was not listed" >&2
     fail=1
   fi
-done < <(grep -v '^#' "$floor")
+done < <(grep -vE '^(#|[[:space:]]*$)' "$floor")
 if ((fail)); then exit 1; fi
 echo "test floor: ok ($(awk '{ n += $2 } END { print n }' <<<"$counts") tests)"

@@ -13,6 +13,7 @@ options:
   --t0=NS                   spawn time in CLOCK_REALTIME nanoseconds, for the startup report
   --screenshot=PATH         save the first frame as PNG
   --spike=empty|paragraphs  M0 spike: an empty window, or the paragraph view (default)
+  --no-prepare              do not lay out the first screen before allocation (measurement)
   --application             start with gtk::Application instead of gtk::init (measurement)";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -39,6 +40,7 @@ pub(crate) enum Startup {
 pub(crate) struct ProbeArgs {
     pub(crate) exit_after_first_frame: bool,
     pub(crate) bench_scroll: bool,
+    pub(crate) no_prepare: bool,
     /// Spawn time since the Unix epoch, as passed by scripts/bench-startup.
     pub(crate) t0: Option<Duration>,
     pub(crate) screenshot: Option<PathBuf>,
@@ -86,6 +88,7 @@ pub(crate) fn parse(args: impl IntoIterator<Item = OsString>) -> Result<Args, Us
         match (name, value) {
             ("--exit-after-first-frame", None) => probe.exit_after_first_frame = true,
             ("--bench-scroll", None) => probe.bench_scroll = true,
+            ("--no-prepare", None) => probe.no_prepare = true,
             ("--application", None) => startup = Startup::Application,
             ("--t0", Some(value)) => {
                 let nanos = value
@@ -137,10 +140,12 @@ mod tests {
             "--screenshot=/tmp/a.png",
             "--application",
             "--bench-scroll",
+            "--no-prepare",
             "x.md",
         ])
         .expect("valid");
         assert!(args.probe.bench_scroll);
+        assert!(args.probe.no_prepare);
         assert_eq!(args.probe.t0, Some(Duration::from_nanos(1500)));
         assert!(args.probe.exit_after_first_frame);
         assert_eq!(args.probe.screenshot, Some(PathBuf::from("/tmp/a.png")));

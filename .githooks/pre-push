@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
-# Refuses to push any commit whose tree has not passed scripts/check (docs/plan.md §8).
+# Refuses to push a ref whose tip commit's tree has not passed scripts/check (docs/plan.md §8).
+#
+# Only tips are checked, deliberately: the gate runs on a clean checkout of one commit, so
+# requiring a stamp for every intermediate commit would mean re-running it per commit. What
+# reaches main and gets built is the tip.
 #
 # git passes one line per ref: <local ref> <local sha> <remote ref> <remote sha>.
 set -euo pipefail

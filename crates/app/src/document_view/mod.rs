@@ -24,4 +24,9 @@ impl DocumentView {
         view.imp().set_document(paragraphs, probe);
         view
     }
+
+    /// Lays out the first screen for an expected widget size; see `imp::DocumentView::prepare`.
+    pub(crate) fn prepare(&self, width: f64, height: f64) {
+        self.imp().prepare(width, height);
+    }
 }

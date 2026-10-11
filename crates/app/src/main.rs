@@ -3,13 +3,12 @@
 mod args;
 mod document_view;
 mod extent;
+mod output;
 mod probe;
 mod spike;
 mod units;
 
-use std::cell::RefCell;
-use std::fmt::Display;
-use std::io::Write as _;
+use std::cell::{Cell, RefCell};
 use std::path::Path;
 use std::process::ExitCode;
 use std::rc::Rc;
@@ -21,9 +20,14 @@ use gtk::{gio, glib};
 
 use args::{Args, Spike, Startup};
 use document_view::DocumentView;
+use gbk_markdown_core::Decoded;
+use output::report_error;
 use probe::Probe;
 
 const APP_ID: &str = "io.github.odclcslkrpb5k.GbkMarkdown";
+/// The window's default size, in logical pixels.
+const DEFAULT_WIDTH: i32 = 900;
+const DEFAULT_HEIGHT: i32 = 1000;
 
 /// Why the file could not be shown.
 #[derive(Debug, thiserror::Error)]
@@ -46,7 +50,8 @@ fn main() -> ExitCode {
             return ExitCode::from(2);
         }
     };
-    // Read and parse the file on a worker while GTK starts on the main thread (docs/plan.md §4.4).
+    // Read and parse the file on a worker while GTK starts and the window is mapped
+    // (docs/plan.md §4.4).
     let loader: Option<Loader> = match (args.spike, args.file.clone()) {
         (Spike::Paragraphs, Some(path)) => Some(thread::spawn(move || load(&path))),
         (Spike::Paragraphs | Spike::Empty, _) => None,
@@ -60,8 +65,13 @@ fn main() -> ExitCode {
 
 fn load(path: &Path) -> Result<Vec<String>, LoadError> {
     let bytes = std::fs::read(path).map_err(|error| LoadError::Read(error.kind()))?;
-    let decoded = gbk_markdown_core::decode(&bytes);
-    Ok(spike::paragraphs(&decoded.text))
+    // M0 shortcut: the notice is dropped until M1 shows it. Destructured so a new field of
+    // Decoded fails to compile here rather than being dropped unseen.
+    let Decoded {
+        text,
+        notice: _until_m1,
+    } = gbk_markdown_core::decode(&bytes);
+    Ok(spike::paragraphs(&text))
 }
 
 fn run_application(args: &Args, loader: Option<Loader>, probe: Rc<Probe>) -> ExitCode {
@@ -70,7 +80,7 @@ fn run_application(args: &Args, loader: Option<Loader>, probe: Rc<Probe>) -> Exi
         .flags(gio::ApplicationFlags::NON_UNIQUE)
         .build();
     let loader = RefCell::new(loader);
-    let failed = Rc::new(RefCell::new(false));
+    let failed = Rc::new(Cell::new(false));
     let title = window_title(args);
     app.connect_activate(glib::clone!(
         #[strong]
@@ -78,22 +88,16 @@ fn run_application(args: &Args, loader: Option<Loader>, probe: Rc<Probe>) -> Exi
         move |app| {
             probe.gtk_ready();
             let window = gtk::ApplicationWindow::new(app);
-            if show(
-                window.upcast_ref(),
-                &title,
-                loader.borrow_mut().take(),
-                &probe,
-            )
-            .is_err()
-            {
-                failed.replace(true);
+            if let Err(error) = show(window.upcast_ref(), &title, loader.take(), &probe) {
+                report_error(error);
+                failed.set(true);
                 app.quit();
             }
         }
     ));
     // Our own arguments are already parsed; GApplication gets none.
     let code = app.run_with_args::<&str>(&[]);
-    if *failed.borrow() || code != glib::ExitCode::SUCCESS {
+    if failed.get() || code != glib::ExitCode::SUCCESS {
         ExitCode::FAILURE
     } else {
         ExitCode::SUCCESS
@@ -116,27 +120,34 @@ fn run_plain(args: &Args, loader: Option<Loader>, probe: &Rc<Probe>) -> ExitCode
             glib::Propagation::Proceed
         }
     ));
-    if show(&window, &window_title(args), loader, probe).is_err() {
+    if let Err(error) = show(&window, &window_title(args), loader, probe) {
+        report_error(error);
         return ExitCode::FAILURE;
     }
     main_loop.run();
     ExitCode::SUCCESS
 }
 
-/// Fills and presents the window. On failure the error has been reported.
+/// Presents the window, then fills it.
+///
+/// Presenting first sends the map request, so the window manager frames and maps the window
+/// while the loader finishes. Nothing paints before control returns to the main loop, so the
+/// document is still in place for the first frame.
 fn show(
     window: &gtk::Window,
     title: &str,
     loader: Option<Loader>,
     probe: &Rc<Probe>,
-) -> Result<(), ()> {
+) -> Result<(), LoadError> {
     window.set_title(Some(title));
-    window.set_default_size(900, 1000);
+    window.set_default_size(DEFAULT_WIDTH, DEFAULT_HEIGHT);
+    probe.attach(window);
+    window.present();
+    probe.presented();
     if let Some(loader) = loader {
-        let paragraphs = loader
-            .join()
-            .unwrap_or(Err(LoadError::LoaderPanicked))
-            .map_err(report_error)?;
+        let waited = Instant::now();
+        let paragraphs = loader.join().unwrap_or(Err(LoadError::LoaderPanicked))?;
+        probe.loader_joined(waited.elapsed());
         let view = DocumentView::new(paragraphs, Rc::clone(probe));
         let scrolled = gtk::ScrolledWindow::builder()
             .hscrollbar_policy(gtk::PolicyType::Never)
@@ -144,10 +155,10 @@ fn show(
             .build();
         probe.set_scroll_target(scrolled.vadjustment());
         window.set_child(Some(&scrolled));
+        if probe.prepare_enabled() {
+            view.prepare(f64::from(DEFAULT_WIDTH), f64::from(DEFAULT_HEIGHT));
+        }
     }
-    probe.attach(window);
-    window.present();
-    probe.presented();
     Ok(())
 }
 
@@ -162,13 +173,4 @@ fn install_panic_hook() {
     std::panic::set_hook(Box::new(|info| {
         report_error(format_args!("internal error: {info}"));
     }));
-}
-
-/// Writes an error for the person running the viewer.
-pub(crate) fn report_error(message: impl Display) {
-    #[expect(
-        clippy::let_underscore_must_use,
-        reason = "if stderr cannot be written there is nowhere left to report that"
-    )]
-    let _ = writeln!(std::io::stderr().lock(), "gbk-markdown: {message}");
 }

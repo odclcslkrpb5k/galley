@@ -1,6 +1,6 @@
 # gbk-markdown: implementation plan
 
-Status: draft 3, 2026-10-11; M0 done (see §10 and docs/perf-baseline.md). Draft 2 was revised after a three-way red-team (performance; GFM and
+Status: draft 3, 2026-10-11; M0 complete after its review follow-up (see §10, docs/perf-baseline.md). Draft 2 was revised after a three-way red-team (performance; GFM and
 renderer design; build, rules and process); §13 lists those changes. Draft 3 applies the user's
 answers in §11.
 
@@ -16,17 +16,18 @@ In priority order:
 3. **Good GFM (GitHub Flavored Markdown) support.**
 
 GTK's own startup (loading 112 shared libraries, GL realise, theme CSS, fontconfig, session-bus
-and accessibility-bus connections) happens before any of our code draws, and may be 100-250 ms on
+and accessibility-bus connections) happens before any of our code draws: measured in M0 at 190-250 ms
+(Cairo, GL disabled) and 250-350 ms (GL) on
 this host. So the budget is split: the **floor** (an empty GTK window, measured in M0) and the
 **added cost** (our code), which is the number we own.
 
 | Metric | Budget | Measured by |
 |---|---|---|
-| Floor: empty window, frame submitted | measured in M0, then minimised (§4.4) | §6 |
-| Added cost, 20 KB README | ≤ 30 ms over the floor | §6 |
+| Floor: one line of text in a scrolled window, frame submitted | measured in M0: ~200 ms Cairo, ~300 ms GL; minimised via §4.4 | §6 |
+| Added cost, 20 KB README | ≤ 30 ms over the floor (M0 spike: ~10-50 ms over an empty window, renderer-dependent; per-renderer budgets pending the renderer decision, §11) | §6 |
 | Added cost, 1 MB document (list- and table-heavy) | ≤ 60 ms over the floor | §6 |
-| Work before first frame | only leaves within viewport + one screen are laid out | counter, gated (§6) |
-| Scroll | no dropped frames at 60 Hz; 0 Pango layouts created per frame during steady scroll | counters gated; frame gaps reported |
+| Work before first frame | ≤ 32 KiB of text given to Pango (an independent bound: two screens of dense text are under 20 KiB) | counter, gated (§6) |
+| Scroll | no dropped frames at 60 Hz; 0 Pango layouts created per frame during steady scroll | counter gated from M2; frame gaps reported |
 | GFM | text, structure and heading ids match the oracles in §9 | gated tests |
 
 Wall-clock numbers are reports (noisy). Work counters are deterministic and gate the build.
@@ -50,14 +51,17 @@ clippy.toml             test-only allowances
 deny.toml               cargo-deny (§7)
 Dockerfile              build image (§8)
 scripts/check           the gate (§8)
-scripts/bench-startup   TTFP report, host only (§6)
+scripts/bench-startup   TTFP report, host only; interleaved configs, CI on differences (§6)
+scripts/in-docker       runs a command in the build container
+scripts/gate-steps      the gate's container steps; check-boundaries, check-test-floor, smoke,
+                        lint-canary are its helpers; gen-fixtures and fetch-corpus make test data
 .githooks/pre-push      refuses a push whose tree has no gate stamp (§8)
 crates/core/            gbk-markdown-core: library; no GTK, no I/O
 crates/app/             gbk-markdown: binary; GTK adapter layer
 crates/lint-canary/     one line per configured lint; the gate checks each one fires (§7)
-crates/core/tests/data/ spec.txt + extensions.txt (cmark-gfm, CC-BY-SA 4.0, with LICENSE and
+crates/core/tests/data/ spec.txt + extensions.txt (from M1) (cmark-gfm, CC-BY-SA 4.0, with LICENSE and
                         attribution), README corpus + GitHub-rendered HTML (§9)
-fuzz/                   cargo-fuzz targets (nightly; outside the workspace)
+fuzz/                   cargo-fuzz targets (nightly; outside the workspace), from M1
 docs/                   plan.md, claude-notes.md, perf-baseline.md
 ```
 
@@ -145,14 +149,14 @@ enum InlineObject { Image(ImageId), Checkbox(bool) }
 - **Renderer.** On X11, GTK 4.22 uses the GL renderer (Vulkan is Wayland-only; `ngl` is now an
   alias). GDK prepares GL on display open regardless of `GSK_RENDERER`, loading libgallium and
   libLLVM. The candidate saving is `GDK_DISABLE=gl,vulkan GSK_RENDERER=cairo`, at the price of
-  CPU-repainting the window each scroll frame. M0 measures both TTFP and scroll for GL and that
+  CPU-repainting the window each scroll frame. M0 measured both TTFP and scroll for GL and that
   configuration.
   - If cairo wins, the env must be set before GTK starts, from inside the binary (a `.desktop`
     `Exec=env` misses terminal launches). `std::env::set_var` is `unsafe` in edition 2024, so
     `unsafe_code` would become `deny` (not `forbid`) with exactly one
     `#[expect(unsafe_code, reason = ...)]` as the first statement of `main`, before any thread
-    exists, and a gate check that it is the only `unsafe` in the tree (Engineer). Decided only on
-    M0 numbers.
+    exists, and a gate check that it is the only `unsafe` in the tree (Engineer). Decided after M2's scroll
+    measurements (§11): M0 could not separate renderer cost from the spike's layout-during-scroll.
 - `gtk::Application` versus plain `gtk::init` + window + main loop: the latter skips the session-bus
   connection (`NON_UNIQUE` still connects synchronously). Measure in M0; take it if it is not
   noise.
@@ -285,9 +289,13 @@ first screen. comrak 0.56 removed `tagfilter`, so filtering is ours. Lowering in
 
 ### Work counters (gated)
 
-The app counts, in all builds: leaves laid out before first frame, Pango layouts created per
-frame, render nodes built per frame. The gate's Xvfb smoke run (§8) asserts: laid out before
-first frame ≤ leaves in viewport + one screen; layouts created during steady scroll = 0.
+The app counts, in all builds: layouts and bytes of text given to Pango before the first frame,
+width resets before the first frame, layouts created during scroll. Every layout goes through
+one counted constructor (`disallowed-methods` refuses any other path), so no layout work is
+uncounted. The gate's Xvfb smoke run (§8) asserts bytes before the first frame ≤ 32 KiB, a bound
+independent of the view's own layout window (the M0 review found the first version, "laid out ≤
+the view's own window", could not fail). From M2: a --bench-scroll smoke run asserts layouts
+during steady scroll = 0; render nodes built per frame is counted once nodes are cached.
 
 ## 7. Paranoid Rust rules
 
@@ -299,7 +307,7 @@ first frame ≤ leaves in viewport + one screen; layouts created during steady s
   Cargo's lint flags, so `-D warnings` alone does **not** make unknown lints fatal; verified),
   `unsafe_code = "forbid"` (see §4.4 for the one possible exception), `unused_must_use = "deny"`,
   `missing_debug_implementations`, `unreachable_pub`, `rust_2018_idioms = { level, priority = -1 }`.
-- clippy: `pedantic = { level = "warn", priority = -1 }`, then the restriction lints:
+- clippy: `pedantic = { level = "deny", priority = -1 }`, then the restriction lints:
   `unwrap_used`, `expect_used`, `panic`, `todo`, `unimplemented`, `unreachable`,
   `panic_in_result_fn`, `unwrap_in_result`, `indexing_slicing`, `string_slice`, `as_conversions`,
   `wildcard_enum_match_arm`, `let_underscore_must_use`, `map_err_ignore`, `allow_attributes`,
@@ -350,7 +358,7 @@ every push, `anyhow` banned, comrak wrapped to core, duplicate versions warn.
 - cargo-deny 0.20.2 (musl tarball), cargo-mutants 27.1.0 and cargo-nextest as **prebuilt
   binaries with pinned sha256s**, not `cargo install` (Substitute: minutes faster per image
   rebuild).
-- Run as `--user $(id -u):$(id -g)`; repo at `/work`; named volume on `/cargo` (registry, git,
+- Run as `--user $(id -u):$(id -g)`; repo at `/work`; named volumes on `/cargo/registry`, `/cargo/git` and `/cargo/advisory-dbs` (registry, git,
   advisory database); `CARGO_TARGET_DIR=/work/target/docker` so host tools (rust-analyzer) do not
   contend for the same lock.
 - Image tag = hash of `Dockerfile` + `rust-toolchain.toml`; `scripts/check` builds it if missing.
@@ -360,10 +368,11 @@ every push, `anyhow` banned, comrak wrapped to core, duplicate versions warn.
 1. Refuse to run if `git status --porcelain` is non-empty (the gate checks a commit, not a
    working tree).
 2. `cargo fmt --all --check`
-3. `cargo clippy --workspace --all-targets --locked -- -D warnings`
+3. `cargo clippy --workspace --exclude gbk-markdown-lint-canary --all-targets --locked -- -D warnings`
 4. Lint canary (§7), the boundary grep (§3), `.claude/hooks/test-guard-push`, plus the `unsafe`
    count check if §4.4 needs it.
-5. `cargo nextest run --workspace --locked` with `INSTA_UPDATE=no`. nextest fails when it finds
+5. `cargo nextest run --locked` over the default members (the canary is excluded via
+   `default-members`), with `INSTA_UPDATE=no` set by `scripts/in-docker`. nextest fails when it finds
    no tests; a committed minimum test count per binary catches a test suite that shrinks
    silently.
 6. `cargo deny check`
@@ -376,7 +385,7 @@ every push, `anyhow` banned, comrak wrapped to core, duplicate versions warn.
 
 ### Push
 
-- `.githooks/pre-push` reads the pushed refs from stdin and refuses any sha whose tree has no
+- `.githooks/pre-push` reads the pushed refs from stdin and refuses any pushed tip whose tree has no
   stamp (Engineer). `core.hooksPath` is set by `scripts/check` on every run, so a fresh clone
   gets it after its first gate.
 - Claude runs the gate in the background (it can exceed the 10-minute tool timeout on first
@@ -448,7 +457,8 @@ replaces review.)
   hook. App spikes: empty window; a minimal custom widget drawing pre-laid-out paragraphs.
   `--t0`, `--exit-after-first-frame`, work counters, Xvfb smoke. Measurements: floor, renderer (GL
   versus cairo with GL disabled), `gtk::Application` versus plain init, LTO on/off, build time.
-  **Decides the renderer and the startup path.**
+  **Decided the startup path (plain `gtk::init`) and the first-screen `prepare`; the renderer
+  is decided after M2 (§11).**
 - **M1 core model.** Decode, `gfm_options`, lowering to leaves, inlines, newtypes, HTML lowering
   skeleton; oracles 1 and 2; proptest.
 - **M2 renderer v1.** Fenwick tree, first-viewport layout, worker heights, anchoring, caches;

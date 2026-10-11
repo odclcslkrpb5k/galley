@@ -5,6 +5,8 @@
 #   table-1mb.md  one table of ~12 000 rows
 #   code-1mb.md   one fenced code block of ~25 000 lines
 #   readme-200kb.md  corpus READMEs concatenated
+#   one-line.md  the startup floor: a window that pays the fixed cost of the first text
+#   control-words.md  scroll control: 3000 one-word paragraphs, near-zero work per frame
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
 corpus=$root/crates/core/tests/data/corpus
@@ -40,9 +42,13 @@ cap 1048576 "$out/table-1mb.md"
 } >"$out/code-1mb.md"
 cap 1048576 "$out/code-1mb.md"
 
-for f in sharkdp__bat sharkdp__fd junegunn__fzf jesseduffield__lazygit; do
+for f in sharkdp__bat sharkdp__fd junegunn__fzf jesseduffield__lazygit sindresorhus__awesome; do
   cat "$corpus/$f/input.md"
 done >"$out/readme-200kb.md"
 cap 204800 "$out/readme-200kb.md"
+
+echo "One line." >"$out/one-line.md"
+
+for ((i = 1; i <= 3000; i++)); do printf 'word\n\n'; done >"$out/control-words.md"
 
 ls -l "$out"

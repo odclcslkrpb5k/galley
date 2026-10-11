@@ -2,25 +2,34 @@
 //!
 //! The probe counts layout work, and on the first frame after the document is drawn it can save
 //! a screenshot, print a one-line report and exit. scripts/bench-startup and the gate's smoke run
-//! read that report. With --bench-scroll it instead scrolls to the end of the document, one step
-//! per frame, and reports frame intervals: xfwm4 sends no presentation times, so a dropped frame
-//! shows only as a gap between successive frame times (docs/plan.md §6).
+//! read that report.
+//!
+//! With --bench-scroll it instead scrolls to the end of the document, one step per frame, and
+//! reports frame intervals and each frame's main-thread busy time (before-paint to after-paint,
+//! which covers tick, layout, our snapshot and GSK rendering). xfwm4 sends no presentation
+//! times, so a dropped frame shows only as a gap between successive frame times; frames the
+//! compositor or GPU miss are not visible here.
 
 use std::cell::{Cell, RefCell};
-use std::io::Write as _;
-use std::path::PathBuf;
+use std::path::Path;
 use std::rc::Rc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use gtk::prelude::*;
+use gtk::{gdk, glib};
 
 use crate::args::ProbeArgs;
+use crate::output::{print_line, report_error};
 use crate::units;
 
 /// Scroll speed for --bench-scroll, in logical pixels per second: a brisk fling.
 const BENCH_SCROLL_SPEED: f64 = 3000.0;
-/// --bench-scroll stops after this many frames even if the end is not reached.
-const BENCH_SCROLL_MAX_FRAMES: usize = 3000;
+/// --bench-scroll gives up after this many frames; reaching it is a failed run.
+const BENCH_SCROLL_MAX_FRAMES: usize = 6000;
+/// Exit status when a measurement run cannot produce its report.
+const EXIT_NO_REPORT: i32 = 3;
+/// Exit status when --bench-scroll stops before the end of the document.
+const EXIT_SCROLL_INCOMPLETE: i32 = 4;
 
 #[derive(Debug)]
 pub(crate) struct Probe {
@@ -32,27 +41,30 @@ pub(crate) struct Probe {
     first_frame_done: Cell<bool>,
     layouts_created: Cell<usize>,
     laid_out_before_first_frame: Cell<usize>,
+    /// Bytes of text given to Pango before the first frame: the work, not the leaf count.
+    bytes_laid_out_before_first_frame: Cell<usize>,
     /// Times the view dropped its layouts for a new width before the first frame.
     width_resets_before_first_frame: Cell<usize>,
-    /// Leaves within the first viewport plus one screen, as the view saw them on its first draw.
-    first_screen_leaves: Cell<usize>,
     leaves: Cell<usize>,
-    /// When GTK finished starting, and when the window was presented, after `main` began.
+    /// When GTK finished starting and when the window was presented, after `main` began.
     gtk_ready: Cell<Option<Duration>>,
     presented: Cell<Option<Duration>>,
+    /// How long the main thread waited for the loader thread.
+    loader_wait: Cell<Option<Duration>>,
     /// The vertical adjustment --bench-scroll drives.
     scroll_target: RefCell<Option<gtk::Adjustment>>,
-    /// Time spent in the document view's snapshot since the last scroll frame.
-    snapshot_time: Cell<Duration>,
     scroll: RefCell<ScrollRecord>,
 }
 
 #[derive(Debug, Default)]
 struct ScrollRecord {
+    /// The monitor's refresh interval, if GDK knows it.
+    refresh_us: Option<i64>,
     last_frame_time: Option<i64>,
+    paint_started: Option<Instant>,
     layouts_at_start: usize,
     intervals_us: Vec<i64>,
-    snapshot_us: Vec<u128>,
+    busy_us: Vec<u128>,
 }
 
 impl Probe {
@@ -65,15 +77,21 @@ impl Probe {
             first_frame_done: Cell::new(false),
             layouts_created: Cell::new(0),
             laid_out_before_first_frame: Cell::new(0),
+            bytes_laid_out_before_first_frame: Cell::new(0),
             width_resets_before_first_frame: Cell::new(0),
-            first_screen_leaves: Cell::new(0),
             leaves: Cell::new(0),
             gtk_ready: Cell::new(None),
             presented: Cell::new(None),
+            loader_wait: Cell::new(None),
             scroll_target: RefCell::new(None),
-            snapshot_time: Cell::new(Duration::ZERO),
             scroll: RefCell::new(ScrollRecord::default()),
         })
+    }
+
+    /// Whether to lay out the first screen before allocation (`--no-prepare` turns it off, to
+    /// measure the difference).
+    pub(crate) fn prepare_enabled(&self) -> bool {
+        !self.args.no_prepare
     }
 
     pub(crate) fn gtk_ready(&self) {
@@ -84,37 +102,32 @@ impl Probe {
         self.presented.set(Some(self.main_started.elapsed()));
     }
 
+    pub(crate) fn loader_joined(&self, waited: Duration) {
+        self.loader_wait.set(Some(waited));
+    }
+
     pub(crate) fn set_scroll_target(&self, adjustment: gtk::Adjustment) {
         self.scroll_target.replace(Some(adjustment));
     }
 
-    pub(crate) fn snapshot_took(&self, duration: Duration) {
-        self.snapshot_time
-            .set(self.snapshot_time.get().saturating_add(duration));
-    }
-
     pub(crate) fn width_reset(&self) {
         if !self.first_frame_done.get() {
-            let resets = self.width_resets_before_first_frame.get();
-            self.width_resets_before_first_frame
-                .set(resets.saturating_add(1));
+            increment(&self.width_resets_before_first_frame, 1);
         }
     }
 
-    pub(crate) fn layout_created(&self) {
-        self.layouts_created
-            .set(self.layouts_created.get().saturating_add(1));
+    /// Counts one Pango layout of `bytes` bytes of text.
+    pub(crate) fn layout_created(&self, bytes: usize) {
+        increment(&self.layouts_created, 1);
         if !self.first_frame_done.get() {
-            let before = self.laid_out_before_first_frame.get();
-            self.laid_out_before_first_frame
-                .set(before.saturating_add(1));
+            increment(&self.laid_out_before_first_frame, 1);
+            increment(&self.bytes_laid_out_before_first_frame, bytes);
         }
     }
 
     /// Called by the document view after each draw.
-    pub(crate) fn document_drawn(&self, first_screen_leaves: usize, leaves: usize) {
+    pub(crate) fn document_drawn(&self, leaves: usize) {
         if !self.document_drawn.replace(true) {
-            self.first_screen_leaves.set(first_screen_leaves);
             self.leaves.set(leaves);
         }
     }
@@ -126,14 +139,31 @@ impl Probe {
             let Some(clock) = window.frame_clock() else {
                 return;
             };
-            let probe = Rc::clone(&probe);
+            let after = Rc::clone(&probe);
             let window = window.clone();
-            clock.connect_after_paint(move |_clock| probe.after_paint(&window));
+            clock.connect_after_paint(move |_clock| after.after_paint(&window));
+            let before = Rc::clone(&probe);
+            clock.connect_before_paint(move |_clock| before.before_paint());
         });
     }
 
+    fn before_paint(&self) {
+        if self.first_frame_done.get() && self.args.bench_scroll {
+            self.scroll.borrow_mut().paint_started = Some(Instant::now());
+        }
+    }
+
     fn after_paint(self: &Rc<Self>, window: &gtk::Window) {
-        if self.first_frame_done.get() || (self.expect_document && !self.document_drawn.get()) {
+        if self.first_frame_done.get() {
+            if self.args.bench_scroll {
+                let mut record = self.scroll.borrow_mut();
+                if let Some(started) = record.paint_started.take() {
+                    record.busy_us.push(started.elapsed().as_micros());
+                }
+            }
+            return;
+        }
+        if self.expect_document && !self.document_drawn.get() {
             return;
         }
         self.first_frame_done.set(true);
@@ -145,18 +175,22 @@ impl Probe {
             return;
         }
         // Measure first: the screenshot and report are not part of startup.
-        let report = self.report();
+        let report = self.startup_report();
         let screenshot_ok = self
             .args
             .screenshot
-            .as_ref()
+            .as_deref()
             .is_none_or(|path| save_screenshot(window, path));
-        let report_ok = writeln!(std::io::stdout().lock(), "{report}").is_ok();
+        let report_ok = print_line(report);
         // Exit at once: teardown (unrealising GL, unloading drivers) is not part of startup.
-        std::process::exit(if screenshot_ok && report_ok { 0 } else { 3 });
+        std::process::exit(if screenshot_ok && report_ok {
+            0
+        } else {
+            EXIT_NO_REPORT
+        });
     }
 
-    fn report(&self) -> String {
+    fn startup_report(&self) -> String {
         let since_t0 = self.args.t0.map_or_else(
             || "unknown".to_owned(),
             |t0| match SystemTime::now()
@@ -169,85 +203,113 @@ impl Probe {
             },
         );
         format!(
-            "first_frame_us={since_t0} since_main_us={} gtk_ready_us={} presented_us={} layouts_created={} laid_out_before_first_frame={} width_resets_before_first_frame={} first_screen_leaves={} leaves={}",
+            "first_frame_us={since_t0} since_main_us={} gtk_ready_us={} presented_us={} \
+             loader_wait_us={} layouts_created={} laid_out_before_first_frame={} \
+             bytes_laid_out_before_first_frame={} width_resets_before_first_frame={} leaves={}",
             micros(self.main_started.elapsed()),
-            self.gtk_ready
-                .get()
-                .map_or_else(|| "unknown".to_owned(), micros),
-            self.presented
-                .get()
-                .map_or_else(|| "unknown".to_owned(), micros),
+            optional_micros(self.gtk_ready.get()),
+            optional_micros(self.presented.get()),
+            optional_micros(self.loader_wait.get()),
             self.layouts_created.get(),
             self.laid_out_before_first_frame.get(),
+            self.bytes_laid_out_before_first_frame.get(),
             self.width_resets_before_first_frame.get(),
-            self.first_screen_leaves.get(),
             self.leaves.get(),
         )
     }
-}
 
-impl Probe {
     fn start_scroll(self: &Rc<Self>, window: &gtk::Window) {
         if self.scroll_target.borrow().is_none() {
-            crate::report_error("--bench-scroll: there is no document to scroll");
-            std::process::exit(3);
+            report_error("--bench-scroll: there is no document to scroll");
+            std::process::exit(EXIT_NO_REPORT);
         }
-        self.scroll.borrow_mut().layouts_at_start = self.layouts_created.get();
+        {
+            let mut record = self.scroll.borrow_mut();
+            record.layouts_at_start = self.layouts_created.get();
+            record.refresh_us = refresh_interval_us(window);
+        }
         let probe = Rc::clone(self);
         window.add_tick_callback(move |_window, clock| probe.scroll_tick(clock));
     }
 
-    fn scroll_tick(&self, clock: &gtk::gdk::FrameClock) -> gtk::glib::ControlFlow {
+    fn scroll_tick(&self, clock: &gdk::FrameClock) -> glib::ControlFlow {
         let Some(adjustment) = self.scroll_target.borrow().clone() else {
-            return gtk::glib::ControlFlow::Break;
+            return glib::ControlFlow::Break;
         };
         let now = clock.frame_time();
-        let snapshot = self.snapshot_time.replace(Duration::ZERO);
-        let frames = {
+        let (last, frames) = {
             let mut record = self.scroll.borrow_mut();
-            if let Some(last) = record.last_frame_time.replace(now) {
-                let interval = now.saturating_sub(last);
-                record.intervals_us.push(interval);
-                record.snapshot_us.push(snapshot.as_micros());
-                let step = BENCH_SCROLL_SPEED * units::micros_to_seconds(interval);
-                adjustment.set_value(adjustment.value() + step);
+            let last = record.last_frame_time.replace(now);
+            if let Some(last) = last {
+                record.intervals_us.push(now.saturating_sub(last));
             }
-            record.intervals_us.len()
+            (last, record.intervals_us.len())
         };
-        let at_end = adjustment.value() >= adjustment.upper() - adjustment.page_size();
-        if at_end || frames >= BENCH_SCROLL_MAX_FRAMES {
-            let report = self.scroll_report();
-            let ok = writeln!(std::io::stdout().lock(), "{report}").is_ok();
-            std::process::exit(if ok { 0 } else { 3 });
+        // Set the value with no borrow held: value-changed runs the view's layout code.
+        if let Some(last) = last {
+            let step = BENCH_SCROLL_SPEED * units::micros_to_seconds(now.saturating_sub(last));
+            adjustment.set_value(adjustment.value() + step);
         }
-        gtk::glib::ControlFlow::Continue
+        let reached_end = adjustment.value() >= adjustment.upper() - adjustment.page_size();
+        if reached_end || frames >= BENCH_SCROLL_MAX_FRAMES {
+            let report_ok = self.scroll_report(reached_end).is_some_and(print_line);
+            let code = match (report_ok, reached_end) {
+                (false, _) => EXIT_NO_REPORT,
+                (true, false) => EXIT_SCROLL_INCOMPLETE,
+                (true, true) => 0,
+            };
+            std::process::exit(code);
+        }
+        glib::ControlFlow::Continue
     }
 
-    fn scroll_report(&self) -> String {
+    /// The scroll report, or None (with a message) if there were no frames to report on.
+    fn scroll_report(&self, reached_end: bool) -> Option<String> {
         let record = self.scroll.borrow();
         let mut intervals = record.intervals_us.clone();
         intervals.sort_unstable();
-        let mut snapshots = record.snapshot_us.clone();
-        snapshots.sort_unstable();
-        let median = percentile(&intervals, 50).unwrap_or(0);
-        // A frame interval over 1.5 times the typical one means at least one frame was missed.
+        let mut busy = record.busy_us.clone();
+        busy.sort_unstable();
+        let (Some(&shortest), Some(&longest), Some(&busiest)) =
+            (intervals.first(), intervals.last(), busy.last())
+        else {
+            report_error("--bench-scroll: no frames were recorded");
+            return None;
+        };
+        // Plan §6: a gap over 1.5 refresh intervals means at least one frame was missed. Without
+        // a known refresh rate the shortest interval stands in for it.
+        let refresh = record.refresh_us.unwrap_or(shortest);
         let dropped = intervals
             .iter()
-            .filter(|&&interval| interval.saturating_mul(2) > median.saturating_mul(3))
+            .filter(|&&interval| interval.saturating_mul(2) > refresh.saturating_mul(3))
             .count();
-        format!(
-            "scroll_frames={} median_interval_us={median} p99_interval_us={} max_interval_us={} dropped={dropped} p50_snapshot_us={} p99_snapshot_us={} max_snapshot_us={} layouts_during_scroll={}",
+        Some(format!(
+            "scroll_frames={} reached_end={reached_end} refresh_us={refresh} refresh_known={} \
+             median_interval_us={} p99_interval_us={} max_interval_us={longest} dropped={dropped} \
+             p50_busy_us={} p99_busy_us={} max_busy_us={busiest} layouts_during_scroll={}",
             intervals.len(),
-            percentile(&intervals, 99).unwrap_or(0),
-            intervals.last().copied().unwrap_or(0),
-            percentile(&snapshots, 50).unwrap_or(0),
-            percentile(&snapshots, 99).unwrap_or(0),
-            snapshots.last().copied().unwrap_or(0),
+            record.refresh_us.is_some(),
+            percentile(&intervals, 50)?,
+            percentile(&intervals, 99)?,
+            percentile(&busy, 50)?,
+            percentile(&busy, 99)?,
             self.layouts_created
                 .get()
                 .saturating_sub(record.layouts_at_start),
-        )
+        ))
     }
+}
+
+fn increment(counter: &Cell<usize>, by: usize) {
+    counter.set(counter.get().saturating_add(by));
+}
+
+/// The refresh interval of the window's monitor, in microseconds, if GDK knows the rate.
+fn refresh_interval_us(window: &gtk::Window) -> Option<i64> {
+    let surface = window.surface()?;
+    let monitor = surface.display().monitor_at_surface(&surface)?;
+    let millihertz = i64::from(monitor.refresh_rate());
+    (millihertz > 0).then(|| 1_000_000_000 / millihertz)
 }
 
 /// The value at `percent` in sorted `values`, nearest-rank.
@@ -260,8 +322,12 @@ fn micros(duration: Duration) -> String {
     duration.as_micros().to_string()
 }
 
+fn optional_micros(duration: Option<Duration>) -> String {
+    duration.map_or_else(|| "none".to_owned(), micros)
+}
+
 /// Renders the window to a PNG. Returns false, with a message, if any step fails.
-fn save_screenshot(window: &gtk::Window, path: &PathBuf) -> bool {
+fn save_screenshot(window: &gtk::Window, path: &Path) -> bool {
     let paintable = gtk::WidgetPaintable::new(Some(window));
     let snapshot = gtk::Snapshot::new();
     paintable.snapshot(
@@ -270,20 +336,20 @@ fn save_screenshot(window: &gtk::Window, path: &PathBuf) -> bool {
         f64::from(window.height()),
     );
     let Some(node) = snapshot.to_node() else {
-        crate::report_error("screenshot: the window drew nothing");
+        report_error("screenshot: the window drew nothing");
         return false;
     };
     let Some(native) = window.native() else {
-        crate::report_error("screenshot: the window has no native surface");
+        report_error("screenshot: the window has no native surface");
         return false;
     };
     let Some(renderer) = native.renderer() else {
-        crate::report_error("screenshot: the window has no renderer");
+        report_error("screenshot: the window has no renderer");
         return false;
     };
     let texture = renderer.render_texture(node, None);
     if texture.save_to_png(path).is_err() {
-        crate::report_error("screenshot: cannot write the PNG");
+        report_error("screenshot: cannot write the PNG");
         return false;
     }
     true

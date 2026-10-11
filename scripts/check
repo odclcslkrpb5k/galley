@@ -19,7 +19,7 @@ fi
 tree=$(git rev-parse 'HEAD^{tree}')
 started=$(date +%s)
 
-scripts/in-docker scripts/gate-steps
+GATE_TREE=$tree scripts/in-docker scripts/gate-steps
 
 if [[ -n "$(git status --porcelain)" ]]; then
   echo "gate: the checks changed files in the tree:" >&2

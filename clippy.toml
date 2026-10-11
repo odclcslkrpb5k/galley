@@ -3,3 +3,13 @@ allow-unwrap-in-tests = true
 allow-expect-in-tests = true
 allow-panic-in-tests = true
 allow-indexing-slicing-in-tests = true
+
+# Output and layout each go through one sanctioned function (docs/plan.md §7): crates/app/src/
+# output.rs for stdout/stderr, and the counted constructor in document_view/imp.rs for Pango
+# layouts, so the probe sees all layout work. Each of those carries an #[expect].
+disallowed-methods = [
+    { path = "std::io::stdout", reason = "write through crates/app/src/output.rs" },
+    { path = "std::io::stderr", reason = "write through crates/app/src/output.rs" },
+    { path = "gtk4::prelude::WidgetExt::create_pango_layout", reason = "create layouts through the counted constructor" },
+    { path = "gtk4::pango::Layout::new", reason = "create layouts through the counted constructor" },
+]

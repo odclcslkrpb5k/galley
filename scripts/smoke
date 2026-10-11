@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Smoke run (docs/plan.md §8, gate step 8): opens every fixture in the release build under Xvfb,
 # checks it reaches a first frame and the work counters hold, and saves a screenshot of each to
-# target/docker/screens/ for before/after comparison. Runs inside the build container.
+# target/docker/screens/<tree hash>/ (from scripts/check; "adhoc" otherwise), so each milestone's
+# screens survive later runs for before/after comparison. Runs inside the build container.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 if [[ -z "${DISPLAY:-}" ]]; then
@@ -11,12 +12,20 @@ export NO_AT_BRIDGE=1 GTK_A11Y=none XDG_RUNTIME_DIR=/tmp/xdg-runtime
 mkdir -p -m 700 "$XDG_RUNTIME_DIR"
 
 bin=${CARGO_TARGET_DIR:-target}/release/gbk-markdown
-screens=${CARGO_TARGET_DIR:-target}/screens
+screens=${CARGO_TARGET_DIR:-target}/screens/${GATE_TREE:-adhoc}
 mkdir -p "$screens"
 
 fixtures=(crates/core/tests/data/corpus/*/input.md target/fixtures/readme-200kb.md target/fixtures/list-1mb.md)
 # Not yet: table-1mb.md and code-1mb.md are each one paragraph to the M0 spike and take 20-35 s
 # to lay out. The leaf model (M1/M2) chunks them; add them to the smoke run then.
+# Not yet (M2): a --bench-scroll run asserting layouts_during_scroll=0 (plan §6). The M0 spike
+# lays out on the main thread while scrolling, so it would fail by design.
+
+# Work before the first frame, judged independently of the view's own layout window (which
+# grading itself could never fail): the text Pango may be given for a 1000 px window and one
+# screen ahead. Two screens of dense 9 px text are under 20 KiB; a paragraph or leaf bigger
+# than the budget fails here, which is the point.
+first_frame_byte_budget=32768
 
 fail=0 n=0
 for fixture in "${fixtures[@]}"; do
@@ -28,13 +37,12 @@ for fixture in "${fixtures[@]}"; do
     continue
   fi
   report=$(grep -E '^first_frame_us=' <<<"$out" || true)
-  laid=$(grep -oE 'laid_out_before_first_frame=[0-9]+' <<<"$report" | cut -d= -f2)
-  screen=$(grep -oE 'first_screen_leaves=[0-9]+' <<<"$report" | cut -d= -f2)
-  if [[ -z "$laid" || -z "$screen" ]]; then
+  bytes=$(grep -oE 'bytes_laid_out_before_first_frame=[0-9]+' <<<"$report" | cut -d= -f2 || true)
+  if [[ -z "$bytes" ]]; then
     echo "smoke: $name: no probe report in: $out" >&2
     fail=1
-  elif ((laid > screen)); then
-    echo "smoke: $name: laid out $laid leaves before the first frame; the first screen holds $screen" >&2
+  elif ((bytes > first_frame_byte_budget)); then
+    echo "smoke: $name: gave Pango $bytes bytes before the first frame; budget $first_frame_byte_budget" >&2
     fail=1
   elif [[ ! -s "$screens/$name.png" ]]; then
     echo "smoke: $name: no screenshot" >&2

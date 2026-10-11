@@ -20,7 +20,12 @@ while read -r file; do
     echo "boundaries: $file mentions comrak; only $allowed may" >&2
     fail=1
   fi
-done < <(grep -rlw comrak crates/*/src || true)
+done < <(
+  # grep exits 1 for no match, which is the passing case; 2 is an error and must fail.
+  status=0
+  grep -rlw comrak crates/*/src || status=$?
+  if ((status > 1)); then echo "boundaries: grep failed ($status)" >&2; echo "<grep failed>"; fi
+)
 
 if ((fail)); then exit 1; fi
 echo "boundaries: ok"

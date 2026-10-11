@@ -5,7 +5,8 @@
 
 use std::ops::Range;
 
-#[derive(Debug, Clone, Default)]
+/// Built only by `new`, which keeps `starts` one longer than `heights` (never empty).
+#[derive(Debug, Clone)]
 pub(crate) struct Extent {
     heights: Vec<f64>,
     /// `starts[i]` is where leaf `i` starts; one more entry than leaves, the last being the total.
@@ -109,7 +110,7 @@ mod tests {
 
     #[test]
     fn empty_extent() {
-        let extent = Extent::default();
+        let extent = Extent::new(Vec::new());
         assert_eq!(extent.len(), 0);
         assert!(extent.total().abs() < f64::EPSILON);
         assert_eq!(extent.overlapping(0.0, 100.0), 0..0);

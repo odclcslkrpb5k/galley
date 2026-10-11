@@ -55,49 +55,19 @@ Open questions (awaiting user, see `docs/plan.md` §11):
 
 `docs/plan.md` is the authoritative plan; this file records decisions and state.
 
-## Planned layout (not yet created)
+## Where the rules and layout live
 
-- Cargo workspace with two crates:
-  - `core`: parsing, document model, layout maths. **No GTK dependency**, so the crate boundary
-    stops core code calling GTK. All headless tests and fuzzing target this crate.
-  - `app`: GTK/Pango/file I/O/images. The adapter layer; converts `glib::Error`/`io::Error` into
-    our own error enums, classifying by `io::ErrorKind`, never by message text.
-- `rust-toolchain.toml` pins one toolchain; the Dockerfile uses the same file.
-- One script: fmt check -> clippy `-D warnings` -> tests -> cargo-deny -> build (`--locked`).
-- `Cargo.lock` committed.
-
-## Paranoid Rust rules (applied to this repo)
-
-Enforced (fail the build):
-- `[lints]` in Cargo.toml, clippy run with `-D warnings` (this also makes `unknown_lints` fatal, so
-  a lint the pinned toolchain doesn't know can't be silently ignored).
-- `unsafe_code = "forbid"`.
-- clippy: `unwrap_used`, `expect_used`, `panic`, `todo`, `unimplemented`, `unreachable`,
-  `panic_in_result_fn`, `unwrap_in_result`, `indexing_slicing`,
-  `string_slice`, `as_conversions`, `wildcard_enum_match_arm`, `let_underscore_must_use`,
-  `map_err_ignore`, `allow_attributes`, `allow_attributes_without_reason`; `pedantic` as warn.
-- Exceptions only via `#[expect(lint, reason = "...")]`.
-- `clippy.toml`: allow unwrap/expect/panic/indexing in tests only.
-- Release profile `overflow-checks = true`.
-
-Conventions:
-- Parse at the boundary: file bytes -> UTF-8 decision (refuse or lossy-with-notice, never panic);
-  comrak AST converted once into our own block types; renderer never sees comrak types.
-- `thiserror` enums in `core`; `anyhow` banned workspace-wide (cargo-deny).
-- Newtypes for easily confused quantities: byte offset, char offset, logical px, device px,
-  Pango units (px * 1024), line number. One constructor each.
-- Panic hook logs the panic message (panics in GTK callbacks abort rather than unwind).
-- Tests: return `Result` and use `?`, or compare errors exactly; typed fixture builders.
-
-Testing:
-- GFM spec examples as a test suite; a gate that finds zero examples fails.
-- `cargo-fuzz` / `proptest`: arbitrary input never panics through parse + layout.
-- `cargo-mutants` for tests written against a review finding.
-- `cargo-deny` for licences, bans, advisories.
-- Performance: a time-to-first-paint benchmark is planned.
-
-Not applicable here (service-specific): shadow-mode production reads, retry/refusal policy, unknown-outcome
-writes, credentials in URLs.
+Not repeated here, so there is one source each (an earlier copy here drifted from the code):
+- Repo layout, architecture, gate steps, testing: `docs/plan.md` (§3, §4, §8, §9).
+- Lint rules: `[workspace.lints]` in `Cargo.toml` and `clippy.toml`; rationale in plan §7.
+  `scripts/lint-canary` proves each configured lint fires.
+- Measurements: `docs/perf-baseline.md`.
+- Test style: tests return `()` and use `.expect("what")` (`panic_in_result_fn` fires on
+  `Result`-returning tests that assert).
+- Output: only `crates/app/src/output.rs` writes stdout/stderr; Pango layouts only through the
+  counted constructor in `document_view/imp.rs` (both enforced by `disallowed-methods`).
+- Not applicable here (service-specific parts of the paranoid standard): shadow-mode production
+  reads, retry/refusal policy, unknown-outcome writes, credentials in URLs.
 
 ## Status log
 
@@ -115,7 +85,7 @@ writes, credentials in URLs.
   `/license?ref=` returns NOASSERTION for files detected fine without a ref; uploaded-image URLs
   carry 5-minute JWTs (stripped at fetch). GitHub: `> [!NOTE] Title` is a plain quote,
   `[!note]` lower-case is an alert, front matter renders as a table.
-- 2026-10-11: M0 done. Workspace (core, app, lint-canary), Dockerfile (pinned by digest/sha256),
+- 2026-10-11: M0 gate green and pushed (d2147b8). Workspace (core, app, lint-canary), Dockerfile (pinned by digest/sha256),
   `scripts/in-docker`, gate `scripts/check` -> `scripts/gate-steps` (fmt, clippy, lint canary,
   boundaries, push-guard test, nextest + test floor, cargo-deny, release build, Xvfb smoke),
   `.githooks/pre-push` (tree-hash stamps in target/gate/). Measurements in docs/perf-baseline.md.
@@ -127,4 +97,25 @@ writes, credentials in URLs.
   perf is unavailable (perf_event_paranoid=4); use strace -T for wait analysis.
   M0 shortcuts to undo in M1/M2: spike paragraphs (app/src/spike.rs), Extent is O(n) with raw
   f64 px (no LogicalPx newtype yet), decode notice ignored in load().
+- 2026-10-11: M0 review follow-up (three reviewers: correctness, performance, coherence).
+  Fixed: push-guard bypasses (abbreviated long options such as `--no-verif`, which git accepts;
+  an allowed line carrying a bypass on the next line); draw/layout window ignored MARGIN (one
+  `extent_span` helper now); smoke work gate graded itself (now a 32 KiB byte budget); probe
+  scroll metrics (refresh-based drops, busy time, reached_end, no defaulted zeros); stdout/stderr
+  and Pango layout creation each confined to one place by `disallowed-methods`; loader joined
+  after present; first screen laid out right after present (`prepare`, measured -10/-24 ms);
+  bench-startup rewritten (interleaved, CI, load check); test floor ignores #[ignore]d tests;
+  boundary grep fails on grep errors; screenshots kept per tree. Docs: notes no longer duplicate
+  rules (pointers instead), plan §1/§3/§6/§8/§10 match the code.
+  Machine state matters: during this session the host had swap full (Firefox, VS Code), load
+  ~4; bench-startup refuses to run then. Absolute timings from such runs are not comparable.
+  Open: is before-paint -> after-paint busy time real work or waiting? Check in M2.
+  The push guard refused one of Claude's own heredocs that quoted the flag (expected false
+  positive): doc text that names guarded strings goes through the Edit tool.
+  Mutation testing: the first cargo-mutants run was INVALID (CARGO_TARGET_DIR from in-docker
+  made every mutant copy test the same prebuilt binary; "226 missed of 300" meant nothing).
+  `scripts/mutants` now unsets it and refuses a run whose control mutant is not caught. The
+  corrected run was stopped by Claude Code because the host ran out of memory; not yet rerun.
+  M0's mutation-testing step is therefore still open. Expect most survivors in GTK glue that only
+  the smoke run exercises; pure helpers (units, percentile, extent, extent_span) need direct tests.
 

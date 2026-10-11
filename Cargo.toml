@@ -55,6 +55,8 @@ allow_attributes_without_reason = "deny"
 dbg_macro = "deny"
 print_stdout = "deny"
 print_stderr = "deny"
+# The methods listed in clippy.toml: output and Pango layouts each have one sanctioned path.
+disallowed_methods = "deny"
 
 [profile.release]
 lto = "fat"

@@ -7,10 +7,16 @@ set -euo pipefail
 cmd=$(jq -r '.tool_input.command // ""')
 reason=""
 
-if grep -qw git <<<"$cmd" && grep -qE '(^|[^[:alnum:]_-])--no-verify([^[:alnum:]_-]|$)' <<<"$cmd"; then
-  reason="--no-verify skips the git hooks, including the pre-push gate."
-elif grep -qi 'core\.hookspath' <<<"$cmd" &&
-  ! grep -qxE '[[:space:]]*git config core\.hooksPath \.githooks[[:space:]]*' <<<"$cmd"; then
+# git accepts any unambiguous prefix of a long option, so `--no-verif` is `--no-verify`.
+# This also refuses `--no-verbose`, which no command here needs.
+no_verify='(^|[^[:alnum:]_-])--no-v[a-z]*([^[:alnum:]_-]|$)'
+# The one hooksPath command allowed, and only as the whole command: a per-line match would let
+# an allowed line carry a bypass on the next one.
+allowed_hooks_path='^[[:space:]]*git config core\.hooksPath \.githooks[[:space:]]*$'
+
+if grep -qw git <<<"$cmd" && grep -qE -- "$no_verify" <<<"$cmd"; then
+  reason="--no-verify (or an abbreviation of it) skips the git hooks, including the pre-push gate."
+elif grep -qi 'core\.hookspath' <<<"$cmd" && ! [[ "$cmd" =~ $allowed_hooks_path ]]; then
   reason="Changing core.hooksPath bypasses the pre-push gate."
 fi
 

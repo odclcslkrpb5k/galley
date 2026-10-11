@@ -135,6 +135,11 @@ pub fn stdout() {
     println!("canary");
 }
 
+// canary: clippy:disallowed_methods -> clippy::disallowed_methods
+pub fn raw_stdout() -> std::io::Stdout {
+    std::io::stdout()
+}
+
 // canary: clippy:print_stderr -> clippy::print_stderr
 pub fn stderr() {
     eprintln!("canary");

@@ -3,7 +3,9 @@
 #
 # For each repo: the README at a pinned commit, GitHub's own rendered HTML of it, its licence,
 # and a SOURCE.toml recording where it came from. Synthetic inputs (directories starting with
-# "_synthetic-") are ours; they are rendered with POST /markdown.
+# "_synthetic-") are ours. They are rendered as GitHub's repository file view renders them, which
+# means they must be committed and pushed first. POST /markdown is not used: it skips alerts, math
+# and emoji, and renders front matter as a heading (checked 2026-10-11).
 #
 # Requires an authenticated `gh`. Re-running refetches at the current HEAD of each repo, so the
 # expected outputs change: review the diff before committing.
@@ -21,6 +23,10 @@ repos=(
 allowed_licences=" MIT Apache-2.0 BSD-2-Clause BSD-3-Clause Unlicense CC0-1.0 "
 today=$(date -u +%Y-%m-%d)
 
+# GitHub signs uploaded-image URLs with a 5-minute JWT per fetch. Strip it: it makes the oracle
+# change on every fetch, and a token issued to the fetching account does not belong in the repo.
+strip_tokens() { sed -E 's/(private-user-images\.githubusercontent\.com[^"?]*)\?jwt=[^"]*/\1/g'; }
+
 for repo in "${repos[@]}"; do
   dir="$out/${repo/\//__}"
   sha=$(gh api "repos/$repo/commits/HEAD" --jq .sha)
@@ -35,7 +41,8 @@ for repo in "${repos[@]}"; do
   meta=$(gh api "repos/$repo/readme?ref=$sha")
   path=$(jq -r .path <<<"$meta")
   jq -r .content <<<"$meta" | base64 -d >"$dir/input.md"
-  gh api -H "Accept: application/vnd.github.html+json" "repos/$repo/readme?ref=$sha" >"$dir/github.html"
+  gh api -H "Accept: application/vnd.github.html+json" "repos/$repo/readme?ref=$sha" |
+    strip_tokens >"$dir/github.html"
   gh api "repos/$repo/license?ref=$sha" --jq .content | base64 -d >"$dir/LICENSE"
   cat >"$dir/SOURCE.toml" <<TOML
 repo = "$repo"
@@ -48,13 +55,34 @@ TOML
   echo "ok $repo $spdx $(wc -c <"$dir/input.md") bytes"
 done
 
+# Synthetic inputs: rendered from this repository at the pushed commit.
+if [[ -n "$(git status --porcelain -- "$out")" ]]; then
+  echo "commit the corpus inputs first" >&2
+  exit 1
+fi
+git fetch -q origin main
+if ! git merge-base --is-ancestor HEAD origin/main; then
+  echo "push first: HEAD is not on origin/main" >&2
+  exit 1
+fi
+self=$(gh repo view --json nameWithOwner --jq .nameWithOwner)
+head=$(git rev-parse HEAD)
 for dir in "$out"/_synthetic-*/; do
-  gh api -X POST markdown -f mode=markdown -F text=@"$dir/input.md" >"$dir/github.html"
+  dir=${dir%/}
+  gh api -H "Accept: application/vnd.github.html+json" \
+    "repos/$self/contents/$dir/input.md?ref=$head" | strip_tokens >"$dir/github.html"
   cat >"$dir/SOURCE.toml" <<TOML
-repo = "(synthetic; written for this project)"
+repo = "$self (synthetic; written for this project)"
+commit = "$head"
+path = "$dir/input.md"
 licence = "same as this repository"
-rendered_by = "POST /markdown, mode=markdown"
+rendered_by = "GET /repos/$self/contents/$dir/input.md?ref=$head (Accept: application/vnd.github.html+json)"
 fetched = "$today"
 TOML
   echo "ok $dir"
 done
+
+if grep -l 'jwt=' "$out"/*/github.html; then
+  echo "a signed token survived stripping in the files above" >&2
+  exit 1
+fi

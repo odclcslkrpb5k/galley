@@ -153,6 +153,12 @@ mod tests {
     }
 
     #[test]
+    fn the_paragraph_spike_can_be_named() {
+        let args = parse_strs(&["--spike=empty", "--spike=paragraphs", "a.md"]).expect("valid");
+        assert_eq!(args.spike, Spike::Paragraphs);
+    }
+
+    #[test]
     fn the_empty_spike_needs_no_file() {
         let args = parse_strs(&["--spike=empty"]).expect("valid");
         assert_eq!(args.spike, Spike::Empty);

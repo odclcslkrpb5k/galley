@@ -47,6 +47,26 @@ mod tests {
     }
 
     #[test]
+    fn graphene_f32_keeps_the_value() {
+        assert!((to_f32(12.5) - 12.5_f32).abs() < f32::EPSILON);
+        assert!((to_f32(-3.25) + 3.25_f32).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn micros_become_seconds() {
+        assert!((micros_to_seconds(1_500_000) - 1.5).abs() < f64::EPSILON);
+        assert!((micros_to_seconds(16_667) - 0.016_667).abs() < 1e-12);
+        assert!(micros_to_seconds(0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn counts_become_f64() {
+        assert!(count_to_f64(0).abs() < f64::EPSILON);
+        assert!((count_to_f64(3) - 3.0).abs() < f64::EPSILON);
+        assert!((count_to_f64(1 << 40) - 1_099_511_627_776.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
     fn pango_units_saturate() {
         assert_eq!(to_pango_units(1e12), i32::MAX);
         assert_eq!(to_pango_units(f64::NAN), 0);

@@ -116,6 +116,13 @@ Not repeated here, so there is one source each (an earlier copy here drifted fro
   made every mutant copy test the same prebuilt binary; "226 missed of 300" meant nothing).
   `scripts/mutants` now unsets it and refuses a run whose control mutant is not caught. The
   corrected run was stopped by Claude Code because the host ran out of memory; not yet rerun.
-  M0's mutation-testing step is therefore still open. Expect most survivors in GTK glue that only
-  the smoke run exercises; pure helpers (units, percentile, extent, extent_span) need direct tests.
+- 2026-10-11: M0 mutation testing done (valid run: 300 mutants, 54 caught, 22 unviable, 224
+  missed). 212 survivors are GTK glue (main, probe, output, the widget) that only the Xvfb smoke
+  run exercises, ~120 of them equivalent `measure()` size-hint variants. Policy (Administer,
+  deliberate): glue is covered by the smoke run, not unit tests; running the smoke run per
+  mutant (Engineer) means a release build per mutant, not proportionate. The 12 pure-code
+  survivors (units helpers, the explicit `--spike=paragraphs` arm) now have tests; re-run of
+  those files: 33 caught, 0 missed. `scripts/mutants` now also refuses any run whose logs show
+  tests run from the shared target dir (the first run's failure, checked directly), and checks
+  the percentile control on unfiltered runs.
 

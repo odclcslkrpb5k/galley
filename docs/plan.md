@@ -228,12 +228,12 @@ asserting its effect (Engineer).
 | Links, autolinks | clickable; fragment → anchor (`#x` and `#user-content-x`); relative `.md` opens in viewer; others via `gtk::UriLauncher` | M3 |
 | Relative paths | `{path, query, fragment}`, percent-decoded; `/x` resolves from the repo root (walk up to `.git`); images resolve from the document's directory | M3 |
 | Footnotes | number in text; definitions at end; click to jump | M3 |
-| Alerts | coloured bar + title. comrak accepts `> [!NOTE] Custom title`; GitHub (believed) does not, so an alert with a title is demoted to a quote | M3 |
+| Alerts | coloured bar + title. comrak accepts `> [!NOTE] Custom title`; GitHub renders it as a plain quote (verified in the corpus), so an alert with a title is demoted to a quote. Lower-case `[!note]` is an alert on GitHub | M3 |
 | Heading anchors | `comrak::Anchorizer` per document during lowering (`header_ids` no longer exists; ids are not in the AST) | M3 |
 | **Raw HTML** | lowered into the model, not shown as source (§5.1) | M3 |
-| Front matter | rendered as a code block (GitHub shows a table) | M3 |
+| Front matter | GitHub renders a key/value table (verified in the corpus); v1 renders a code block, recorded as a known deviation | M3 |
 | Math | parsed so `$a_b$` is not mangled; shown monospace | M3 |
-| Emoji shortcodes | comrak `shortcodes`; measure binary size. GitHub-only (`:octocat:`) missing | M3 |
+| Emoji shortcodes | comrak `shortcodes` → Unicode; measure binary size. GitHub renders `:octocat:` as an image; we leave it as text. Unknown shortcodes stay literal | M3 |
 | Images | §4.6 | M4 |
 | Mermaid | code block | — |
 | `@mention`, `#123`, SHA links | need repo context; out of scope | — |
@@ -401,11 +401,13 @@ nodes, lost tightness, wrong link targets) need oracles:
    Known, intended deviations are listed in a checked-in file, each with a reason.
 2. **Text content.** The visible text of our model equals the spec HTML's text content (tags
    stripped, entities decoded, whitespace collapsed).
-3. **GitHub corpus.** About 20 permissively licensed real READMEs (badges, centred HTML,
-   `<details>`, alerts, footnotes, tables, nested lists), each rendered once by GitHub's
-   `POST /markdown` (`mode=markdown`) and the result committed. Compared on text and heading ids.
-   This is the only oracle for what github.com renders. Fetching needs the user's approval
-   (§11).
+3. **GitHub corpus** (fetched 2026-10-11 by `scripts/fetch-corpus`, in
+   `crates/core/tests/data/corpus/`). 21 READMEs under MIT, Apache-2.0, BSD-3, Unlicense or CC0,
+   each pinned to a commit with its licence and GitHub's own repo-view HTML; plus two synthetic
+   inputs of ours (`_synthetic-features`, `_synthetic-front-matter`) rendered by GitHub's
+   repository file view. Compared on text and heading ids. `POST /markdown` is **not** used: it
+   skips alerts, math and emoji and renders front matter as a heading. Signed image-URL tokens are
+   stripped at fetch.
 - A count floor on each oracle: finding fewer examples than expected fails.
 - `insta` snapshots for regression on top, not as the oracle.
 
@@ -463,12 +465,12 @@ Answered 2026-10-11:
 - Text selection, copy and find: not in v1.
 - Binary name: `gbk-markdown`.
 
+- GitHub corpus: approved; fetched.
+
 Still open:
 
 1. **Claude Code hook** in `.claude/settings.json` denying `git push --no-verify` and hook-path
    overrides: approve?
-2. **GitHub corpus:** approve sending ~20 public, permissively licensed READMEs to
-   `api.github.com/markdown` once, and committing them with the rendered HTML?
 
 ## 12. Known risks
 

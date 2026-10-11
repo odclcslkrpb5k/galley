@@ -45,7 +45,6 @@ Optimisation goals, in priority order as stated:
 
 Open questions (awaiting user, see `docs/plan.md` §11):
 - Claude Code PreToolUse hook denying `git push --no-verify` / hook-path overrides.
-- Sending ~20 public READMEs to GitHub's `/markdown` API once for a fidelity corpus.
 - Theme: GTK4 + light stylesheet (not yet confirmed).
 
 `docs/plan.md` is the authoritative plan; this file records decisions and state.
@@ -104,3 +103,9 @@ writes, credentials in URLs.
   `unknown_lints` fatal (set it deny at priority -100); `panic_in_result_fn` fires in tests;
   comrak 0.56 removed `tagfilter` and `header_ids` (use `Anchorizer`). Next: workspace, Dockerfile, toolchain pin,
   lint config, check-then-build script; first commit + push.
+- 2026-10-11: GitHub corpus fetched (`scripts/fetch-corpus`, 21 READMEs + 2 synthetic). Learned:
+  `POST /markdown` is not github.com's pipeline (no alerts/math/emoji; front matter becomes a
+  heading), so synthetic inputs are rendered via the contents API (repo file view) after push;
+  `/license?ref=` returns NOASSERTION for files detected fine without a ref; uploaded-image URLs
+  carry 5-minute JWTs (stripped at fetch). GitHub: `> [!NOTE] Title` is a plain quote,
+  `[!note]` lower-case is an alert, front matter renders as a table.

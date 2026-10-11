@@ -1,0 +1,1276 @@
+<div id="readme" class="md" data-path="README.md"><article class="markdown-body entry-content container-lg" itemprop="text"><div align="center" dir="auto">
+  <a target="_blank" rel="noopener noreferrer nofollow" href="https://raw.githubusercontent.com/junegunn/i/master/fzf-color.png"><img src="https://raw.githubusercontent.com/junegunn/i/master/fzf-color.png" alt="fzf - a command-line fuzzy finder" style="max-width: 100%;"></a>
+  <a href="https://github.com/junegunn/fzf/actions"><img src="https://github.com/junegunn/fzf/actions/workflows/linux.yml/badge.svg?branch=master" alt="Build Status" style="max-width: 100%;"></a>
+  <a href="http://github.com/junegunn/fzf/releases"><img src="https://camo.githubusercontent.com/68da6bf509acb43fac6342bb903b4e5f52bbd19c83d596da0c98dfc4bc6cc2c6/68747470733a2f2f696d672e736869656c64732e696f2f6769746875622f762f7461672f6a756e6567756e6e2f667a66" alt="Version" data-canonical-src="https://img.shields.io/github/v/tag/junegunn/fzf" style="max-width: 100%;"></a>
+  <a href="https://github.com/junegunn/fzf?tab=MIT-1-ov-file#readme"><img src="https://camo.githubusercontent.com/a61caeeb37f58e8d140f256f00179efa11963fee4990a507c1ad64e73d94c88f/68747470733a2f2f696d672e736869656c64732e696f2f6769746875622f6c6963656e73652f6a756e6567756e6e2f667a66" alt="License" data-canonical-src="https://img.shields.io/github/license/junegunn/fzf" style="max-width: 100%;"></a>
+  <a href="https://github.com/junegunn/fzf/graphs/contributors"><img src="https://camo.githubusercontent.com/984a6715ea04cc876a80db1478f92d0c00e0fab201b7a58fd6e723d0077d0350/68747470733a2f2f696d672e736869656c64732e696f2f6769746875622f636f6e7472696275746f72732f6a756e6567756e6e2f667a66" alt="Contributors" data-canonical-src="https://img.shields.io/github/contributors/junegunn/fzf" style="max-width: 100%;"></a>
+  <a href="https://github.com/sponsors/junegunn"><img src="https://camo.githubusercontent.com/5dbbd22fbb985cfea4c8a17f59c2dd71d662e174ccce9d16cc369f356cc81bea/68747470733a2f2f696d672e736869656c64732e696f2f6769746875622f73706f6e736f72732f6a756e6567756e6e" alt="Sponsors" data-canonical-src="https://img.shields.io/github/sponsors/junegunn" style="max-width: 100%;"></a>
+  <a href="https://github.com/junegunn/fzf/stargazers"><img src="https://camo.githubusercontent.com/4e3fc8e296ca400f5b9e6d9c5ce82789927272a5b1172aeef871116dd1b494be/68747470733a2f2f696d672e736869656c64732e696f2f6769746875622f73746172732f6a756e6567756e6e2f667a663f7374796c653d666c6174" alt="Stars" data-canonical-src="https://img.shields.io/github/stars/junegunn/fzf?style=flat" style="max-width: 100%;"></a>
+</div>
+<hr>
+<kbd align="center">
+  <br>
+  <a href="https://commitgoods.com/collections/fzf" rel="nofollow"><img src="https://camo.githubusercontent.com/afa45396ae0ec9972fc5fa9f3e831e0690a38b27ebe826afd9e54af78a0c7a87/68747470733a2f2f6a756e6567756e6e2e6769746875622e696f2f667a662f696d616765732f667a662d6d7567732e6a7067" width="80%" alt="fzf merch" data-canonical-src="https://junegunn.github.io/fzf/images/fzf-mugs.jpg" style="max-width: 100%;"></a>
+  <br>
+  <br>
+  Show your love for fzf -- T-shirts, mugs, and stickers now available!
+  <br>
+  <br>
+  <a href="https://commitgoods.com/collections/fzf" rel="nofollow">commitgoods.com/collections/fzf</a>
+  <br>
+  <br>
+</kbd>
+<hr>
+<p dir="auto">fzf is a general-purpose command-line fuzzy finder and an interactive terminal toolkit.</p>
+<p dir="auto"><a target="_blank" rel="noopener noreferrer nofollow" href="https://raw.githubusercontent.com/junegunn/i/master/fzf-preview.png"><img src="https://raw.githubusercontent.com/junegunn/i/master/fzf-preview.png" width="640" style="max-width: 100%;"></a></p>
+<p dir="auto">Whether you're selecting files, browsing command history, previewing data,
+navigating complex datasets with fuzzy matching, or creating custom menus and
+workflows, fzf provides the building blocks to turn shell scripts into rich
+terminal applications.</p>
+<div class="markdown-heading" dir="auto"><h2 class="heading-element" dir="auto">Highlights</h2><a id="user-content-highlights" class="anchor" aria-label="Permalink: Highlights" href="#highlights"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<ul dir="auto">
+<li><strong>Portable</strong> // Distributed as a single binary for easy installation</li>
+<li><strong>Fast</strong> // Optimized to process millions of items in milliseconds</li>
+<li><strong>Programmable</strong> // Event-driven architecture for building custom terminal interfaces and workflows</li>
+<li><strong>Batteries-included</strong> // Comes with integrations for Bash, Zsh, Fish, Nushell, Vim, and Neovim</li>
+</ul>
+<div class="markdown-heading" dir="auto"><h2 class="heading-element" dir="auto">Table of Contents</h2><a id="user-content-table-of-contents" class="anchor" aria-label="Permalink: Table of Contents" href="#table-of-contents"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+
+<ul dir="auto">
+<li><a href="#installation">Installation</a>
+<ul dir="auto">
+<li><a href="#using-homebrew">Using Homebrew</a></li>
+<li><a href="#using-mise">Using Mise</a></li>
+<li><a href="#linux-packages">Linux packages</a></li>
+<li><a href="#windows-packages">Windows packages</a></li>
+<li><a href="#using-git">Using git</a></li>
+<li><a href="#binary-releases">Binary releases</a></li>
+<li><a href="#setting-up-shell-integration">Setting up shell integration</a></li>
+<li><a href="#vimneovim-plugin">Vim/Neovim plugin</a></li>
+</ul>
+</li>
+<li><a href="#upgrading-fzf">Upgrading fzf</a></li>
+<li><a href="#building-fzf">Building fzf</a></li>
+<li><a href="#usage">Usage</a>
+<ul dir="auto">
+<li><a href="#using-the-finder">Using the finder</a></li>
+<li><a href="#display-modes">Display modes</a>
+<ul dir="auto">
+<li><a href="#--height-mode"><code>--height</code> mode</a></li>
+<li><a href="#--popup-mode"><code>--popup</code> mode</a></li>
+</ul>
+</li>
+<li><a href="#search-syntax">Search syntax</a></li>
+<li><a href="#environment-variables">Environment variables</a></li>
+<li><a href="#customizing-the-look">Customizing the look</a></li>
+<li><a href="#options">Options</a></li>
+<li><a href="#demo">Demo</a></li>
+</ul>
+</li>
+<li><a href="#examples">Examples</a></li>
+<li><a href="#key-bindings-for-command-line">Key bindings for command-line</a></li>
+<li><a href="#fuzzy-completion">Fuzzy completion</a>
+<ul dir="auto">
+<li><a href="#files-and-directories">Files and directories</a></li>
+<li><a href="#process-ids">Process IDs</a></li>
+<li><a href="#host-names">Host names</a></li>
+<li><a href="#environment-variables--aliases">Environment variables / Aliases</a></li>
+<li><a href="#customizing-fuzzy-completion-for-bash-and-zsh">Customizing fuzzy completion for bash and zsh</a>
+<ul dir="auto">
+<li><a href="#customizing-fzf-options-for-completion">Customizing fzf options for completion</a></li>
+<li><a href="#customizing-completion-source-for-paths-and-directories">Customizing completion source for paths and directories</a></li>
+<li><a href="#supported-commands-bash">Supported commands (bash)</a></li>
+<li><a href="#custom-fuzzy-completion">Custom fuzzy completion</a></li>
+</ul>
+</li>
+<li><a href="#fuzzy-completion-for-fish">Fuzzy completion for fish</a></li>
+<li><a href="#fuzzy-completion-for-nushell">Fuzzy completion for Nushell</a></li>
+</ul>
+</li>
+<li><a href="#vim-plugin">Vim plugin</a></li>
+<li><a href="#advanced-topics">Advanced topics</a>
+<ul dir="auto">
+<li><a href="#customizing-for-different-types-of-input">Customizing for different types of input</a></li>
+<li><a href="#performance">Performance</a></li>
+<li><a href="#executing-external-programs">Executing external programs</a></li>
+<li><a href="#turning-into-a-different-process">Turning into a different process</a></li>
+<li><a href="#reloading-the-candidate-list">Reloading the candidate list</a>
+<ul dir="auto">
+<li><a href="#1-update-the-list-of-processes-by-pressing-ctrl-r">1. Update the list of processes by pressing CTRL-R</a></li>
+<li><a href="#2-switch-between-sources-by-pressing-ctrl-d-or-ctrl-f">2. Switch between sources by pressing CTRL-D or CTRL-F</a></li>
+<li><a href="#3-interactive-ripgrep-integration">3. Interactive ripgrep integration</a></li>
+</ul>
+</li>
+<li><a href="#preview-window">Preview window</a></li>
+<li><a href="#previewing-an-image">Previewing an image</a></li>
+</ul>
+</li>
+<li><a href="#tips">Tips</a>
+<ul dir="auto">
+<li><a href="#respecting-gitignore">Respecting <code>.gitignore</code></a></li>
+<li><a href="#fish-shell">Fish shell</a></li>
+<li><a href="#fzf-theme-playground">fzf Theme Playground</a></li>
+</ul>
+</li>
+<li><a href="#related-projects">Related projects</a></li>
+<li><a href="#license">License</a></li>
+<li><a href="#goods">Goods</a></li>
+<li><a href="#sponsors-heart">Sponsors ❤️</a></li>
+</ul>
+
+<div class="markdown-heading" dir="auto"><h2 class="heading-element" dir="auto">Installation</h2><a id="user-content-installation" class="anchor" aria-label="Permalink: Installation" href="#installation"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">Using Homebrew</h3><a id="user-content-using-homebrew" class="anchor" aria-label="Permalink: Using Homebrew" href="#using-homebrew"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">You can use <a href="https://brew.sh/" rel="nofollow">Homebrew</a> (on macOS or Linux) to install fzf.</p>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="brew install fzf"><pre>brew install fzf</pre></div>
+<div class="markdown-alert markdown-alert-important" dir="auto"><p class="markdown-alert-title" dir="auto"><svg data-component="Octicon" class="octicon octicon-report mr-2" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="M0 1.75C0 .784.784 0 1.75 0h12.5C15.216 0 16 .784 16 1.75v9.5A1.75 1.75 0 0 1 14.25 13H8.06l-2.573 2.573A1.458 1.458 0 0 1 3 14.543V13H1.75A1.75 1.75 0 0 1 0 11.25Zm1.75-.25a.25.25 0 0 0-.25.25v9.5c0 .138.112.25.25.25h2a.75.75 0 0 1 .75.75v2.19l2.72-2.72a.749.749 0 0 1 .53-.22h6.5a.25.25 0 0 0 .25-.25v-9.5a.25.25 0 0 0-.25-.25Zm7 2.25v2.5a.75.75 0 0 1-1.5 0v-2.5a.75.75 0 0 1 1.5 0ZM9 9a1 1 0 1 1-2 0 1 1 0 0 1 2 0Z"></path></svg>Important</p><p dir="auto">To set up shell integration (key bindings and fuzzy completion),
+see <a href="#setting-up-shell-integration">the instructions below</a>.</p>
+</div>
+<p dir="auto">fzf is also available <a href="https://github.com/macports/macports-ports/blob/master/sysutils/fzf/Portfile">via MacPorts</a>: <code>sudo port install fzf</code></p>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">Using Mise</h3><a id="user-content-using-mise" class="anchor" aria-label="Permalink: Using Mise" href="#using-mise"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">You can use <a href="https://github.com/jdx/mise">mise</a> to install fzf.</p>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="mise use -g fzf@latest"><pre>mise use -g fzf@latest</pre></div>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">Linux packages</h3><a id="user-content-linux-packages" class="anchor" aria-label="Permalink: Linux packages" href="#linux-packages"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<markdown-accessiblity-table><table>
+<thead>
+<tr>
+<th>Package Manager</th>
+<th>Linux Distribution</th>
+<th>Command</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>APK</td>
+<td>Alpine Linux</td>
+<td><code>sudo apk add fzf</code></td>
+</tr>
+<tr>
+<td>APT</td>
+<td>Debian 9+/Ubuntu 19.10+</td>
+<td><code>sudo apt install fzf</code></td>
+</tr>
+<tr>
+<td>Conda</td>
+<td></td>
+<td><code>conda install -c conda-forge fzf</code></td>
+</tr>
+<tr>
+<td>DNF</td>
+<td>Fedora</td>
+<td><code>sudo dnf install fzf</code></td>
+</tr>
+<tr>
+<td>Nix</td>
+<td>NixOS, etc.</td>
+<td><code>nix-env -iA nixpkgs.fzf</code></td>
+</tr>
+<tr>
+<td>Pacman</td>
+<td>Arch Linux</td>
+<td><code>sudo pacman -S fzf</code></td>
+</tr>
+<tr>
+<td>pkg</td>
+<td>FreeBSD</td>
+<td><code>pkg install fzf</code></td>
+</tr>
+<tr>
+<td>pkgin</td>
+<td>NetBSD</td>
+<td><code>pkgin install fzf</code></td>
+</tr>
+<tr>
+<td>pkg_add</td>
+<td>OpenBSD</td>
+<td><code>pkg_add fzf</code></td>
+</tr>
+<tr>
+<td>Portage</td>
+<td>Gentoo</td>
+<td><code>emerge --ask app-shells/fzf</code></td>
+</tr>
+<tr>
+<td>Spack</td>
+<td></td>
+<td><code>spack install fzf</code></td>
+</tr>
+<tr>
+<td>XBPS</td>
+<td>Void Linux</td>
+<td><code>sudo xbps-install -S fzf</code></td>
+</tr>
+<tr>
+<td>Zypper</td>
+<td>openSUSE</td>
+<td><code>sudo zypper install fzf</code></td>
+</tr>
+</tbody>
+</table></markdown-accessiblity-table>
+<div class="markdown-alert markdown-alert-important" dir="auto"><p class="markdown-alert-title" dir="auto"><svg data-component="Octicon" class="octicon octicon-report mr-2" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="M0 1.75C0 .784.784 0 1.75 0h12.5C15.216 0 16 .784 16 1.75v9.5A1.75 1.75 0 0 1 14.25 13H8.06l-2.573 2.573A1.458 1.458 0 0 1 3 14.543V13H1.75A1.75 1.75 0 0 1 0 11.25Zm1.75-.25a.25.25 0 0 0-.25.25v9.5c0 .138.112.25.25.25h2a.75.75 0 0 1 .75.75v2.19l2.72-2.72a.749.749 0 0 1 .53-.22h6.5a.25.25 0 0 0 .25-.25v-9.5a.25.25 0 0 0-.25-.25Zm7 2.25v2.5a.75.75 0 0 1-1.5 0v-2.5a.75.75 0 0 1 1.5 0ZM9 9a1 1 0 1 1-2 0 1 1 0 0 1 2 0Z"></path></svg>Important</p><p dir="auto">To set up shell integration (key bindings and fuzzy completion),
+see <a href="#setting-up-shell-integration">the instructions below</a>.</p>
+</div>
+<p dir="auto"><a href="https://repology.org/project/fzf/versions" rel="nofollow"><img src="https://camo.githubusercontent.com/1d7f993c69d5f449c00998cfb1a0aab4a68247742d6ab434b9504b2f86357e7f/68747470733a2f2f7265706f6c6f67792e6f72672f62616467652f766572746963616c2d616c6c7265706f732f667a662e7376673f636f6c756d6e733d33" alt="Packaging status" data-canonical-src="https://repology.org/badge/vertical-allrepos/fzf.svg?columns=3" style="max-width: 100%;"></a></p>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">Windows packages</h3><a id="user-content-windows-packages" class="anchor" aria-label="Permalink: Windows packages" href="#windows-packages"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">On Windows, fzf is available via <a href="https://chocolatey.org/packages/fzf" rel="nofollow">Chocolatey</a>, <a href="https://github.com/ScoopInstaller/Main/blob/master/bucket/fzf.json">Scoop</a>,
+<a href="https://github.com/microsoft/winget-pkgs/tree/master/manifests/j/junegunn/fzf">Winget</a>, and <a href="https://packages.msys2.org/base/mingw-w64-fzf" rel="nofollow">MSYS2</a>:</p>
+<markdown-accessiblity-table><table>
+<thead>
+<tr>
+<th>Package manager</th>
+<th>Command</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Chocolatey</td>
+<td><code>choco install fzf</code></td>
+</tr>
+<tr>
+<td>Scoop</td>
+<td><code>scoop install fzf</code></td>
+</tr>
+<tr>
+<td>Winget</td>
+<td><code>winget install fzf</code></td>
+</tr>
+<tr>
+<td>MSYS2 (pacman)</td>
+<td><code>pacman -S $MINGW_PACKAGE_PREFIX-fzf</code></td>
+</tr>
+</tbody>
+</table></markdown-accessiblity-table>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">Using git</h3><a id="user-content-using-git" class="anchor" aria-label="Permalink: Using git" href="#using-git"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">Alternatively, you can "git clone" this repository to any directory and run
+<a href="https://github.com/junegunn/fzf/blob/master/install">install</a> script.</p>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="git clone --depth 1 https://github.com/junegunn/fzf.git ~/.fzf
+~/.fzf/install"><pre>git clone --depth 1 https://github.com/junegunn/fzf.git <span class="pl-k">~</span>/.fzf
+<span class="pl-k">~</span>/.fzf/install</pre></div>
+<p dir="auto">The install script will add lines to your shell configuration file to modify
+<code>$PATH</code> and set up shell integration.</p>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">Binary releases</h3><a id="user-content-binary-releases" class="anchor" aria-label="Permalink: Binary releases" href="#binary-releases"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">You can download the official fzf binaries from the releases page.</p>
+<ul dir="auto">
+<li><a href="https://github.com/junegunn/fzf/releases">https://github.com/junegunn/fzf/releases</a></li>
+</ul>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">Setting up shell integration</h3><a id="user-content-setting-up-shell-integration" class="anchor" aria-label="Permalink: Setting up shell integration" href="#setting-up-shell-integration"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">Add the following line to your shell configuration file.</p>
+<ul dir="auto">
+<li>bash
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="# Set up fzf key bindings and fuzzy completion
+eval &quot;$(fzf --bash)&quot;"><pre><span class="pl-c"><span class="pl-c">#</span> Set up fzf key bindings and fuzzy completion</span>
+<span class="pl-c1">eval</span> <span class="pl-s"><span class="pl-pds">"</span><span class="pl-s"><span class="pl-pds">$(</span>fzf --bash<span class="pl-pds">)</span></span><span class="pl-pds">"</span></span></pre></div>
+</li>
+<li>zsh
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="# Set up fzf key bindings and fuzzy completion
+source &lt;(fzf --zsh)"><pre><span class="pl-c"><span class="pl-c">#</span> Set up fzf key bindings and fuzzy completion</span>
+<span class="pl-c1">source</span> <span class="pl-s"><span class="pl-pds">&lt;(</span>fzf --zsh<span class="pl-pds">)</span></span></pre></div>
+</li>
+<li>fish
+<div class="highlight highlight-source-fish notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="# Set up fzf key bindings
+fzf --fish | source"><pre><span class="pl-c"><span class="pl-c">#</span> Set up fzf key bindings</span>
+fzf <span class="pl-s">--fish</span> <span class="pl-k">|</span> source</pre></div>
+</li>
+<li>Nushell -- Nushell does not support piping into <code>source</code>, so the install
+script generates a file in the autoload directory. If you didn't use the
+install script, you can manually set it up:
+<div class="highlight highlight-source-nu notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="# Generate the integration script
+mkdir ($nu.default-config-dir | path join &quot;autoload&quot;)
+fzf --nushell | save -f ($nu.default-config-dir | path join &quot;autoload&quot; &quot;_fzf_integration.nu&quot;)"><pre><span class="pl-c"><span class="pl-c">#</span> Generate the integration script</span>
+mkdir (<span class="pl-smi">$nu</span><span class="pl-k">.</span>default<span class="pl-k">-</span>config<span class="pl-k">-</span>dir <span class="pl-k">|</span> path join <span class="pl-s"><span class="pl-pds">"</span>autoload<span class="pl-pds">"</span></span>)
+fzf <span class="pl-k">--</span>nushell <span class="pl-k">|</span> save <span class="pl-k">-</span>f (<span class="pl-smi">$nu</span><span class="pl-k">.</span>default<span class="pl-k">-</span>config<span class="pl-k">-</span>dir <span class="pl-k">|</span> path join <span class="pl-s"><span class="pl-pds">"</span>autoload<span class="pl-pds">"</span></span> <span class="pl-s"><span class="pl-pds">"</span>_fzf_integration.nu<span class="pl-pds">"</span></span>)</pre></div>
+</li>
+</ul>
+<div class="markdown-alert markdown-alert-note" dir="auto"><p class="markdown-alert-title" dir="auto"><svg data-component="Octicon" class="octicon octicon-info mr-2" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8Zm8-6.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13ZM6.5 7.75A.75.75 0 0 1 7.25 7h1a.75.75 0 0 1 .75.75v2.75h.25a.75.75 0 0 1 0 1.5h-2a.75.75 0 0 1 0-1.5h.25v-2h-.25a.75.75 0 0 1-.75-.75ZM8 6a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z"></path></svg>Note</p><p dir="auto"><code>--bash</code>, <code>--zsh</code>, <code>--fish</code>, and <code>--nushell</code> options are only available in
+recent versions of fzf. If you have an older version of fzf, or want finer control, you can
+source individual script files in the <a href="/shell">/shell</a> directory. The
+location of the files may vary depending on the package manager you use.
+Please refer to the package documentation for more information.
+(e.g. <code>apt show fzf</code>)</p>
+</div>
+<div class="markdown-alert markdown-alert-tip" dir="auto"><p class="markdown-alert-title" dir="auto"><svg data-component="Octicon" class="octicon octicon-light-bulb mr-2" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="M8 1.5c-2.363 0-4 1.69-4 3.75 0 .984.424 1.625.984 2.304l.214.253c.223.264.47.556.673.848.284.411.537.896.621 1.49a.75.75 0 0 1-1.484.211c-.04-.282-.163-.547-.37-.847a8.456 8.456 0 0 0-.542-.68c-.084-.1-.173-.205-.268-.32C3.201 7.75 2.5 6.766 2.5 5.25 2.5 2.31 4.863 0 8 0s5.5 2.31 5.5 5.25c0 1.516-.701 2.5-1.328 3.259-.095.115-.184.22-.268.319-.207.245-.383.453-.541.681-.208.3-.33.565-.37.847a.751.751 0 0 1-1.485-.212c.084-.593.337-1.078.621-1.489.203-.292.45-.584.673-.848.075-.088.147-.173.213-.253.561-.679.985-1.32.985-2.304 0-2.06-1.637-3.75-4-3.75ZM5.75 12h4.5a.75.75 0 0 1 0 1.5h-4.5a.75.75 0 0 1 0-1.5ZM6 15.25a.75.75 0 0 1 .75-.75h2.5a.75.75 0 0 1 0 1.5h-2.5a.75.75 0 0 1-.75-.75Z"></path></svg>Tip</p><p dir="auto">You can disable CTRL-T, CTRL-R, or ALT-C bindings by setting the
+corresponding <code>*_COMMAND</code> variable to an empty string when sourcing the
+script. For example, to disable CTRL-R and ALT-C:</p>
+<ul dir="auto">
+<li>bash: <code>FZF_CTRL_R_COMMAND= FZF_ALT_C_COMMAND= eval "$(fzf --bash)"</code></li>
+<li>zsh: <code>FZF_CTRL_R_COMMAND= FZF_ALT_C_COMMAND= source &lt;(fzf --zsh)</code></li>
+<li>fish: <code>fzf --fish | FZF_CTRL_R_COMMAND= FZF_ALT_C_COMMAND= source</code></li>
+<li>nushell: add to your <code>env.nu</code>:
+<code>$env.FZF_CTRL_R_COMMAND = ""; $env.FZF_ALT_C_COMMAND = ""</code></li>
+</ul>
+<p dir="auto">Setting the variables after sourcing the script will have no effect.</p>
+</div>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">Vim/Neovim plugin</h3><a id="user-content-vimneovim-plugin" class="anchor" aria-label="Permalink: Vim/Neovim plugin" href="#vimneovim-plugin"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">If you use <a href="https://github.com/junegunn/vim-plug">vim-plug</a>, add this to
+your Vim configuration file:</p>
+<div class="highlight highlight-source-viml notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="Plug 'junegunn/fzf', { 'do': { -&gt; fzf#install() } }
+Plug 'junegunn/fzf.vim'"><pre>Plug <span class="pl-s"><span class="pl-pds">'</span>junegunn/fzf<span class="pl-pds">'</span></span>, { <span class="pl-s"><span class="pl-pds">'</span>do<span class="pl-pds">'</span></span>: { <span class="pl-k">-</span>&gt; <span class="pl-en">fzf#install</span>() } }
+Plug <span class="pl-s"><span class="pl-pds">'</span>junegunn/fzf.vim<span class="pl-pds">'</span></span></pre></div>
+<ul dir="auto">
+<li><code>junegunn/fzf</code> provides the basic library functions
+<ul dir="auto">
+<li><code>fzf#install()</code> makes sure that you have the latest binary</li>
+</ul>
+</li>
+<li><code>junegunn/fzf.vim</code> is <a href="https://github.com/junegunn/fzf.vim">a separate project</a>
+that provides a variety of useful commands</li>
+</ul>
+<p dir="auto">To learn more about the Vim integration, see <a href="README-VIM.md">README-VIM.md</a>.</p>
+<div class="markdown-alert markdown-alert-tip" dir="auto"><p class="markdown-alert-title" dir="auto"><svg data-component="Octicon" class="octicon octicon-light-bulb mr-2" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="M8 1.5c-2.363 0-4 1.69-4 3.75 0 .984.424 1.625.984 2.304l.214.253c.223.264.47.556.673.848.284.411.537.896.621 1.49a.75.75 0 0 1-1.484.211c-.04-.282-.163-.547-.37-.847a8.456 8.456 0 0 0-.542-.68c-.084-.1-.173-.205-.268-.32C3.201 7.75 2.5 6.766 2.5 5.25 2.5 2.31 4.863 0 8 0s5.5 2.31 5.5 5.25c0 1.516-.701 2.5-1.328 3.259-.095.115-.184.22-.268.319-.207.245-.383.453-.541.681-.208.3-.33.565-.37.847a.751.751 0 0 1-1.485-.212c.084-.593.337-1.078.621-1.489.203-.292.45-.584.673-.848.075-.088.147-.173.213-.253.561-.679.985-1.32.985-2.304 0-2.06-1.637-3.75-4-3.75ZM5.75 12h4.5a.75.75 0 0 1 0 1.5h-4.5a.75.75 0 0 1 0-1.5ZM6 15.25a.75.75 0 0 1 .75-.75h2.5a.75.75 0 0 1 0 1.5h-2.5a.75.75 0 0 1-.75-.75Z"></path></svg>Tip</p><p dir="auto">If you use Neovim and prefer Lua-based plugins, check out
+<a href="https://github.com/ibhagwan/fzf-lua">fzf-lua</a>.</p>
+</div>
+<div class="markdown-heading" dir="auto"><h2 class="heading-element" dir="auto">Upgrading fzf</h2><a id="user-content-upgrading-fzf" class="anchor" aria-label="Permalink: Upgrading fzf" href="#upgrading-fzf"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">fzf is being actively developed, and you might want to upgrade it once in a
+while. Please follow the instruction below depending on the installation
+method used.</p>
+<ul dir="auto">
+<li>git: <code>cd ~/.fzf &amp;&amp; git pull &amp;&amp; ./install</code></li>
+<li>brew: <code>brew update; brew upgrade fzf</code></li>
+<li>macports: <code>sudo port upgrade fzf</code></li>
+<li>chocolatey: <code>choco upgrade fzf</code></li>
+<li>vim-plug: <code>:PlugUpdate fzf</code></li>
+</ul>
+<div class="markdown-heading" dir="auto"><h2 class="heading-element" dir="auto">Building fzf</h2><a id="user-content-building-fzf" class="anchor" aria-label="Permalink: Building fzf" href="#building-fzf"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">See <a href="BUILD.md">BUILD.md</a>.</p>
+<div class="markdown-heading" dir="auto"><h2 class="heading-element" dir="auto">Usage</h2><a id="user-content-usage" class="anchor" aria-label="Permalink: Usage" href="#usage"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">fzf will launch interactive finder, read the list from STDIN, and write the
+selected item to STDOUT.</p>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="find * -type f | fzf &gt; selected"><pre>find <span class="pl-k">*</span> -type f <span class="pl-k">|</span> fzf <span class="pl-k">&gt;</span> selected</pre></div>
+<p dir="auto">Without STDIN pipe, fzf will traverse the file system under the current
+directory to get the list of files.</p>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="vim $(fzf)"><pre>vim <span class="pl-s"><span class="pl-pds">$(</span>fzf<span class="pl-pds">)</span></span></pre></div>
+<div class="markdown-alert markdown-alert-note" dir="auto"><p class="markdown-alert-title" dir="auto"><svg data-component="Octicon" class="octicon octicon-info mr-2" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8Zm8-6.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13ZM6.5 7.75A.75.75 0 0 1 7.25 7h1a.75.75 0 0 1 .75.75v2.75h.25a.75.75 0 0 1 0 1.5h-2a.75.75 0 0 1 0-1.5h.25v-2h-.25a.75.75 0 0 1-.75-.75ZM8 6a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z"></path></svg>Note</p><p dir="auto">You can override the default behavior</p>
+<ul dir="auto">
+<li>Either by setting <code>$FZF_DEFAULT_COMMAND</code> to a command that generates the desired list</li>
+<li>Or by setting <code>--walker</code>, <code>--walker-root</code>, and <code>--walker-skip</code> options in <code>$FZF_DEFAULT_OPTS</code></li>
+</ul>
+</div>
+<div class="markdown-alert markdown-alert-warning" dir="auto"><p class="markdown-alert-title" dir="auto"><svg data-component="Octicon" class="octicon octicon-alert mr-2" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="M6.457 1.047c.659-1.234 2.427-1.234 3.086 0l6.082 11.378A1.75 1.75 0 0 1 14.082 15H1.918a1.75 1.75 0 0 1-1.543-2.575Zm1.763.707a.25.25 0 0 0-.44 0L1.698 13.132a.25.25 0 0 0 .22.368h12.164a.25.25 0 0 0 .22-.368Zm.53 3.996v2.5a.75.75 0 0 1-1.5 0v-2.5a.75.75 0 0 1 1.5 0ZM9 11a1 1 0 1 1-2 0 1 1 0 0 1 2 0Z"></path></svg>Warning</p><p dir="auto">A more robust solution would be to use <code>xargs</code> but we've presented
+the above as it's easier to grasp</p>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="fzf --print0 | xargs -0 -o vim"><pre>fzf --print0 <span class="pl-k">|</span> xargs -0 -o vim</pre></div>
+</div>
+<div class="markdown-alert markdown-alert-tip" dir="auto"><p class="markdown-alert-title" dir="auto"><svg data-component="Octicon" class="octicon octicon-light-bulb mr-2" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="M8 1.5c-2.363 0-4 1.69-4 3.75 0 .984.424 1.625.984 2.304l.214.253c.223.264.47.556.673.848.284.411.537.896.621 1.49a.75.75 0 0 1-1.484.211c-.04-.282-.163-.547-.37-.847a8.456 8.456 0 0 0-.542-.68c-.084-.1-.173-.205-.268-.32C3.201 7.75 2.5 6.766 2.5 5.25 2.5 2.31 4.863 0 8 0s5.5 2.31 5.5 5.25c0 1.516-.701 2.5-1.328 3.259-.095.115-.184.22-.268.319-.207.245-.383.453-.541.681-.208.3-.33.565-.37.847a.751.751 0 0 1-1.485-.212c.084-.593.337-1.078.621-1.489.203-.292.45-.584.673-.848.075-.088.147-.173.213-.253.561-.679.985-1.32.985-2.304 0-2.06-1.637-3.75-4-3.75ZM5.75 12h4.5a.75.75 0 0 1 0 1.5h-4.5a.75.75 0 0 1 0-1.5ZM6 15.25a.75.75 0 0 1 .75-.75h2.5a.75.75 0 0 1 0 1.5h-2.5a.75.75 0 0 1-.75-.75Z"></path></svg>Tip</p><p dir="auto">fzf also has the ability to turn itself into a different process.</p>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="fzf --bind 'enter:become(vim {})'"><pre>fzf --bind <span class="pl-s"><span class="pl-pds">'</span>enter:become(vim {})<span class="pl-pds">'</span></span></pre></div>
+<p dir="auto"><em>See <a href="#turning-into-a-different-process">Turning into a different process</a>
+for more information.</em></p>
+</div>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">Using the finder</h3><a id="user-content-using-the-finder" class="anchor" aria-label="Permalink: Using the finder" href="#using-the-finder"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<ul dir="auto">
+<li><code>CTRL-K</code> / <code>CTRL-J</code> (or <code>CTRL-P</code> / <code>CTRL-N</code>) to move cursor up and down</li>
+<li><code>Enter</code> key to select the item, <code>CTRL-C</code> / <code>CTRL-G</code> / <code>ESC</code> to exit</li>
+<li>On multi-select mode (<code>-m</code>), <code>TAB</code> and <code>Shift-TAB</code> to mark multiple items</li>
+<li>Emacs style key bindings</li>
+<li>Mouse: scroll, click, double-click; shift-click and shift-scroll on
+multi-select mode</li>
+</ul>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">Display modes</h3><a id="user-content-display-modes" class="anchor" aria-label="Permalink: Display modes" href="#display-modes"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">fzf by default runs in fullscreen mode, but there are other display modes.</p>
+<div class="markdown-heading" dir="auto"><h4 class="heading-element" dir="auto"><code>--height</code> mode</h4><a id="user-content---height-mode" class="anchor" aria-label="Permalink: --height mode" href="#--height-mode"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">With <code>--height HEIGHT[%]</code>, fzf will start below the cursor with the given height.</p>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="fzf --height 40%"><pre>fzf --height 40%</pre></div>
+<p dir="auto"><code>reverse</code> layout and <code>--border</code> goes well with this option.</p>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="fzf --height 40% --layout reverse --border"><pre>fzf --height 40% --layout reverse --border</pre></div>
+<p dir="auto">By prepending <code>~</code> to the height, you're setting the maximum height.</p>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="# Will take as few lines as possible to display the list
+seq 3 | fzf --height ~100%
+seq 3000 | fzf --height ~100%"><pre><span class="pl-c"><span class="pl-c">#</span> Will take as few lines as possible to display the list</span>
+seq 3 <span class="pl-k">|</span> fzf --height <span class="pl-k">~</span>100%
+seq 3000 <span class="pl-k">|</span> fzf --height <span class="pl-k">~</span>100%</pre></div>
+<p dir="auto">Height value can be a negative number.</p>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="# Screen height - 3
+fzf --height -3"><pre><span class="pl-c"><span class="pl-c">#</span> Screen height - 3</span>
+fzf --height -3</pre></div>
+<div class="markdown-heading" dir="auto"><h4 class="heading-element" dir="auto"><code>--popup</code> mode</h4><a id="user-content---popup-mode" class="anchor" aria-label="Permalink: --popup mode" href="#--popup-mode"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">With <code>--popup</code> option, fzf will start in a popup window
+(requires tmux 3.3+ or Zellij 0.44+).</p>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="# --popup [center|top|bottom|left|right][,SIZE[%]][,SIZE[%][,border-native]]
+
+fzf --popup center         # Center, 50% width and height
+fzf --popup 80%            # Center, 80% width and height
+fzf --popup 100%,50%       # Center, 100% width and 50% height
+fzf --popup left,40%       # Left, 40% width
+fzf --popup left,40%,90%   # Left, 40% width, 90% height
+fzf --popup top,40%        # Top, 40% height
+fzf --popup bottom,80%,40% # Bottom, 80% width, 40% height"><pre><span class="pl-c"><span class="pl-c">#</span> --popup [center|top|bottom|left|right][,SIZE[%]][,SIZE[%][,border-native]]</span>
+
+fzf --popup center         <span class="pl-c"><span class="pl-c">#</span> Center, 50% width and height</span>
+fzf --popup 80%            <span class="pl-c"><span class="pl-c">#</span> Center, 80% width and height</span>
+fzf --popup 100%,50%       <span class="pl-c"><span class="pl-c">#</span> Center, 100% width and 50% height</span>
+fzf --popup left,40%       <span class="pl-c"><span class="pl-c">#</span> Left, 40% width</span>
+fzf --popup left,40%,90%   <span class="pl-c"><span class="pl-c">#</span> Left, 40% width, 90% height</span>
+fzf --popup top,40%        <span class="pl-c"><span class="pl-c">#</span> Top, 40% height</span>
+fzf --popup bottom,80%,40% <span class="pl-c"><span class="pl-c">#</span> Bottom, 80% width, 40% height</span></pre></div>
+<p dir="auto"><code>--popup</code> is silently ignored when you're not on tmux or Zellij.</p>
+<div class="markdown-alert markdown-alert-note" dir="auto"><p class="markdown-alert-title" dir="auto"><svg data-component="Octicon" class="octicon octicon-info mr-2" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8Zm8-6.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13ZM6.5 7.75A.75.75 0 0 1 7.25 7h1a.75.75 0 0 1 .75.75v2.75h.25a.75.75 0 0 1 0 1.5h-2a.75.75 0 0 1 0-1.5h.25v-2h-.25a.75.75 0 0 1-.75-.75ZM8 6a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z"></path></svg>Note</p><p dir="auto">If you're stuck with an old version of tmux that doesn't support popup,
+or if you want to open fzf in a regular tmux pane, check out
+<a href="bin/fzf-tmux">fzf-tmux</a> script.</p>
+</div>
+<div class="markdown-alert markdown-alert-tip" dir="auto"><p class="markdown-alert-title" dir="auto"><svg data-component="Octicon" class="octicon octicon-light-bulb mr-2" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="M8 1.5c-2.363 0-4 1.69-4 3.75 0 .984.424 1.625.984 2.304l.214.253c.223.264.47.556.673.848.284.411.537.896.621 1.49a.75.75 0 0 1-1.484.211c-.04-.282-.163-.547-.37-.847a8.456 8.456 0 0 0-.542-.68c-.084-.1-.173-.205-.268-.32C3.201 7.75 2.5 6.766 2.5 5.25 2.5 2.31 4.863 0 8 0s5.5 2.31 5.5 5.25c0 1.516-.701 2.5-1.328 3.259-.095.115-.184.22-.268.319-.207.245-.383.453-.541.681-.208.3-.33.565-.37.847a.751.751 0 0 1-1.485-.212c.084-.593.337-1.078.621-1.489.203-.292.45-.584.673-.848.075-.088.147-.173.213-.253.561-.679.985-1.32.985-2.304 0-2.06-1.637-3.75-4-3.75ZM5.75 12h4.5a.75.75 0 0 1 0 1.5h-4.5a.75.75 0 0 1 0-1.5ZM6 15.25a.75.75 0 0 1 .75-.75h2.5a.75.75 0 0 1 0 1.5h-2.5a.75.75 0 0 1-.75-.75Z"></path></svg>Tip</p><p dir="auto">You can add these options to <code>$FZF_DEFAULT_OPTS</code> so that they're applied by
+default. For example,</p>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="# Open in a popup if on tmux or Zellij, otherwise use --height mode
+export FZF_DEFAULT_OPTS='--height 40% --popup bottom,40% --layout reverse --border top'"><pre><span class="pl-c"><span class="pl-c">#</span> Open in a popup if on tmux or Zellij, otherwise use --height mode</span>
+<span class="pl-k">export</span> FZF_DEFAULT_OPTS=<span class="pl-s"><span class="pl-pds">'</span>--height 40% --popup bottom,40% --layout reverse --border top<span class="pl-pds">'</span></span></pre></div>
+</div>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">Search syntax</h3><a id="user-content-search-syntax" class="anchor" aria-label="Permalink: Search syntax" href="#search-syntax"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">Unless otherwise specified, fzf starts in "extended-search mode" where you can
+type in multiple search terms delimited by spaces. e.g. <code>^music .mp3$ sbtrkt !fire</code></p>
+<markdown-accessiblity-table><table>
+<thead>
+<tr>
+<th>Token</th>
+<th>Match type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>sbtrkt</code></td>
+<td>fuzzy-match</td>
+<td>Items that match <code>sbtrkt</code></td>
+</tr>
+<tr>
+<td><code>'wild</code></td>
+<td>exact-match (quoted)</td>
+<td>Items that include <code>wild</code></td>
+</tr>
+<tr>
+<td><code>'wild'</code></td>
+<td>exact-boundary-match (quoted both ends)</td>
+<td>Items that include <code>wild</code> at word boundaries</td>
+</tr>
+<tr>
+<td><code>^music</code></td>
+<td>prefix-exact-match</td>
+<td>Items that start with <code>music</code></td>
+</tr>
+<tr>
+<td><code>.mp3$</code></td>
+<td>suffix-exact-match</td>
+<td>Items that end with <code>.mp3</code></td>
+</tr>
+<tr>
+<td><code>!fire</code></td>
+<td>inverse-exact-match</td>
+<td>Items that do not include <code>fire</code></td>
+</tr>
+<tr>
+<td><code>!^music</code></td>
+<td>inverse-prefix-exact-match</td>
+<td>Items that do not start with <code>music</code></td>
+</tr>
+<tr>
+<td><code>!.mp3$</code></td>
+<td>inverse-suffix-exact-match</td>
+<td>Items that do not end with <code>.mp3</code></td>
+</tr>
+</tbody>
+</table></markdown-accessiblity-table>
+<p dir="auto">If you don't prefer fuzzy matching and do not wish to "quote" every word,
+start fzf with <code>-e</code> or <code>--exact</code> option. Note that when  <code>--exact</code> is set,
+<code>'</code>-prefix "unquotes" the term.</p>
+<p dir="auto">A single bar character term acts as an OR operator. For example, the following
+query matches entries that start with <code>core</code> and end with either <code>go</code>, <code>rb</code>,
+or <code>py</code>.</p>
+<div class="snippet-clipboard-content notranslate position-relative overflow-auto" data-snippet-clipboard-copy-content="^core go$ | rb$ | py$"><pre class="notranslate"><code>^core go$ | rb$ | py$
+</code></pre></div>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">Environment variables</h3><a id="user-content-environment-variables" class="anchor" aria-label="Permalink: Environment variables" href="#environment-variables"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<ul dir="auto">
+<li><code>FZF_DEFAULT_COMMAND</code>
+<ul dir="auto">
+<li>Default command to use when input is tty</li>
+<li>e.g. <code>export FZF_DEFAULT_COMMAND='fd --type f'</code></li>
+</ul>
+</li>
+<li><code>FZF_DEFAULT_OPTS</code>
+<ul dir="auto">
+<li>Default options</li>
+<li>e.g. <code>export FZF_DEFAULT_OPTS="--layout=reverse --inline-info"</code></li>
+</ul>
+</li>
+<li><code>FZF_DEFAULT_OPTS_FILE</code>
+<ul dir="auto">
+<li>If you prefer to manage default options in a file, set this variable to
+point to the location of the file</li>
+<li>e.g. <code>export FZF_DEFAULT_OPTS_FILE=~/.fzfrc</code></li>
+</ul>
+</li>
+</ul>
+<div class="markdown-alert markdown-alert-warning" dir="auto"><p class="markdown-alert-title" dir="auto"><svg data-component="Octicon" class="octicon octicon-alert mr-2" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="M6.457 1.047c.659-1.234 2.427-1.234 3.086 0l6.082 11.378A1.75 1.75 0 0 1 14.082 15H1.918a1.75 1.75 0 0 1-1.543-2.575Zm1.763.707a.25.25 0 0 0-.44 0L1.698 13.132a.25.25 0 0 0 .22.368h12.164a.25.25 0 0 0 .22-.368Zm.53 3.996v2.5a.75.75 0 0 1-1.5 0v-2.5a.75.75 0 0 1 1.5 0ZM9 11a1 1 0 1 1-2 0 1 1 0 0 1 2 0Z"></path></svg>Warning</p><p dir="auto"><code>FZF_DEFAULT_COMMAND</code> is not used by shell integration due to the
+slight difference in requirements.</p>
+<ul dir="auto">
+<li><code>CTRL-T</code> runs <code>$FZF_CTRL_T_COMMAND</code> to get a list of files and directories</li>
+<li><code>ALT-C</code> runs <code>$FZF_ALT_C_COMMAND</code> to get a list of directories</li>
+<li><code>vim ~/**&lt;tab&gt;</code> runs <code>fzf_compgen_path()</code> with the prefix (<code>~/</code>) as the first argument</li>
+<li><code>cd foo**&lt;tab&gt;</code> runs <code>fzf_compgen_dir()</code> with the prefix (<code>foo</code>) as the first argument</li>
+</ul>
+<p dir="auto">The available options are described later in this document.</p>
+</div>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">Customizing the look</h3><a id="user-content-customizing-the-look" class="anchor" aria-label="Permalink: Customizing the look" href="#customizing-the-look"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">The user interface of fzf is fully customizable with a large number of
+configuration options. For a quick setup, you can start with one of the style
+presets -- <code>default</code>, <code>full</code>, or <code>minimal</code> -- using the <code>--style</code> option.</p>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="fzf --style full \
+    --preview 'fzf-preview.sh {}' --bind 'focus:transform-header:file --brief {}'"><pre>fzf --style full \
+    --preview <span class="pl-s"><span class="pl-pds">'</span>fzf-preview.sh {}<span class="pl-pds">'</span></span> --bind <span class="pl-s"><span class="pl-pds">'</span>focus:transform-header:file --brief {}<span class="pl-pds">'</span></span></pre></div>
+<markdown-accessiblity-table><table>
+<thead>
+<tr>
+<th align="left">Preset</th>
+<th align="left">Screenshot</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="left"><code>default</code></td>
+<td align="left"><a target="_blank" rel="noopener noreferrer nofollow" href="https://raw.githubusercontent.com/junegunn/i/master/fzf-style-default.png"><img src="https://raw.githubusercontent.com/junegunn/i/master/fzf-style-default.png" style="max-width: 100%;"></a></td>
+</tr>
+<tr>
+<td align="left"><code>full</code></td>
+<td align="left"><a target="_blank" rel="noopener noreferrer nofollow" href="https://raw.githubusercontent.com/junegunn/i/master/fzf-style-full.png"><img src="https://raw.githubusercontent.com/junegunn/i/master/fzf-style-full.png" style="max-width: 100%;"></a></td>
+</tr>
+<tr>
+<td align="left"><code>minimal</code></td>
+<td align="left"><a target="_blank" rel="noopener noreferrer nofollow" href="https://raw.githubusercontent.com/junegunn/i/master/fzf-style-minimal.png"><img src="https://raw.githubusercontent.com/junegunn/i/master/fzf-style-minimal.png" style="max-width: 100%;"></a></td>
+</tr>
+</tbody>
+</table></markdown-accessiblity-table>
+<p dir="auto">Here's an example based on the <code>full</code> preset:</p>
+<p dir="auto"><a target="_blank" rel="noopener noreferrer nofollow" href="https://raw.githubusercontent.com/junegunn/i/master/fzf-4-borders.png"><img src="https://raw.githubusercontent.com/junegunn/i/master/fzf-4-borders.png" style="max-width: 100%;"></a></p>
+<details><summary>Details</summary>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="git ls-files | fzf --style full \
+    --border --padding 1,2 \
+    --border-label ' Demo ' --input-label ' Input ' --header-label ' File Type ' \
+    --preview 'fzf-preview.sh {}' \
+    --bind 'result:transform-list-label:
+        if [[ -z $FZF_QUERY ]]; then
+          echo &quot; $FZF_MATCH_COUNT items &quot;
+        else
+          echo &quot; $FZF_MATCH_COUNT matches for [$FZF_QUERY] &quot;
+        fi
+        ' \
+    --bind 'focus:transform-preview-label:[[ -n {} ]] &amp;&amp; printf &quot; Previewing [%s] &quot; {}' \
+    --bind 'focus:+transform-header:file --brief {} || echo &quot;No file selected&quot;' \
+    --bind 'ctrl-r:change-list-label( Reloading the list )+reload(sleep 2; git ls-files)' \
+    --color 'border:#aaaaaa,label:#cccccc' \
+    --color 'preview-border:#9999cc,preview-label:#ccccff' \
+    --color 'list-border:#669966,list-label:#99cc99' \
+    --color 'input-border:#996666,input-label:#ffcccc' \
+    --color 'header-border:#6699cc,header-label:#99ccff'"><pre>git ls-files <span class="pl-k">|</span> fzf --style full \
+    --border --padding 1,2 \
+    --border-label <span class="pl-s"><span class="pl-pds">'</span> Demo <span class="pl-pds">'</span></span> --input-label <span class="pl-s"><span class="pl-pds">'</span> Input <span class="pl-pds">'</span></span> --header-label <span class="pl-s"><span class="pl-pds">'</span> File Type <span class="pl-pds">'</span></span> \
+    --preview <span class="pl-s"><span class="pl-pds">'</span>fzf-preview.sh {}<span class="pl-pds">'</span></span> \
+    --bind <span class="pl-s"><span class="pl-pds">'</span>result:transform-list-label:</span>
+<span class="pl-s">        if [[ -z $FZF_QUERY ]]; then</span>
+<span class="pl-s">          echo " $FZF_MATCH_COUNT items "</span>
+<span class="pl-s">        else</span>
+<span class="pl-s">          echo " $FZF_MATCH_COUNT matches for [$FZF_QUERY] "</span>
+<span class="pl-s">        fi</span>
+<span class="pl-s">        <span class="pl-pds">'</span></span> \
+    --bind <span class="pl-s"><span class="pl-pds">'</span>focus:transform-preview-label:[[ -n {} ]] &amp;&amp; printf " Previewing [%s] " {}<span class="pl-pds">'</span></span> \
+    --bind <span class="pl-s"><span class="pl-pds">'</span>focus:+transform-header:file --brief {} || echo "No file selected"<span class="pl-pds">'</span></span> \
+    --bind <span class="pl-s"><span class="pl-pds">'</span>ctrl-r:change-list-label( Reloading the list )+reload(sleep 2; git ls-files)<span class="pl-pds">'</span></span> \
+    --color <span class="pl-s"><span class="pl-pds">'</span>border:#aaaaaa,label:#cccccc<span class="pl-pds">'</span></span> \
+    --color <span class="pl-s"><span class="pl-pds">'</span>preview-border:#9999cc,preview-label:#ccccff<span class="pl-pds">'</span></span> \
+    --color <span class="pl-s"><span class="pl-pds">'</span>list-border:#669966,list-label:#99cc99<span class="pl-pds">'</span></span> \
+    --color <span class="pl-s"><span class="pl-pds">'</span>input-border:#996666,input-label:#ffcccc<span class="pl-pds">'</span></span> \
+    --color <span class="pl-s"><span class="pl-pds">'</span>header-border:#6699cc,header-label:#99ccff<span class="pl-pds">'</span></span></pre></div>
+</details>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">Options</h3><a id="user-content-options" class="anchor" aria-label="Permalink: Options" href="#options"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">See the man page (<code>fzf --man</code> or <code>man fzf</code>) for the full list of options.</p>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">Demo</h3><a id="user-content-demo" class="anchor" aria-label="Permalink: Demo" href="#demo"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">If you learn by watching videos, check out this screencast by <a href="https://github.com/samoshkin">@samoshkin</a> to explore <code>fzf</code> features.</p>
+<a title="fzf - command-line fuzzy finder" href="https://www.youtube.com/watch?v=qgG5Jhi_Els" rel="nofollow">
+  <img src="https://camo.githubusercontent.com/11a4c64f024cdab3aa6da22430f73bde48fa09e9c5ec368a89108332487894b4/68747470733a2f2f692e696d6775722e636f6d2f767447386f6c452e706e67" width="640" data-canonical-src="https://i.imgur.com/vtG8olE.png" style="max-width: 100%;">
+</a>
+<div class="markdown-heading" dir="auto"><h2 class="heading-element" dir="auto">Examples</h2><a id="user-content-examples" class="anchor" aria-label="Permalink: Examples" href="#examples"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<ul dir="auto">
+<li><a href="https://github.com/junegunn/fzf/wiki/examples">Wiki page of examples</a>
+<ul dir="auto">
+<li><em>Disclaimer: The examples on this page are maintained by the community
+and are not thoroughly tested</em></li>
+</ul>
+</li>
+<li><a href="https://github.com/junegunn/fzf/blob/master/ADVANCED.md">Advanced fzf examples</a></li>
+</ul>
+<div class="markdown-heading" dir="auto"><h2 class="heading-element" dir="auto">Key bindings for command-line</h2><a id="user-content-key-bindings-for-command-line" class="anchor" aria-label="Permalink: Key bindings for command-line" href="#key-bindings-for-command-line"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">By <a href="#setting-up-shell-integration">setting up shell integration</a>, you can use
+the following key bindings in bash, zsh, fish, and Nushell.</p>
+<ul dir="auto">
+<li><code>CTRL-T</code> - Paste the selected files and directories onto the command-line
+<ul dir="auto">
+<li>The list is generated using <code>--walker file,dir,follow,hidden</code> option
+<ul dir="auto">
+<li>You can override the behavior by setting <code>FZF_CTRL_T_COMMAND</code> to a custom command that generates the desired list</li>
+<li>Or you can set <code>--walker*</code> options in <code>FZF_CTRL_T_OPTS</code></li>
+</ul>
+</li>
+<li>Set <code>FZF_CTRL_T_OPTS</code> to pass additional options to fzf
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="# Preview file content using bat (https://github.com/sharkdp/bat)
+export FZF_CTRL_T_OPTS=&quot;
+  --walker-skip .git,node_modules,target
+  --preview 'bat -n --color=always {}'
+  --bind 'ctrl-/:change-preview-window(down|hidden|)'&quot;"><pre><span class="pl-c"><span class="pl-c">#</span> Preview file content using bat (https://github.com/sharkdp/bat)</span>
+<span class="pl-k">export</span> FZF_CTRL_T_OPTS=<span class="pl-s"><span class="pl-pds">"</span></span>
+<span class="pl-s">  --walker-skip .git,node_modules,target</span>
+<span class="pl-s">  --preview 'bat -n --color=always {}'</span>
+<span class="pl-s">  --bind 'ctrl-/:change-preview-window(down|hidden|)'<span class="pl-pds">"</span></span></pre></div>
+</li>
+<li>Can be disabled by setting <code>FZF_CTRL_T_COMMAND</code> to an empty string when
+sourcing the script</li>
+</ul>
+</li>
+<li><code>CTRL-R</code> - Paste the selected command from history onto the command-line.
+<ul dir="auto">
+<li>Select multiple commands with <code>TAB</code>.</li>
+<li>If you want to see the commands in chronological order, press <code>CTRL-R</code>
+again which toggles sorting by relevance</li>
+<li>Press <code>ALT-R</code> to toggle "raw" mode where you can see the surrounding items
+of a match. In this mode, you can press <code>CTRL-N</code> and <code>CTRL-P</code> to move
+between the matching items only.</li>
+<li>Press <code>CTRL-/</code> or <code>ALT-/</code> to toggle line wrapping</li>
+<li>Press <code>SHIFT-DELETE</code> to delete the selected commands (bash and fish)</li>
+<li>Fish shell only:
+<ul dir="auto">
+<li>Press <code>ALT-ENTER</code> to reformat and insert the selected commands</li>
+<li>Press <code>ALT-T</code> to cycle through command prefix (timestamp, date/time, none)</li>
+</ul>
+</li>
+<li>Set <code>FZF_CTRL_R_OPTS</code> to pass additional options to fzf
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="# CTRL-Y to copy the command into clipboard using pbcopy
+export FZF_CTRL_R_OPTS=&quot;
+  --bind 'ctrl-y:execute-silent(echo -n {2..} | pbcopy)+abort'
+  --color header:italic
+  --header 'Press CTRL-Y to copy command into clipboard'&quot;"><pre><span class="pl-c"><span class="pl-c">#</span> CTRL-Y to copy the command into clipboard using pbcopy</span>
+<span class="pl-k">export</span> FZF_CTRL_R_OPTS=<span class="pl-s"><span class="pl-pds">"</span></span>
+<span class="pl-s">  --bind 'ctrl-y:execute-silent(echo -n {2..} | pbcopy)+abort'</span>
+<span class="pl-s">  --color header:italic</span>
+<span class="pl-s">  --header 'Press CTRL-Y to copy command into clipboard'<span class="pl-pds">"</span></span></pre></div>
+<div class="highlight highlight-source-fish notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="# Fish shell: Set date/time as default prefix
+set -gx FZF_CTRL_R_OPTS &quot;--with-nth 1,3.. --bind 'alt-t:change-with-nth(2..|3..|1,3..)'&quot;
+
+# Or display no prefix by default
+set -gx FZF_CTRL_R_OPTS &quot;--with-nth 3.. --bind 'alt-t:change-with-nth(2..|1,3..|3..)'&quot;"><pre><span class="pl-c"><span class="pl-c">#</span> Fish shell: Set date/time as default prefix</span>
+<span class="pl-c1">set</span> <span class="pl-s">-gx</span> FZF_CTRL_R_OPTS <span class="pl-s"><span class="pl-pds">"</span>--with-nth 1,3.. --bind 'alt-t:change-with-nth(2..|3..|1,3..)'<span class="pl-pds">"</span></span>
+
+<span class="pl-c"><span class="pl-c">#</span> Or display no prefix by default</span>
+<span class="pl-c1">set</span> <span class="pl-s">-gx</span> FZF_CTRL_R_OPTS <span class="pl-s"><span class="pl-pds">"</span>--with-nth 3.. --bind 'alt-t:change-with-nth(2..|1,3..|3..)'<span class="pl-pds">"</span></span></pre></div>
+</li>
+<li>Can be disabled by setting <code>FZF_CTRL_R_COMMAND</code> to an empty string when
+sourcing the script</li>
+<li>Custom override via a non-empty <code>FZF_CTRL_R_COMMAND</code> is not yet supported and will emit a warning</li>
+</ul>
+</li>
+<li><code>ALT-C</code> - cd into the selected directory
+<ul dir="auto">
+<li>The list is generated using <code>--walker dir,follow,hidden</code> option</li>
+<li>Set <code>FZF_ALT_C_COMMAND</code> to override the default command
+<ul dir="auto">
+<li>Or you can set <code>--walker-*</code> options in <code>FZF_ALT_C_OPTS</code></li>
+</ul>
+</li>
+<li>Set <code>FZF_ALT_C_OPTS</code> to pass additional options to fzf
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="# Print tree structure in the preview window
+export FZF_ALT_C_OPTS=&quot;
+  --walker-skip .git,node_modules,target
+  --preview 'tree -C {}'&quot;"><pre><span class="pl-c"><span class="pl-c">#</span> Print tree structure in the preview window</span>
+<span class="pl-k">export</span> FZF_ALT_C_OPTS=<span class="pl-s"><span class="pl-pds">"</span></span>
+<span class="pl-s">  --walker-skip .git,node_modules,target</span>
+<span class="pl-s">  --preview 'tree -C {}'<span class="pl-pds">"</span></span></pre></div>
+</li>
+<li>Can be disabled by setting <code>FZF_ALT_C_COMMAND</code> to an empty string when
+sourcing the script</li>
+</ul>
+</li>
+</ul>
+<p dir="auto">Display modes for these bindings can be separately configured via
+<code>FZF_{CTRL_T,CTRL_R,ALT_C}_OPTS</code> or globally via <code>FZF_DEFAULT_OPTS</code>.
+(e.g. <code>FZF_CTRL_R_OPTS='--popup bottom,60% --height 60% --border top'</code>)</p>
+<p dir="auto">More tips can be found on <a href="https://github.com/junegunn/fzf/wiki/Configuring-shell-key-bindings">the wiki page</a>.</p>
+<div class="markdown-heading" dir="auto"><h2 class="heading-element" dir="auto">Fuzzy completion</h2><a id="user-content-fuzzy-completion" class="anchor" aria-label="Permalink: Fuzzy completion" href="#fuzzy-completion"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">Shell integration also provides fuzzy completion for bash, zsh, fish, and Nushell.</p>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">Files and directories</h3><a id="user-content-files-and-directories" class="anchor" aria-label="Permalink: Files and directories" href="#files-and-directories"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">Fuzzy completion for files and directories can be triggered if the word before
+the cursor ends with the trigger sequence, which is by default <code>**</code>.</p>
+<ul dir="auto">
+<li><code>COMMAND [DIRECTORY/][FUZZY_PATTERN]**&lt;TAB&gt;</code></li>
+</ul>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="# Files under the current directory
+# - You can select multiple items with TAB key
+vim **&lt;TAB&gt;
+
+# Files under parent directory
+vim ../**&lt;TAB&gt;
+
+# Files under parent directory that match `fzf`
+vim ../fzf**&lt;TAB&gt;
+
+# Files under your home directory
+vim ~/**&lt;TAB&gt;
+
+
+# Directories under current directory (single-selection)
+cd **&lt;TAB&gt;
+
+# Directories under ~/github that match `fzf`
+cd ~/github/fzf**&lt;TAB&gt;"><pre><span class="pl-c"><span class="pl-c">#</span> Files under the current directory</span>
+<span class="pl-c"><span class="pl-c">#</span> - You can select multiple items with TAB key</span>
+vim <span class="pl-k">**</span><span class="pl-k">&lt;</span>TAB<span class="pl-k">&gt;</span>
+
+<span class="pl-c"><span class="pl-c">#</span> Files under parent directory</span>
+vim ../<span class="pl-k">**</span><span class="pl-k">&lt;</span>TAB<span class="pl-k">&gt;</span>
+
+<span class="pl-c"><span class="pl-c">#</span> Files under parent directory that match `fzf`</span>
+vim ../fzf<span class="pl-k">**</span><span class="pl-k">&lt;</span>TAB<span class="pl-k">&gt;</span>
+
+<span class="pl-c"><span class="pl-c">#</span> Files under your home directory</span>
+vim <span class="pl-k">~</span>/<span class="pl-k">**</span><span class="pl-k">&lt;</span>TAB<span class="pl-k">&gt;</span>
+
+
+<span class="pl-c"><span class="pl-c">#</span> Directories under current directory (single-selection)</span>
+<span class="pl-c1">cd</span> <span class="pl-k">**</span><span class="pl-k">&lt;</span>TAB<span class="pl-k">&gt;</span>
+
+<span class="pl-c"><span class="pl-c">#</span> Directories under ~/github that match `fzf`</span>
+<span class="pl-c1">cd</span> <span class="pl-k">~</span>/github/fzf<span class="pl-k">**</span><span class="pl-k">&lt;</span>TAB<span class="pl-k">&gt;</span></pre></div>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">Process IDs</h3><a id="user-content-process-ids" class="anchor" aria-label="Permalink: Process IDs" href="#process-ids"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">Fuzzy completion for PIDs is provided for kill command.</p>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="# Can select multiple processes with &lt;TAB&gt; or &lt;Shift-TAB&gt; keys
+kill -9 **&lt;TAB&gt;"><pre><span class="pl-c"><span class="pl-c">#</span> Can select multiple processes with &lt;TAB&gt; or &lt;Shift-TAB&gt; keys</span>
+<span class="pl-c1">kill</span> -9 <span class="pl-k">**</span><span class="pl-k">&lt;</span>TAB<span class="pl-k">&gt;</span></pre></div>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">Host names</h3><a id="user-content-host-names" class="anchor" aria-label="Permalink: Host names" href="#host-names"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">For ssh command, fuzzy completion for hostnames is provided. The names are
+extracted from /etc/hosts and ~/.ssh/config.</p>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="ssh **&lt;TAB&gt;"><pre>ssh <span class="pl-k">**</span><span class="pl-k">&lt;</span>TAB<span class="pl-k">&gt;</span></pre></div>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">Environment variables / Aliases</h3><a id="user-content-environment-variables--aliases" class="anchor" aria-label="Permalink: Environment variables / Aliases" href="#environment-variables--aliases"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="# bash and zsh
+unset **&lt;TAB&gt;
+export **&lt;TAB&gt;
+unalias **&lt;TAB&gt;
+
+# fish
+set &lt;SHIFT-TAB&gt;"><pre><span class="pl-c"><span class="pl-c">#</span> bash and zsh</span>
+<span class="pl-c1">unset</span> <span class="pl-k">**</span><span class="pl-k">&lt;</span>TAB<span class="pl-k">&gt;</span>
+<span class="pl-k">export</span> <span class="pl-k">**</span><span class="pl-k">&lt;</span>TAB<span class="pl-k">&gt;</span>
+<span class="pl-c1">unalias</span> <span class="pl-k">**</span><span class="pl-k">&lt;</span>TAB<span class="pl-k">&gt;</span>
+
+<span class="pl-c"><span class="pl-c">#</span> fish</span>
+<span class="pl-c1">set</span> <span class="pl-k">&lt;</span>SHIFT-TAB<span class="pl-k">&gt;</span></pre></div>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">Customizing fuzzy completion for bash and zsh</h3><a id="user-content-customizing-fuzzy-completion-for-bash-and-zsh" class="anchor" aria-label="Permalink: Customizing fuzzy completion for bash and zsh" href="#customizing-fuzzy-completion-for-bash-and-zsh"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<div class="markdown-heading" dir="auto"><h4 class="heading-element" dir="auto">Customizing fzf options for completion</h4><a id="user-content-customizing-fzf-options-for-completion" class="anchor" aria-label="Permalink: Customizing fzf options for completion" href="#customizing-fzf-options-for-completion"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="# Use ~~ as the trigger sequence instead of the default **
+export FZF_COMPLETION_TRIGGER='~~'
+
+# Options to fzf command
+export FZF_COMPLETION_OPTS='--border --info=inline'
+
+# Options for path completion (e.g. vim **&lt;TAB&gt;)
+export FZF_COMPLETION_PATH_OPTS='--walker file,dir,follow,hidden'
+
+# Options for directory completion (e.g. cd **&lt;TAB&gt;)
+export FZF_COMPLETION_DIR_OPTS='--walker dir,follow'
+
+# Advanced customization of fzf options via _fzf_comprun function
+# - The first argument to the function is the name of the command.
+# - You should make sure to pass the rest of the arguments ($@) to fzf.
+_fzf_comprun() {
+  local command=$1
+  shift
+
+  case &quot;$command&quot; in
+    cd)           fzf --preview 'tree -C {} | head -200'   &quot;$@&quot; ;;
+    export|unset) fzf --preview &quot;eval 'echo \$'{}&quot;         &quot;$@&quot; ;;
+    ssh)          fzf --preview 'dig {}'                   &quot;$@&quot; ;;
+    *)            fzf --preview 'bat -n --color=always {}' &quot;$@&quot; ;;
+  esac
+}"><pre><span class="pl-c"><span class="pl-c">#</span> Use ~~ as the trigger sequence instead of the default **</span>
+<span class="pl-k">export</span> FZF_COMPLETION_TRIGGER=<span class="pl-s"><span class="pl-pds">'</span>~~<span class="pl-pds">'</span></span>
+
+<span class="pl-c"><span class="pl-c">#</span> Options to fzf command</span>
+<span class="pl-k">export</span> FZF_COMPLETION_OPTS=<span class="pl-s"><span class="pl-pds">'</span>--border --info=inline<span class="pl-pds">'</span></span>
+
+<span class="pl-c"><span class="pl-c">#</span> Options for path completion (e.g. vim **&lt;TAB&gt;)</span>
+<span class="pl-k">export</span> FZF_COMPLETION_PATH_OPTS=<span class="pl-s"><span class="pl-pds">'</span>--walker file,dir,follow,hidden<span class="pl-pds">'</span></span>
+
+<span class="pl-c"><span class="pl-c">#</span> Options for directory completion (e.g. cd **&lt;TAB&gt;)</span>
+<span class="pl-k">export</span> FZF_COMPLETION_DIR_OPTS=<span class="pl-s"><span class="pl-pds">'</span>--walker dir,follow<span class="pl-pds">'</span></span>
+
+<span class="pl-c"><span class="pl-c">#</span> Advanced customization of fzf options via _fzf_comprun function</span>
+<span class="pl-c"><span class="pl-c">#</span> - The first argument to the function is the name of the command.</span>
+<span class="pl-c"><span class="pl-c">#</span> - You should make sure to pass the rest of the arguments ($@) to fzf.</span>
+<span class="pl-en">_fzf_comprun</span>() {
+  <span class="pl-k">local</span> command=<span class="pl-smi">$1</span>
+  <span class="pl-c1">shift</span>
+
+  <span class="pl-k">case</span> <span class="pl-s"><span class="pl-pds">"</span><span class="pl-smi">$command</span><span class="pl-pds">"</span></span> <span class="pl-k">in</span>
+    cd)           fzf --preview <span class="pl-s"><span class="pl-pds">'</span>tree -C {} | head -200<span class="pl-pds">'</span></span>   <span class="pl-s"><span class="pl-pds">"</span><span class="pl-smi">$@</span><span class="pl-pds">"</span></span> ;;
+    export|unset) fzf --preview <span class="pl-s"><span class="pl-pds">"</span>eval 'echo <span class="pl-cce">\$</span>'{}<span class="pl-pds">"</span></span>         <span class="pl-s"><span class="pl-pds">"</span><span class="pl-smi">$@</span><span class="pl-pds">"</span></span> ;;
+    ssh)          fzf --preview <span class="pl-s"><span class="pl-pds">'</span>dig {}<span class="pl-pds">'</span></span>                   <span class="pl-s"><span class="pl-pds">"</span><span class="pl-smi">$@</span><span class="pl-pds">"</span></span> ;;
+    <span class="pl-k">*</span>)            fzf --preview <span class="pl-s"><span class="pl-pds">'</span>bat -n --color=always {}<span class="pl-pds">'</span></span> <span class="pl-s"><span class="pl-pds">"</span><span class="pl-smi">$@</span><span class="pl-pds">"</span></span> ;;
+  <span class="pl-k">esac</span>
+}</pre></div>
+<div class="markdown-heading" dir="auto"><h4 class="heading-element" dir="auto">Customizing completion source for paths and directories</h4><a id="user-content-customizing-completion-source-for-paths-and-directories" class="anchor" aria-label="Permalink: Customizing completion source for paths and directories" href="#customizing-completion-source-for-paths-and-directories"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="# Use fd (https://github.com/sharkdp/fd) for listing path candidates.
+# - The first argument to the function ($1) is the base path to start traversal
+# - See the source code (completion.{bash,zsh}) for the details.
+_fzf_compgen_path() {
+  fd --hidden --follow --exclude &quot;.git&quot; . &quot;$1&quot;
+}
+
+# Use fd to generate the list for directory completion
+_fzf_compgen_dir() {
+  fd --type d --hidden --follow --exclude &quot;.git&quot; . &quot;$1&quot;
+}"><pre><span class="pl-c"><span class="pl-c">#</span> Use fd (https://github.com/sharkdp/fd) for listing path candidates.</span>
+<span class="pl-c"><span class="pl-c">#</span> - The first argument to the function ($1) is the base path to start traversal</span>
+<span class="pl-c"><span class="pl-c">#</span> - See the source code (completion.{bash,zsh}) for the details.</span>
+<span class="pl-en">_fzf_compgen_path</span>() {
+  fd --hidden --follow --exclude <span class="pl-s"><span class="pl-pds">"</span>.git<span class="pl-pds">"</span></span> <span class="pl-c1">.</span> <span class="pl-s"><span class="pl-pds">"</span><span class="pl-smi">$1</span><span class="pl-pds">"</span></span>
+}
+
+<span class="pl-c"><span class="pl-c">#</span> Use fd to generate the list for directory completion</span>
+<span class="pl-en">_fzf_compgen_dir</span>() {
+  fd --type d --hidden --follow --exclude <span class="pl-s"><span class="pl-pds">"</span>.git<span class="pl-pds">"</span></span> <span class="pl-c1">.</span> <span class="pl-s"><span class="pl-pds">"</span><span class="pl-smi">$1</span><span class="pl-pds">"</span></span>
+}</pre></div>
+<div class="markdown-heading" dir="auto"><h4 class="heading-element" dir="auto">Supported commands (bash)</h4><a id="user-content-supported-commands-bash" class="anchor" aria-label="Permalink: Supported commands (bash)" href="#supported-commands-bash"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">On bash, fuzzy completion is enabled only for a predefined set of commands
+(<code>complete | grep _fzf</code> to see the list). But you can enable it for other
+commands as well by using <code>_fzf_setup_completion</code> helper function.</p>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="# usage: _fzf_setup_completion path|dir|var|alias|host COMMANDS...
+_fzf_setup_completion path ag git kubectl
+_fzf_setup_completion dir tree"><pre><span class="pl-c"><span class="pl-c">#</span> usage: _fzf_setup_completion path|dir|var|alias|host COMMANDS...</span>
+_fzf_setup_completion path ag git kubectl
+_fzf_setup_completion dir tree</pre></div>
+<div class="markdown-heading" dir="auto"><h4 class="heading-element" dir="auto">Custom fuzzy completion</h4><a id="user-content-custom-fuzzy-completion" class="anchor" aria-label="Permalink: Custom fuzzy completion" href="#custom-fuzzy-completion"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto"><em><strong>(Custom completion API is experimental and subject to change)</strong></em></p>
+<p dir="auto">For a command named <em>"COMMAND"</em>, define <code>_fzf_complete_COMMAND</code> function using
+<code>_fzf_complete</code> helper.</p>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="# Custom fuzzy completion for &quot;doge&quot; command
+#   e.g. doge **&lt;TAB&gt;
+_fzf_complete_doge() {
+  _fzf_complete --multi --reverse --prompt=&quot;doge&gt; &quot; -- &quot;$@&quot; &lt; &lt;(
+    echo very
+    echo wow
+    echo such
+    echo doge
+  )
+}"><pre><span class="pl-c"><span class="pl-c">#</span> Custom fuzzy completion for "doge" command</span>
+<span class="pl-c"><span class="pl-c">#</span>   e.g. doge **&lt;TAB&gt;</span>
+<span class="pl-en">_fzf_complete_doge</span>() {
+  _fzf_complete --multi --reverse --prompt=<span class="pl-s"><span class="pl-pds">"</span>doge&gt; <span class="pl-pds">"</span></span> -- <span class="pl-s"><span class="pl-pds">"</span><span class="pl-smi">$@</span><span class="pl-pds">"</span></span> <span class="pl-k">&lt;</span> <span class="pl-s"><span class="pl-pds">&lt;(</span></span>
+<span class="pl-s">    <span class="pl-c1">echo</span> very</span>
+<span class="pl-s">    <span class="pl-c1">echo</span> wow</span>
+<span class="pl-s">    <span class="pl-c1">echo</span> such</span>
+<span class="pl-s">    <span class="pl-c1">echo</span> doge</span>
+<span class="pl-s">  <span class="pl-pds">)</span></span>
+}</pre></div>
+<ul dir="auto">
+<li>The arguments before <code>--</code> are the options to fzf.</li>
+<li>After <code>--</code>, simply pass the original completion arguments unchanged (<code>"$@"</code>).</li>
+<li>Then, write a set of commands that generates the completion candidates and
+feed its output to the function using process substitution (<code>&lt; &lt;(...)</code>).</li>
+</ul>
+<p dir="auto">zsh will automatically pick up the function using the naming convention but in
+bash you have to manually associate the function with the command using the
+<code>complete</code> command.</p>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="[ -n &quot;$BASH&quot; ] &amp;&amp; complete -F _fzf_complete_doge -o default -o bashdefault doge"><pre>[ <span class="pl-k">-n</span> <span class="pl-s"><span class="pl-pds">"</span><span class="pl-smi">$BASH</span><span class="pl-pds">"</span></span> ] <span class="pl-k">&amp;&amp;</span> <span class="pl-c1">complete</span> -F _fzf_complete_doge -o default -o bashdefault doge</pre></div>
+<p dir="auto">If you need to post-process the output from fzf, define
+<code>_fzf_complete_COMMAND_post</code> as follows.</p>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="_fzf_complete_foo() {
+  _fzf_complete --multi --reverse --header-lines=3 -- &quot;$@&quot; &lt; &lt;(
+    ls -al
+  )
+}
+
+_fzf_complete_foo_post() {
+  awk '{print $NF}'
+}
+
+[ -n &quot;$BASH&quot; ] &amp;&amp; complete -F _fzf_complete_foo -o default -o bashdefault foo"><pre><span class="pl-en">_fzf_complete_foo</span>() {
+  _fzf_complete --multi --reverse --header-lines=3 -- <span class="pl-s"><span class="pl-pds">"</span><span class="pl-smi">$@</span><span class="pl-pds">"</span></span> <span class="pl-k">&lt;</span> <span class="pl-s"><span class="pl-pds">&lt;(</span></span>
+<span class="pl-s">    ls -al</span>
+<span class="pl-s">  <span class="pl-pds">)</span></span>
+}
+
+<span class="pl-en">_fzf_complete_foo_post</span>() {
+  awk <span class="pl-s"><span class="pl-pds">'</span>{print $NF}<span class="pl-pds">'</span></span>
+}
+
+[ <span class="pl-k">-n</span> <span class="pl-s"><span class="pl-pds">"</span><span class="pl-smi">$BASH</span><span class="pl-pds">"</span></span> ] <span class="pl-k">&amp;&amp;</span> <span class="pl-c1">complete</span> -F _fzf_complete_foo -o default -o bashdefault foo</pre></div>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">Fuzzy completion for fish</h3><a id="user-content-fuzzy-completion-for-fish" class="anchor" aria-label="Permalink: Fuzzy completion for fish" href="#fuzzy-completion-for-fish"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">Fuzzy completion for fish differs from bash and zsh in that:</p>
+<ul dir="auto">
+<li>It doesn't require a trigger sequence like <code>**</code>. Instead, if activates
+on <code>Shift-TAB</code> (replacing the native pager search mode), while <code>TAB</code> preserves
+fish's native completion behavior.</li>
+<li>It relies on fish's native completion system to populate the candidate list,
+rather than performing a recursive file system traversal. For recursive
+searching, use the <code>CTRL-T</code> binding instead.</li>
+<li>If the current command line token is a wildcard pattern, it performs search on
+the wildcard expansion path list (instead of the native behavior of inserting
+all the results in command line). Because the shell is used for the expansion,
+there is a limit in the number of results.</li>
+<li>The only supported configuration variables are <code>FZF_COMPLETION_OPTS</code> and
+<code>FZF_EXPANSION_OPS</code>.</li>
+<li>The function that is used by custom completion functions is named
+<code>fzf_complete</code>, which only accepts fzf options as arguments, and can be also
+called without any redirected input, to just modify fzf options while
+presenting the native completion results. For compatibility with other shells,
+a function named <code>_fzf_complete</code> is provided, that can accept <code> -- $argv</code> in
+its command line arguments, after fzf options.</li>
+</ul>
+<p dir="auto">For commands that are not covered by fish completions, it is better to create
+regular fish completion functions (which will work for both <code>TAB</code> and
+<code>Shift-TAB</code>), and create fzf completion functions only when needing to modify
+fzf options for a specific command or want different results for <code>Shift-TAB</code>:</p>
+<div class="highlight highlight-source-fish notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="# Customize git completion
+function _fzf_complete_git
+  # Show header text with active branch for all git completions
+  set -lx -- FZF_COMPLETION_OPTS --header=&quot;'&quot;(git branch --show-current 2&gt;/dev/null)&quot;'&quot;
+
+  # No other changes when less than 3 arguments, or when completing options
+  if not set -q argv[3]; or string match -q -- '-*' $argv[-1]
+    fzf_complete
+    return
+  end
+
+  # Check subcommand
+  switch $argv[2]
+    case checkout diff log show
+      # Set preview and display all branches and commits for subcommands: checkout, diff, log, show
+      begin
+        git branch --all --format='%(refname:short)'
+        git log --all --oneline --color=always
+      end | fzf_complete --no-multi --ansi --accept-nth=1 --query=$argv[-1] --preview='git show --color=always {1}'
+
+    case add rm mv
+      # Only set preview for subcommands: add, rm, mv
+      # Special characters in fish completion lists are escaped, so the r flag must be used.
+      fzf_complete --preview=&quot;git diff --color=always {r1}&quot;
+
+    case '*'
+      # No changes for other subcommands
+      fzf_complete
+  end
+end"><pre><span class="pl-c"><span class="pl-c">#</span> Customize git completion</span>
+<span class="pl-k">function</span> _fzf_complete_git
+  <span class="pl-c"><span class="pl-c">#</span> Show header text with active branch for all git completions</span>
+  <span class="pl-c1">set</span> <span class="pl-s">-lx</span> -- FZF_COMPLETION_OPTS <span class="pl-s">--header</span>=<span class="pl-s"><span class="pl-pds">"</span>'<span class="pl-pds">"</span></span>(git branch <span class="pl-s">--show-current</span> <span class="pl-k">2&gt;</span>/dev/null)<span class="pl-s"><span class="pl-pds">"</span>'<span class="pl-pds">"</span></span>
+
+  <span class="pl-c"><span class="pl-c">#</span> No other changes when less than 3 arguments, or when completing options</span>
+  <span class="pl-k">if</span> <span class="pl-c1">not</span> <span class="pl-c1">set</span> <span class="pl-s">-q</span> argv[3]; <span class="pl-c1">or</span> string match <span class="pl-s">-q</span> -- <span class="pl-s"><span class="pl-pds">'</span>-*<span class="pl-pds">'</span></span> <span class="pl-smi">$argv</span>[-1]
+    fzf_complete
+    <span class="pl-c1">return</span>
+  <span class="pl-k">end</span>
+
+  <span class="pl-c"><span class="pl-c">#</span> Check subcommand</span>
+  <span class="pl-k">switch</span> <span class="pl-smi">$argv</span>[2]
+    <span class="pl-c1">case</span> checkout <span class="pl-c1">diff</span> log show
+      <span class="pl-c"><span class="pl-c">#</span> Set preview and display all branches and commits for subcommands: checkout, diff, log, show</span>
+      <span class="pl-c1">begin</span>
+        git branch <span class="pl-s">--all</span> <span class="pl-s">--format</span>=<span class="pl-s"><span class="pl-pds">'</span>%(refname:short)<span class="pl-pds">'</span></span>
+        git log <span class="pl-s">--all</span> <span class="pl-s">--oneline</span> <span class="pl-s">--color</span>=always
+      <span class="pl-k">end</span> <span class="pl-k">|</span> fzf_complete <span class="pl-s">--no-multi</span> <span class="pl-s">--ansi</span> <span class="pl-s">--accept-nth</span>=1 <span class="pl-s">--query</span>=<span class="pl-smi">$argv</span>[-1] <span class="pl-s">--preview</span>=<span class="pl-s"><span class="pl-pds">'</span>git show --color=always {1}<span class="pl-pds">'</span></span>
+
+    <span class="pl-c1">case</span> add <span class="pl-c1">rm</span> <span class="pl-c1">mv</span>
+      <span class="pl-c"><span class="pl-c">#</span> Only set preview for subcommands: add, rm, mv</span>
+      <span class="pl-c"><span class="pl-c">#</span> Special characters in fish completion lists are escaped, so the r flag must be used.</span>
+      fzf_complete <span class="pl-s">--preview</span>=<span class="pl-s"><span class="pl-pds">"</span>git diff --color=always {r1}<span class="pl-pds">"</span></span>
+
+    <span class="pl-c1">case</span> <span class="pl-s"><span class="pl-pds">'</span>*<span class="pl-pds">'</span></span>
+      <span class="pl-c"><span class="pl-c">#</span> No changes for other subcommands</span>
+      fzf_complete
+  <span class="pl-k">end</span>
+<span class="pl-k">end</span></pre></div>
+<p dir="auto">Similar to bash and zsh, the output of fzf can be processed before inserted in
+command line, by defining a function named <code>_fzf_complete_COMMAND_post</code> or
+<code>_fzf_post_complete_COMMAND</code>:</p>
+<div class="highlight highlight-source-fish notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="function _fzf_complete_foo
+  ls -sh --zero --color=always | fzf_complete --read0 --print0 --ansi --no-multi-line --header-lines=1
+end
+
+function _fzf_post_complete_foo
+  while read -lz result
+    string escape -n -- $result | string trim -l -c '\ ' | string split -m 1 -f 2 ' '
+  end
+end"><pre><span class="pl-k">function</span> _fzf_complete_foo
+  <span class="pl-c1">ls</span> <span class="pl-s">-sh</span> <span class="pl-s">--zero</span> <span class="pl-s">--color</span>=always <span class="pl-k">|</span> fzf_complete <span class="pl-s">--read0</span> <span class="pl-s">--print0</span> <span class="pl-s">--ansi</span> <span class="pl-s">--no-multi-line</span> <span class="pl-s">--header-lines</span>=1
+<span class="pl-k">end</span>
+
+<span class="pl-k">function</span> _fzf_post_complete_foo
+  <span class="pl-k">while</span> <span class="pl-c1">read</span> <span class="pl-s">-lz</span> result
+    string escape <span class="pl-s">-n</span> -- <span class="pl-smi">$result</span> <span class="pl-k">|</span> string trim <span class="pl-s">-l</span> <span class="pl-s">-c</span> <span class="pl-s"><span class="pl-pds">'</span><span class="pl-cce">\</span> <span class="pl-pds">'</span></span> <span class="pl-k">|</span> string <span class="pl-c1">split</span> <span class="pl-s">-m</span> 1 <span class="pl-s">-f</span> 2 <span class="pl-s"><span class="pl-pds">'</span> <span class="pl-pds">'</span></span>
+  <span class="pl-k">end</span>
+<span class="pl-k">end</span></pre></div>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">Fuzzy completion for Nushell</h3><a id="user-content-fuzzy-completion-for-nushell" class="anchor" aria-label="Permalink: Fuzzy completion for Nushell" href="#fuzzy-completion-for-nushell"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">Fuzzy completion in Nushell works via the
+<a href="https://www.nushell.sh/cookbook/external_completers.html" rel="nofollow">external completer</a>
+mechanism. There are some differences compared to bash and zsh:</p>
+<ul dir="auto">
+<li>On Nushell &gt;= 0.103.0, the external completer is no longer called for
+built-in commands (e.g. <code>cd</code>, <code>ls</code>). Fuzzy completion with <code>**&lt;TAB&gt;</code> only
+works for external commands.</li>
+<li>Custom completers can be defined via the <code>$env.FZF_COMPLETERS</code> record in
+your <code>config.nu</code>. Each entry is a closure that receives the prefix and the
+command spans, and returns either a list of candidate strings or a record
+<code>{ candidates: [...], opts: [...] }</code> for custom fzf options:
+<div class="highlight highlight-source-nu notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="$env.FZF_COMPLETERS = {
+    pacman: {|prefix, spans|
+        let sub = $spans | skip 1 | first
+        let candidates = (if ($sub =~ &quot;-[SF]&quot;) { ^pacman -Slq | lines
+        } else if ($sub =~ &quot;-[QR]&quot;) { ^pacman -Qq | lines
+        } else { [] })
+        { candidates: $candidates, opts: [&quot;--preview&quot;, &quot;pacman -Si {}&quot;] }
+    }
+}"><pre><span class="pl-smi">$env</span><span class="pl-k">.</span><span class="pl-c1">FZF_COMPLETERS</span> <span class="pl-k">=</span> {
+    pacman: {<span class="pl-k">|</span>prefix<span class="pl-k">,</span> spans<span class="pl-k">|</span>
+        <span class="pl-k">let</span> sub <span class="pl-k">=</span> <span class="pl-smi">$spans</span> <span class="pl-k">|</span> skip <span class="pl-c1">1</span> <span class="pl-k">|</span> <span class="pl-c1">first</span>
+        <span class="pl-k">let</span> candidates <span class="pl-k">=</span> (<span class="pl-k">if</span> (<span class="pl-smi">$sub</span> <span class="pl-k">=</span>~ <span class="pl-s"><span class="pl-pds">"</span>-[SF]<span class="pl-pds">"</span></span>) { ^pacman <span class="pl-k">-</span><span class="pl-c1">Slq</span> <span class="pl-k">|</span> lines
+        } <span class="pl-k">else</span> <span class="pl-k">if</span> (<span class="pl-smi">$sub</span> <span class="pl-k">=</span>~ <span class="pl-s"><span class="pl-pds">"</span>-[QR]<span class="pl-pds">"</span></span>) { ^pacman <span class="pl-k">-</span><span class="pl-c1">Qq</span> <span class="pl-k">|</span> lines
+        } <span class="pl-k">else</span> { [] })
+        { candidates: <span class="pl-smi">$candidates</span><span class="pl-k">,</span> opts: [<span class="pl-s"><span class="pl-pds">"</span>--preview<span class="pl-pds">"</span></span><span class="pl-k">,</span> <span class="pl-s"><span class="pl-pds">"</span>pacman -Si {}<span class="pl-pds">"</span></span>] }
+    }
+}</pre></div>
+See <a href="shell/completion-examples.nu">shell/completion-examples.nu</a> for more
+examples.</li>
+<li>The following environment variables are supported:
+<code>FZF_COMPLETION_TRIGGER</code>, <code>FZF_COMPLETION_OPTS</code>,
+<code>FZF_COMPLETION_PATH_OPTS</code>, <code>FZF_COMPLETION_DIR_OPTS</code>,
+<code>FZF_COMPLETION_DIR_COMMANDS</code>.</li>
+</ul>
+<div class="markdown-heading" dir="auto"><h2 class="heading-element" dir="auto">Vim plugin</h2><a id="user-content-vim-plugin" class="anchor" aria-label="Permalink: Vim plugin" href="#vim-plugin"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">See <a href="README-VIM.md">README-VIM.md</a>.</p>
+<div class="markdown-heading" dir="auto"><h2 class="heading-element" dir="auto">Advanced topics</h2><a id="user-content-advanced-topics" class="anchor" aria-label="Permalink: Advanced topics" href="#advanced-topics"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">Customizing for different types of input</h3><a id="user-content-customizing-for-different-types-of-input" class="anchor" aria-label="Permalink: Customizing for different types of input" href="#customizing-for-different-types-of-input"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">Since fzf is a general-purpose text filter, its algorithm was designed to
+"generally" work well with any kind of input. However, admittedly, there is no
+true one-size-fits-all solution, and you may want to tweak the algorithm and
+some of the settings depending on the type of the input. To make this process
+easier, fzf provides a set of "scheme"s for some common input types.</p>
+<markdown-accessiblity-table><table>
+<thead>
+<tr>
+<th align="left">Scheme</th>
+<th align="left">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="left"><code>--scheme=default</code></td>
+<td align="left">Generic scheme designed to work well with any kind of input</td>
+</tr>
+<tr>
+<td align="left"><code>--scheme=path</code></td>
+<td align="left">Suitable for file paths</td>
+</tr>
+<tr>
+<td align="left"><code>--scheme=history</code></td>
+<td align="left">Suitable for command history or any input where chronological ordering is important</td>
+</tr>
+</tbody>
+</table></markdown-accessiblity-table>
+<p dir="auto">(See <code>fzf --man</code> for the details)</p>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">Performance</h3><a id="user-content-performance" class="anchor" aria-label="Permalink: Performance" href="#performance"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">fzf is fast. Performance should not be a problem in most use cases. However,
+you might want to be aware of the options that can affect performance.</p>
+<ul dir="auto">
+<li><code>--ansi</code> tells fzf to extract and parse ANSI color codes in the input, and it
+makes the initial scanning slower. So it's not recommended that you add it
+to your <code>$FZF_DEFAULT_OPTS</code>.</li>
+<li><code>--nth</code> makes fzf slower because it has to tokenize each line.</li>
+<li>A plain string <code>--delimiter</code> should be preferred over a regular expression
+delimiter.</li>
+<li><code>--with-nth</code> makes fzf slower as fzf has to tokenize and reassemble each
+line.</li>
+</ul>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">Executing external programs</h3><a id="user-content-executing-external-programs" class="anchor" aria-label="Permalink: Executing external programs" href="#executing-external-programs"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">You can set up key bindings for starting external processes without leaving
+fzf (<code>execute</code>, <code>execute-silent</code>).</p>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="# Press F1 to open the file with less without leaving fzf
+# Press CTRL-Y to copy the line to clipboard and aborts fzf (requires pbcopy)
+fzf --bind 'f1:execute(less -f {}),ctrl-y:execute-silent(echo {} | pbcopy)+abort'"><pre><span class="pl-c"><span class="pl-c">#</span> Press F1 to open the file with less without leaving fzf</span>
+<span class="pl-c"><span class="pl-c">#</span> Press CTRL-Y to copy the line to clipboard and aborts fzf (requires pbcopy)</span>
+fzf --bind <span class="pl-s"><span class="pl-pds">'</span>f1:execute(less -f {}),ctrl-y:execute-silent(echo {} | pbcopy)+abort<span class="pl-pds">'</span></span></pre></div>
+<p dir="auto">See <em>KEY/EVENT BINDINGS</em> section of the man page for details.</p>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">Turning into a different process</h3><a id="user-content-turning-into-a-different-process" class="anchor" aria-label="Permalink: Turning into a different process" href="#turning-into-a-different-process"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto"><code>become(...)</code> is similar to <code>execute(...)</code>/<code>execute-silent(...)</code> described
+above, but instead of executing the command and coming back to fzf on
+complete, it turns fzf into a new process for the command.</p>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="fzf --bind 'enter:become(vim {})'"><pre>fzf --bind <span class="pl-s"><span class="pl-pds">'</span>enter:become(vim {})<span class="pl-pds">'</span></span></pre></div>
+<p dir="auto">Compared to the seemingly equivalent command substitution <code>vim "$(fzf)"</code>, this
+approach has several advantages:</p>
+<ul dir="auto">
+<li>Vim will not open an empty file when you terminate fzf with
+<kbd>CTRL-C</kbd></li>
+<li>Vim will not open an empty file when you press <kbd>ENTER</kbd> on an empty
+result</li>
+<li>Can handle multiple selections even when they have whitespaces
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="fzf --multi --bind 'enter:become(vim {+})'"><pre>fzf --multi --bind <span class="pl-s"><span class="pl-pds">'</span>enter:become(vim {+})<span class="pl-pds">'</span></span></pre></div>
+</li>
+</ul>
+<p dir="auto">To be fair, running <code>fzf --print0 | xargs -0 -o vim</code> instead of <code>vim "$(fzf)"</code>
+resolves all of the issues mentioned. Nonetheless, <code>become(...)</code> still offers
+additional benefits in different scenarios.</p>
+<ul dir="auto">
+<li>You can set up multiple bindings to handle the result in different ways
+without any wrapping script
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="fzf --bind 'enter:become(vim {}),ctrl-e:become(emacs {})'"><pre>fzf --bind <span class="pl-s"><span class="pl-pds">'</span>enter:become(vim {}),ctrl-e:become(emacs {})<span class="pl-pds">'</span></span></pre></div>
+<ul dir="auto">
+<li>Previously, you would have to use <code>--expect=ctrl-e</code> and check the first
+line of the output of fzf</li>
+</ul>
+</li>
+<li>You can easily build the subsequent command using the field index
+expressions of fzf
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="# Open the file in Vim and go to the line
+git grep --line-number . |
+    fzf --delimiter : --nth 3.. --bind 'enter:become(vim {1} +{2})'"><pre><span class="pl-c"><span class="pl-c">#</span> Open the file in Vim and go to the line</span>
+git grep --line-number <span class="pl-c1">.</span> <span class="pl-k">|</span>
+    fzf --delimiter <span class="pl-c1">:</span> --nth 3.. --bind <span class="pl-s"><span class="pl-pds">'</span>enter:become(vim {1} +{2})<span class="pl-pds">'</span></span></pre></div>
+</li>
+</ul>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">Reloading the candidate list</h3><a id="user-content-reloading-the-candidate-list" class="anchor" aria-label="Permalink: Reloading the candidate list" href="#reloading-the-candidate-list"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">By binding <code>reload</code> action to a key or an event, you can make fzf dynamically
+reload the candidate list. See <a class="issue-link js-issue-link" data-error-text="Failed to load title" data-id="521031164" data-permission-text="Title is private" data-url="https://github.com/junegunn/fzf/issues/1750" data-hovercard-type="issue" data-hovercard-url="/junegunn/fzf/issues/1750/hovercard" href="https://github.com/junegunn/fzf/issues/1750">#1750</a> for
+more details.</p>
+<div class="markdown-heading" dir="auto"><h4 class="heading-element" dir="auto">1. Update the list of processes by pressing CTRL-R</h4><a id="user-content-1-update-the-list-of-processes-by-pressing-ctrl-r" class="anchor" aria-label="Permalink: 1. Update the list of processes by pressing CTRL-R" href="#1-update-the-list-of-processes-by-pressing-ctrl-r"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="ps -ef |
+  fzf --bind 'ctrl-r:reload(ps -ef)' \
+      --header 'Press CTRL-R to reload' --header-lines=1 \
+      --height=50% --layout=reverse"><pre>ps -ef <span class="pl-k">|</span>
+  fzf --bind <span class="pl-s"><span class="pl-pds">'</span>ctrl-r:reload(ps -ef)<span class="pl-pds">'</span></span> \
+      --header <span class="pl-s"><span class="pl-pds">'</span>Press CTRL-R to reload<span class="pl-pds">'</span></span> --header-lines=1 \
+      --height=50% --layout=reverse</pre></div>
+<div class="markdown-heading" dir="auto"><h4 class="heading-element" dir="auto">2. Switch between sources by pressing CTRL-D or CTRL-F</h4><a id="user-content-2-switch-between-sources-by-pressing-ctrl-d-or-ctrl-f" class="anchor" aria-label="Permalink: 2. Switch between sources by pressing CTRL-D or CTRL-F" href="#2-switch-between-sources-by-pressing-ctrl-d-or-ctrl-f"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="FZF_DEFAULT_COMMAND='find . -type f' \
+  fzf --bind 'ctrl-d:reload(find . -type d),ctrl-f:reload(eval &quot;$FZF_DEFAULT_COMMAND&quot;)' \
+      --height=50% --layout=reverse"><pre>FZF_DEFAULT_COMMAND=<span class="pl-s"><span class="pl-pds">'</span>find . -type f<span class="pl-pds">'</span></span> \
+  fzf --bind <span class="pl-s"><span class="pl-pds">'</span>ctrl-d:reload(find . -type d),ctrl-f:reload(eval "$FZF_DEFAULT_COMMAND")<span class="pl-pds">'</span></span> \
+      --height=50% --layout=reverse</pre></div>
+<div class="markdown-heading" dir="auto"><h4 class="heading-element" dir="auto">3. Interactive ripgrep integration</h4><a id="user-content-3-interactive-ripgrep-integration" class="anchor" aria-label="Permalink: 3. Interactive ripgrep integration" href="#3-interactive-ripgrep-integration"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">The following example uses fzf as the selector interface for ripgrep. We bound
+<code>reload</code> action to <code>change</code> event, so every time you type on fzf, the ripgrep
+process will restart with the updated query string denoted by the placeholder
+expression <code>{q}</code>. Also, note that we used <code>--disabled</code> option so that fzf
+doesn't perform any secondary filtering.</p>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content=": | rg_prefix='rg --column --line-number --no-heading --color=always --smart-case' \
+    fzf --bind 'start:reload:$rg_prefix &quot;&quot;' \
+        --bind 'change:reload:$rg_prefix {q} || true' \
+        --bind 'enter:become(vim {1} +{2})' \
+        --ansi --disabled \
+        --height=50% --layout=reverse"><pre><span class="pl-c1">:</span> <span class="pl-k">|</span> rg_prefix=<span class="pl-s"><span class="pl-pds">'</span>rg --column --line-number --no-heading --color=always --smart-case<span class="pl-pds">'</span></span> \
+    fzf --bind <span class="pl-s"><span class="pl-pds">'</span>start:reload:$rg_prefix ""<span class="pl-pds">'</span></span> \
+        --bind <span class="pl-s"><span class="pl-pds">'</span>change:reload:$rg_prefix {q} || true<span class="pl-pds">'</span></span> \
+        --bind <span class="pl-s"><span class="pl-pds">'</span>enter:become(vim {1} +{2})<span class="pl-pds">'</span></span> \
+        --ansi --disabled \
+        --height=50% --layout=reverse</pre></div>
+<p dir="auto">If ripgrep doesn't find any matches, it will exit with a non-zero exit status,
+and fzf will warn you about it. To suppress the warning message, we added
+<code>|| true</code> to the command, so that it always exits with 0.</p>
+<p dir="auto">See <a href="https://github.com/junegunn/fzf/blob/master/ADVANCED.md#using-fzf-as-interactive-ripgrep-launcher">"Using fzf as interactive Ripgrep launcher"</a>
+for more sophisticated examples.</p>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">Preview window</h3><a id="user-content-preview-window" class="anchor" aria-label="Permalink: Preview window" href="#preview-window"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">When the <code>--preview</code> option is set, fzf automatically starts an external process
+with the current line as the argument and shows the result in the split window.
+Your <code>$SHELL</code> is used to execute the command with <code>$SHELL -c COMMAND</code>.
+The window can be scrolled using the mouse or custom key bindings.</p>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="# {} is replaced with the single-quoted string of the focused line
+fzf --preview 'cat {}'"><pre><span class="pl-c"><span class="pl-c">#</span> {} is replaced with the single-quoted string of the focused line</span>
+fzf --preview <span class="pl-s"><span class="pl-pds">'</span>cat {}<span class="pl-pds">'</span></span></pre></div>
+<p dir="auto">Preview window supports ANSI colors, so you can use any program that
+syntax-highlights the content of a file, such as
+<a href="https://github.com/sharkdp/bat">Bat</a> or
+<a href="https://gitlab.com/saalen/highlight" rel="nofollow">Highlight</a>:</p>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="fzf --preview 'bat --color=always {}' --preview-window '~3'"><pre>fzf --preview <span class="pl-s"><span class="pl-pds">'</span>bat --color=always {}<span class="pl-pds">'</span></span> --preview-window <span class="pl-s"><span class="pl-pds">'</span>~3<span class="pl-pds">'</span></span></pre></div>
+<p dir="auto">You can customize the size, position, and border of the preview window using
+<code>--preview-window</code> option, and the foreground and background color of it with
+<code>--color</code> option. For example,</p>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="fzf --height 40% --layout reverse --info inline --border \
+    --preview 'file {}' --preview-window up,1,border-horizontal \
+    --bind 'ctrl-/:change-preview-window(50%|hidden|)' \
+    --color 'fg:#bbccdd,fg+:#ddeeff,bg:#334455,preview-bg:#223344,border:#778899'"><pre>fzf --height 40% --layout reverse --info inline --border \
+    --preview <span class="pl-s"><span class="pl-pds">'</span>file {}<span class="pl-pds">'</span></span> --preview-window up,1,border-horizontal \
+    --bind <span class="pl-s"><span class="pl-pds">'</span>ctrl-/:change-preview-window(50%|hidden|)<span class="pl-pds">'</span></span> \
+    --color <span class="pl-s"><span class="pl-pds">'</span>fg:#bbccdd,fg+:#ddeeff,bg:#334455,preview-bg:#223344,border:#778899<span class="pl-pds">'</span></span></pre></div>
+<p dir="auto">See the man page (<code>man fzf</code>) for the full list of options.</p>
+<p dir="auto">More advanced examples can be found <a href="https://github.com/junegunn/fzf/blob/master/ADVANCED.md">here</a>.</p>
+<div class="markdown-alert markdown-alert-warning" dir="auto"><p class="markdown-alert-title" dir="auto"><svg data-component="Octicon" class="octicon octicon-alert mr-2" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="M6.457 1.047c.659-1.234 2.427-1.234 3.086 0l6.082 11.378A1.75 1.75 0 0 1 14.082 15H1.918a1.75 1.75 0 0 1-1.543-2.575Zm1.763.707a.25.25 0 0 0-.44 0L1.698 13.132a.25.25 0 0 0 .22.368h12.164a.25.25 0 0 0 .22-.368Zm.53 3.996v2.5a.75.75 0 0 1-1.5 0v-2.5a.75.75 0 0 1 1.5 0ZM9 11a1 1 0 1 1-2 0 1 1 0 0 1 2 0Z"></path></svg>Warning</p><p dir="auto">Since fzf is a general-purpose text filter rather than a file finder, <strong>it is
+not a good idea to add <code>--preview</code> option to your <code>$FZF_DEFAULT_OPTS</code></strong>.</p>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="# *********************
+# ** DO NOT DO THIS! **
+# *********************
+export FZF_DEFAULT_OPTS='--preview &quot;bat --style=numbers --color=always --line-range :500 {}&quot;'
+
+# bat doesn't work with any input other than the list of files
+ps -ef | fzf
+seq 100 | fzf
+history | fzf"><pre><span class="pl-c"><span class="pl-c">#</span> *********************</span>
+<span class="pl-c"><span class="pl-c">#</span> ** DO NOT DO THIS! **</span>
+<span class="pl-c"><span class="pl-c">#</span> *********************</span>
+<span class="pl-k">export</span> FZF_DEFAULT_OPTS=<span class="pl-s"><span class="pl-pds">'</span>--preview "bat --style=numbers --color=always --line-range :500 {}"<span class="pl-pds">'</span></span>
+
+<span class="pl-c"><span class="pl-c">#</span> bat doesn't work with any input other than the list of files</span>
+ps -ef <span class="pl-k">|</span> fzf
+seq 100 <span class="pl-k">|</span> fzf
+<span class="pl-c1">history</span> <span class="pl-k">|</span> fzf</pre></div>
+</div>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">Previewing an image</h3><a id="user-content-previewing-an-image" class="anchor" aria-label="Permalink: Previewing an image" href="#previewing-an-image"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">fzf can display images in the preview window using one of the following protocols:</p>
+<ul dir="auto">
+<li><a href="https://sw.kovidgoyal.net/kitty/graphics-protocol/" rel="nofollow">Kitty graphics protocol</a></li>
+<li><a href="https://iterm2.com/documentation-images.html" rel="nofollow">iTerm2 inline images protocol</a></li>
+<li><a href="https://en.wikipedia.org/wiki/Sixel" rel="nofollow">Sixel</a></li>
+</ul>
+<p dir="auto">See <a href="bin/fzf-preview.sh">bin/fzf-preview.sh</a> script for more information.</p>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="fzf --preview 'fzf-preview.sh {}'"><pre>fzf --preview <span class="pl-s"><span class="pl-pds">'</span>fzf-preview.sh {}<span class="pl-pds">'</span></span></pre></div>
+<div class="markdown-heading" dir="auto"><h2 class="heading-element" dir="auto">Tips</h2><a id="user-content-tips" class="anchor" aria-label="Permalink: Tips" href="#tips"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">Respecting <code>.gitignore</code></h3><a id="user-content-respecting-gitignore" class="anchor" aria-label="Permalink: Respecting .gitignore" href="#respecting-gitignore"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">You can use <a href="https://github.com/sharkdp/fd">fd</a>,
+<a href="https://github.com/BurntSushi/ripgrep">ripgrep</a>, or <a href="https://github.com/ggreer/the_silver_searcher">the silver
+searcher</a> to traverse the file
+system while respecting <code>.gitignore</code>.</p>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="# Feed the output of fd into fzf
+fd --type f --strip-cwd-prefix | fzf
+
+# Setting fd as the default source for fzf
+export FZF_DEFAULT_COMMAND='fd --type f --strip-cwd-prefix'
+
+# Now fzf (w/o pipe) will use the fd command to generate the list
+fzf
+
+# To apply the command to CTRL-T as well
+export FZF_CTRL_T_COMMAND=&quot;$FZF_DEFAULT_COMMAND&quot;"><pre><span class="pl-c"><span class="pl-c">#</span> Feed the output of fd into fzf</span>
+fd --type f --strip-cwd-prefix <span class="pl-k">|</span> fzf
+
+<span class="pl-c"><span class="pl-c">#</span> Setting fd as the default source for fzf</span>
+<span class="pl-k">export</span> FZF_DEFAULT_COMMAND=<span class="pl-s"><span class="pl-pds">'</span>fd --type f --strip-cwd-prefix<span class="pl-pds">'</span></span>
+
+<span class="pl-c"><span class="pl-c">#</span> Now fzf (w/o pipe) will use the fd command to generate the list</span>
+fzf
+
+<span class="pl-c"><span class="pl-c">#</span> To apply the command to CTRL-T as well</span>
+<span class="pl-k">export</span> FZF_CTRL_T_COMMAND=<span class="pl-s"><span class="pl-pds">"</span><span class="pl-smi">$FZF_DEFAULT_COMMAND</span><span class="pl-pds">"</span></span></pre></div>
+<p dir="auto">If you want the command to follow symbolic links and don't want it to exclude
+hidden files, use the following command:</p>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="export FZF_DEFAULT_COMMAND='fd --type f --strip-cwd-prefix --hidden --follow --exclude .git'"><pre><span class="pl-k">export</span> FZF_DEFAULT_COMMAND=<span class="pl-s"><span class="pl-pds">'</span>fd --type f --strip-cwd-prefix --hidden --follow --exclude .git<span class="pl-pds">'</span></span></pre></div>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">Fish shell</h3><a id="user-content-fish-shell" class="anchor" aria-label="Permalink: Fish shell" href="#fish-shell"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto"><code>CTRL-T</code> key binding of fish, unlike those of bash and zsh, will use the last
+token on the command-line as the root directory for the recursive search. For
+instance, hitting <code>CTRL-T</code> at the end of the following command-line</p>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="ls /var/"><pre>ls /var/</pre></div>
+<p dir="auto">will list all files and directories under <code>/var/</code>.</p>
+<p dir="auto">When using a custom <code>FZF_CTRL_T_COMMAND</code>, use the unexpanded <code>$dir</code> variable to
+make use of this feature. <code>$dir</code> defaults to <code>.</code> when the last token is not a
+valid directory. Example:</p>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="set -g FZF_CTRL_T_COMMAND &quot;command find -L \$dir -type f 2&gt; /dev/null | sed '1d; s#^\./##'&quot;"><pre><span class="pl-c1">set</span> -g FZF_CTRL_T_COMMAND <span class="pl-s"><span class="pl-pds">"</span>command find -L <span class="pl-cce">\$</span>dir -type f 2&gt; /dev/null | sed '1d; s#^\./##'<span class="pl-pds">"</span></span></pre></div>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">fzf Theme Playground</h3><a id="user-content-fzf-theme-playground" class="anchor" aria-label="Permalink: fzf Theme Playground" href="#fzf-theme-playground"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto"><a href="https://vitormv.github.io/fzf-themes/" rel="nofollow">fzf Theme Playground</a> created by
+<a href="https://github.com/vitormv">Vitor Mello</a> is a webpage where you can
+interactively create fzf themes.</p>
+<div class="markdown-heading" dir="auto"><h2 class="heading-element" dir="auto">Related projects</h2><a id="user-content-related-projects" class="anchor" aria-label="Permalink: Related projects" href="#related-projects"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto"><a href="https://github.com/junegunn/fzf/wiki/Related-projects">https://github.com/junegunn/fzf/wiki/Related-projects</a></p>
+<div class="markdown-heading" dir="auto"><h2 class="heading-element" dir="auto"><a href="LICENSE">License</a></h2><a id="user-content-license" class="anchor" aria-label="Permalink: License" href="#license"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">The MIT License (MIT)</p>
+<p dir="auto">Copyright (c) 2013-2026 Junegunn Choi</p>
+<div class="markdown-heading" dir="auto"><h2 class="heading-element" dir="auto">Goods</h2><a id="user-content-goods" class="anchor" aria-label="Permalink: Goods" href="#goods"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">Grab fzf T-shirts, mugs, and stickers here: <a href="https://commitgoods.com/collections/fzf" rel="nofollow">https://commitgoods.com/collections/fzf</a></p>
+<div class="markdown-heading" dir="auto"><h2 class="heading-element" dir="auto">Sponsors ❤️</h2><a id="user-content-sponsors-heart" class="anchor" aria-label="Permalink: Sponsors :heart:" href="#sponsors-heart"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">I would like to thank all the sponsors of this project who make it possible for me to continue to improve fzf.</p>
+<p dir="auto">If you'd like to sponsor this project, please visit <a href="https://github.com/sponsors/junegunn">https://github.com/sponsors/junegunn</a>.</p>
+</article></div>

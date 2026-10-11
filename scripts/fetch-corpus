@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+# Fetch the GitHub rendering corpus used as a fidelity oracle (docs/plan.md §9, oracle 3).
+#
+# For each repo: the README at a pinned commit, GitHub's own rendered HTML of it, its licence,
+# and a SOURCE.toml recording where it came from. Synthetic inputs (directories starting with
+# "_synthetic-") are ours; they are rendered with POST /markdown.
+#
+# Requires an authenticated `gh`. Re-running refetches at the current HEAD of each repo, so the
+# expected outputs change: review the diff before committing.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+out=crates/core/tests/data/corpus
+
+repos=(
+  rust-lang/rust BurntSushi/ripgrep sharkdp/bat sharkdp/fd tokio-rs/tokio
+  sindresorhus/awesome rust-unofficial/awesome-rust facebook/react microsoft/vscode
+  denoland/deno astral-sh/uv astral-sh/ruff junegunn/fzf ohmyzsh/ohmyzsh
+  jesseduffield/lazygit nushell/nushell microsoft/TypeScript pallets/flask psf/requests
+  tauri-apps/tauri alacritty/alacritty
+)
+allowed_licences=" MIT Apache-2.0 BSD-2-Clause BSD-3-Clause Unlicense CC0-1.0 "
+today=$(date -u +%Y-%m-%d)
+
+for repo in "${repos[@]}"; do
+  dir="$out/${repo/\//__}"
+  sha=$(gh api "repos/$repo/commits/HEAD" --jq .sha)
+  # Licence detection is taken from the default branch: with ?ref= GitHub returns NOASSERTION
+  # for some files it recognises without one (seen 2026-10-11 on ripgrep's UNLICENSE).
+  spdx=$(gh api "repos/$repo/license" --jq .license.spdx_id)
+  if [[ "$allowed_licences" != *" $spdx "* ]]; then
+    echo "refusing $repo: licence $spdx is not on the allow-list" >&2
+    exit 1
+  fi
+  mkdir -p "$dir"
+  meta=$(gh api "repos/$repo/readme?ref=$sha")
+  path=$(jq -r .path <<<"$meta")
+  jq -r .content <<<"$meta" | base64 -d >"$dir/input.md"
+  gh api -H "Accept: application/vnd.github.html+json" "repos/$repo/readme?ref=$sha" >"$dir/github.html"
+  gh api "repos/$repo/license?ref=$sha" --jq .content | base64 -d >"$dir/LICENSE"
+  cat >"$dir/SOURCE.toml" <<TOML
+repo = "$repo"
+commit = "$sha"
+path = "$path"
+licence = "$spdx"
+rendered_by = "GET /repos/$repo/readme?ref=$sha (Accept: application/vnd.github.html+json)"
+fetched = "$today"
+TOML
+  echo "ok $repo $spdx $(wc -c <"$dir/input.md") bytes"
+done
+
+for dir in "$out"/_synthetic-*/; do
+  gh api -X POST markdown -f mode=markdown -F text=@"$dir/input.md" >"$dir/github.html"
+  cat >"$dir/SOURCE.toml" <<TOML
+repo = "(synthetic; written for this project)"
+licence = "same as this repository"
+rendered_by = "POST /markdown, mode=markdown"
+fetched = "$today"
+TOML
+  echo "ok $dir"
+done

@@ -1,0 +1,6 @@
+repo = "psf/requests"
+commit = "611c6162cbc4ac2020a2f91c7cfa4f3abf9bbb60"
+path = "README.md"
+licence = "Apache-2.0"
+rendered_by = "GET /repos/psf/requests/readme?ref=611c6162cbc4ac2020a2f91c7cfa4f3abf9bbb60 (Accept: application/vnd.github.html+json)"
+fetched = "2026-10-11"

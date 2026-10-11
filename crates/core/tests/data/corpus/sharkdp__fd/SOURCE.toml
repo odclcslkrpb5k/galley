@@ -1,0 +1,6 @@
+repo = "sharkdp/fd"
+commit = "14dcd92fb76ca0ebc2e82671a275f67c790d25fc"
+path = "README.md"
+licence = "Apache-2.0"
+rendered_by = "GET /repos/sharkdp/fd/readme?ref=14dcd92fb76ca0ebc2e82671a275f67c790d25fc (Accept: application/vnd.github.html+json)"
+fetched = "2026-10-11"

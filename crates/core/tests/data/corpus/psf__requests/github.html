@@ -1,0 +1,62 @@
+<div id="readme" class="md" data-path="README.md"><article class="markdown-body entry-content container-lg" itemprop="text"><div class="markdown-heading" dir="auto"><h1 class="heading-element" dir="auto">Requests</h1><a id="user-content-requests" class="anchor" aria-label="Permalink: Requests" href="#requests"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto"><a href="https://pypi.org/project/requests/" rel="nofollow"><img src="https://camo.githubusercontent.com/382f956798e0b325dd9be2d6138bad70efb516ca0e3d7ecd3217884841c9b2dd/68747470733a2f2f696d672e736869656c64732e696f2f707970692f762f72657175657374732e7376673f6d61784167653d3836343030" alt="Version" data-canonical-src="https://img.shields.io/pypi/v/requests.svg?maxAge=86400" style="max-width: 100%;"></a>
+<a href="https://pypi.org/project/requests" rel="nofollow"><img src="https://camo.githubusercontent.com/ba77a996ab2a619a9e5f23d6d89c2ebb3d1017640306e98784039efa8c138a9a/68747470733a2f2f696d672e736869656c64732e696f2f707970692f707976657273696f6e732f72657175657374732e737667" alt="Supported Versions" data-canonical-src="https://img.shields.io/pypi/pyversions/requests.svg" style="max-width: 100%;"></a>
+<a href="https://pepy.tech/project/requests" rel="nofollow"><img src="https://camo.githubusercontent.com/cc96f075f680b13c4d6fa812e412a299c6d71b7f877b910073f924e9515d0287/68747470733a2f2f7374617469632e706570792e746563682f62616467652f72657175657374732f6d6f6e7468" alt="Downloads" data-canonical-src="https://static.pepy.tech/badge/requests/month" style="max-width: 100%;"></a>
+<a href="https://github.com/psf/requests/graphs/contributors"><img src="https://camo.githubusercontent.com/17eb7024eadd72f38a6575be38debe9ed209e6434e0812f7a2e18b5799b288b7/68747470733a2f2f696d672e736869656c64732e696f2f6769746875622f636f6e7472696275746f72732f7073662f72657175657374732e737667" alt="Contributors" data-canonical-src="https://img.shields.io/github/contributors/psf/requests.svg" style="max-width: 100%;"></a>
+<a href="https://requests.readthedocs.io" rel="nofollow"><img src="https://camo.githubusercontent.com/cd7edaf2bb18164c068b91b6ef00871efef884d07c0e5304e2e8969acdd59293/68747470733a2f2f72656164746865646f63732e6f72672f70726f6a656374732f72657175657374732f62616467652f3f76657273696f6e3d6c6174657374" alt="Documentation" data-canonical-src="https://readthedocs.org/projects/requests/badge/?version=latest" style="max-width: 100%;"></a></p>
+<p dir="auto"><strong>Requests</strong> is a simple, yet elegant, HTTP library.</p>
+<div class="highlight highlight-source-python notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="&gt;&gt;&gt; import requests
+&gt;&gt;&gt; r = requests.get('https://httpbin.org/basic-auth/user/pass', auth=('user', 'pass'))
+&gt;&gt;&gt; r.status_code
+200
+&gt;&gt;&gt; r.headers['content-type']
+'application/json; charset=utf8'
+&gt;&gt;&gt; r.encoding
+'utf-8'
+&gt;&gt;&gt; r.text
+'{&quot;authenticated&quot;: true, ...'
+&gt;&gt;&gt; r.json()
+{'authenticated': True, ...}"><pre><span class="pl-c1">&gt;</span><span class="pl-c1">&gt;&gt;</span> <span class="pl-k">import</span> <span class="pl-s1">requests</span>
+<span class="pl-c1">&gt;</span><span class="pl-c1">&gt;&gt;</span> <span class="pl-s1">r</span> <span class="pl-c1">=</span> <span class="pl-s1">requests</span>.<span class="pl-c1">get</span>(<span class="pl-s">'https://httpbin.org/basic-auth/user/pass'</span>, <span class="pl-s1">auth</span><span class="pl-c1">=</span>(<span class="pl-s">'user'</span>, <span class="pl-s">'pass'</span>))
+<span class="pl-c1">&gt;</span><span class="pl-c1">&gt;&gt;</span> <span class="pl-s1">r</span>.<span class="pl-c1">status_code</span>
+<span class="pl-c1">200</span>
+<span class="pl-c1">&gt;</span><span class="pl-c1">&gt;&gt;</span> <span class="pl-s1">r</span>.<span class="pl-c1">headers</span>[<span class="pl-s">'content-type'</span>]
+<span class="pl-s">'application/json; charset=utf8'</span>
+<span class="pl-c1">&gt;</span><span class="pl-c1">&gt;&gt;</span> <span class="pl-s1">r</span>.<span class="pl-c1">encoding</span>
+<span class="pl-s">'utf-8'</span>
+<span class="pl-c1">&gt;</span><span class="pl-c1">&gt;&gt;</span> <span class="pl-s1">r</span>.<span class="pl-c1">text</span>
+<span class="pl-s">'{"authenticated": true, ...'</span>
+<span class="pl-c1">&gt;</span><span class="pl-c1">&gt;&gt;</span> <span class="pl-s1">r</span>.<span class="pl-c1">json</span>()
+{<span class="pl-s">'authenticated'</span>: <span class="pl-c1">True</span>, ...}</pre></div>
+<p dir="auto">Requests allows you to send HTTP/1.1 requests extremely easily. There’s no need to manually add query strings to your URLs, or to form-encode your <code>PUT</code> &amp; <code>POST</code> data — but nowadays, just use the <code>json</code> method!</p>
+<p dir="auto">Requests is one of the most downloaded Python packages today, pulling in around <code>300M downloads / week</code> — according to GitHub, Requests is currently <a href="https://github.com/psf/requests/network/dependents?package_id=UGFja2FnZS01NzA4OTExNg%3D%3D">depended upon</a> by <code>4,000,000+</code> repositories.</p>
+<div class="markdown-heading" dir="auto"><h2 class="heading-element" dir="auto">Installing Requests and Supported Versions</h2><a id="user-content-installing-requests-and-supported-versions" class="anchor" aria-label="Permalink: Installing Requests and Supported Versions" href="#installing-requests-and-supported-versions"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">Requests is available on PyPI:</p>
+<div class="highlight highlight-text-shell-session notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="$ python -m pip install requests"><pre>$ <span class="pl-s1">python -m pip install requests</span></pre></div>
+<p dir="auto">Requests officially supports Python 3.10+.</p>
+<div class="markdown-heading" dir="auto"><h2 class="heading-element" dir="auto">Supported Features &amp; Best–Practices</h2><a id="user-content-supported-features--bestpractices" class="anchor" aria-label="Permalink: Supported Features &amp; Best–Practices" href="#supported-features--bestpractices"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">Requests is ready for the demands of building robust and reliable HTTP–speaking applications, for the needs of today.</p>
+<ul dir="auto">
+<li>Keep-Alive &amp; Connection Pooling</li>
+<li>International Domains and URLs</li>
+<li>Sessions with Cookie Persistence</li>
+<li>Browser-style TLS/SSL Verification</li>
+<li>Basic &amp; Digest Authentication</li>
+<li>Familiar <code>dict</code>–like Cookies</li>
+<li>Automatic Content Decompression and Decoding</li>
+<li>Multi-part File Uploads</li>
+<li>SOCKS Proxy Support</li>
+<li>Connection Timeouts</li>
+<li>Streaming Downloads</li>
+<li>Automatic honoring of <code>.netrc</code></li>
+<li>Chunked HTTP Requests</li>
+</ul>
+<div class="markdown-heading" dir="auto"><h2 class="heading-element" dir="auto">Cloning the repository</h2><a id="user-content-cloning-the-repository" class="anchor" aria-label="Permalink: Cloning the repository" href="#cloning-the-repository"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">When cloning the Requests repository, you may need to add the <code>-c fetch.fsck.badTimezone=ignore</code> flag to avoid an error about a bad commit timestamp (see
+<a href="https://github.com/psf/requests/issues/2690" data-hovercard-type="issue" data-hovercard-url="/psf/requests/issues/2690/hovercard">this issue</a> for more background):</p>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="git clone -c fetch.fsck.badTimezone=ignore https://github.com/psf/requests.git"><pre>git clone -c fetch.fsck.badTimezone=ignore https://github.com/psf/requests.git</pre></div>
+<p dir="auto">You can also apply this setting to your global Git config:</p>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="git config --global fetch.fsck.badTimezone ignore"><pre>git config --global fetch.fsck.badTimezone ignore</pre></div>
+<hr>
+<p dir="auto"><a href="https://kennethreitz.org" rel="nofollow"><img src="https://raw.githubusercontent.com/psf/requests/main/ext/kr.png" alt="Kenneth Reitz" style="max-width: 100%;"></a> <a href="https://www.python.org/psf" rel="nofollow"><img src="https://raw.githubusercontent.com/psf/requests/main/ext/psf.png" alt="Python Software Foundation" style="max-width: 100%;"></a></p>
+</article></div>

@@ -1,0 +1,6 @@
+repo = "microsoft/vscode"
+commit = "32bbe1b8cba30e49cd6b74cc73c26b0279a201fe"
+path = "README.md"
+licence = "MIT"
+rendered_by = "GET /repos/microsoft/vscode/readme?ref=32bbe1b8cba30e49cd6b74cc73c26b0279a201fe (Accept: application/vnd.github.html+json)"
+fetched = "2026-10-11"

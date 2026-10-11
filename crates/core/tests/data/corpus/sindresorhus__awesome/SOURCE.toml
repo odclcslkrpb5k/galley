@@ -1,0 +1,6 @@
+repo = "sindresorhus/awesome"
+commit = "bc98e517ddca672f55f9857d714fc3ea3c3540b2"
+path = "readme.md"
+licence = "CC0-1.0"
+rendered_by = "GET /repos/sindresorhus/awesome/readme?ref=bc98e517ddca672f55f9857d714fc3ea3c3540b2 (Accept: application/vnd.github.html+json)"
+fetched = "2026-10-11"

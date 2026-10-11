@@ -1,0 +1,230 @@
+<div id="readme" class="md" data-path="README.md"><article class="markdown-body entry-content container-lg" itemprop="text"><div class="markdown-heading" dir="auto"><h1 class="heading-element" dir="auto">Tokio</h1><a id="user-content-tokio" class="anchor" aria-label="Permalink: Tokio" href="#tokio"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">A runtime for writing reliable, asynchronous, and slim applications with
+the Rust programming language. It is:</p>
+<ul dir="auto">
+<li>
+<p dir="auto"><strong>Fast</strong>: Tokio's zero-cost abstractions give you bare-metal
+performance.</p>
+</li>
+<li>
+<p dir="auto"><strong>Reliable</strong>: Tokio leverages Rust's ownership, type system, and
+concurrency model to reduce bugs and ensure thread safety.</p>
+</li>
+<li>
+<p dir="auto"><strong>Scalable</strong>: Tokio has a minimal footprint, and handles backpressure
+and cancellation naturally.</p>
+</li>
+</ul>
+<p dir="auto"><a href="https://crates.io/crates/tokio" rel="nofollow"><img src="https://camo.githubusercontent.com/7a0af26d342f28b312ac93e3e24fee7cbd1c0c1b4a609dc6cacc4f5197f67b76/68747470733a2f2f696d672e736869656c64732e696f2f6372617465732f762f746f6b696f2e737667" alt="Crates.io" data-canonical-src="https://img.shields.io/crates/v/tokio.svg" style="max-width: 100%;"></a>
+<a href="https://github.com/tokio-rs/tokio/blob/master/LICENSE"><img src="https://camo.githubusercontent.com/7013272bd27ece47364536a221edb554cd69683b68a46fc0ee96881174c4214c/68747470733a2f2f696d672e736869656c64732e696f2f62616467652f6c6963656e73652d4d49542d626c75652e737667" alt="MIT licensed" data-canonical-src="https://img.shields.io/badge/license-MIT-blue.svg" style="max-width: 100%;"></a>
+<a href="https://github.com/tokio-rs/tokio/actions?query=workflow%3ACI+branch%3Amaster"><img src="https://github.com/tokio-rs/tokio/workflows/CI/badge.svg" alt="Build Status" style="max-width: 100%;"></a>
+<a href="https://discord.gg/tokio" rel="nofollow"><img src="https://camo.githubusercontent.com/2596d83d04909cf4c0846071c0f92365991a5f9ccf9cd36c9c17d574f0142b55/68747470733a2f2f696d672e736869656c64732e696f2f646973636f72642f3530303032383838363032353839353933362e7376673f6c6f676f3d646973636f7264267374796c653d666c61742d737175617265" alt="Discord chat" data-canonical-src="https://img.shields.io/discord/500028886025895936.svg?logo=discord&amp;style=flat-square" style="max-width: 100%;"></a></p>
+<p dir="auto"><a href="https://tokio.rs" rel="nofollow">Website</a> |
+<a href="https://tokio.rs/tokio/tutorial" rel="nofollow">Guides</a> |
+<a href="https://docs.rs/tokio/latest/tokio" rel="nofollow">API Docs</a> |
+<a href="https://discord.gg/tokio" rel="nofollow">Chat</a></p>
+<div class="markdown-heading" dir="auto"><h2 class="heading-element" dir="auto">Overview</h2><a id="user-content-overview" class="anchor" aria-label="Permalink: Overview" href="#overview"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">Tokio is an event-driven, non-blocking I/O platform for writing
+asynchronous applications with the Rust programming language. At a high
+level, it provides a few major components:</p>
+<ul dir="auto">
+<li>A multithreaded, work-stealing based task <a href="https://docs.rs/tokio/latest/tokio/runtime/index.html" rel="nofollow">scheduler</a>.</li>
+<li>A reactor backed by the operating system's event queue (epoll, kqueue,
+IOCP, etc.).</li>
+<li>Asynchronous <a href="https://docs.rs/tokio/latest/tokio/net/index.html" rel="nofollow">TCP and UDP</a> sockets.</li>
+</ul>
+<p dir="auto">These components provide the runtime components necessary for building
+an asynchronous application.</p>
+<div class="markdown-heading" dir="auto"><h2 class="heading-element" dir="auto">Example</h2><a id="user-content-example" class="anchor" aria-label="Permalink: Example" href="#example"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">A basic TCP echo server with Tokio.</p>
+<p dir="auto">Make sure you enable the full features of the tokio crate on Cargo.toml:</p>
+<div class="highlight highlight-source-toml notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="[dependencies]
+tokio = { version = &quot;1.53.2&quot;, features = [&quot;full&quot;] }"><pre>[<span class="pl-en">dependencies</span>]
+<span class="pl-smi">tokio</span> = { <span class="pl-smi">version</span> = <span class="pl-s"><span class="pl-pds">"</span>1.53.2<span class="pl-pds">"</span></span>, <span class="pl-smi">features</span> = [<span class="pl-s"><span class="pl-pds">"</span>full<span class="pl-pds">"</span></span>] }</pre></div>
+<p dir="auto">Then, on your main.rs:</p>
+<div class="highlight highlight-source-rust notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="use tokio::net::TcpListener;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+#[tokio::main]
+async fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    let listener = TcpListener::bind(&quot;127.0.0.1:8080&quot;).await?;
+
+    loop {
+        let (mut socket, _) = listener.accept().await?;
+
+        tokio::spawn(async move {
+            let mut buf = [0; 1024];
+
+            // In a loop, read data from the socket and write the data back.
+            loop {
+                let n = match socket.read(&amp;mut buf).await {
+                    // socket closed
+                    Ok(0) =&gt; return,
+                    Ok(n) =&gt; n,
+                    Err(e) =&gt; {
+                        eprintln!(&quot;failed to read from socket; err = {:?}&quot;, e);
+                        return;
+                    }
+                };
+
+                // Write the data back
+                if let Err(e) = socket.write_all(&amp;buf[0..n]).await {
+                    eprintln!(&quot;failed to write to socket; err = {:?}&quot;, e);
+                    return;
+                }
+            }
+        });
+    }
+}"><pre><span class="pl-k">use</span> tokio<span class="pl-kos">::</span>net<span class="pl-kos">::</span><span class="pl-v">TcpListener</span><span class="pl-kos">;</span>
+<span class="pl-k">use</span> tokio<span class="pl-kos">::</span>io<span class="pl-kos">::</span><span class="pl-kos">{</span><span class="pl-v">AsyncReadExt</span><span class="pl-kos">,</span> <span class="pl-v">AsyncWriteExt</span><span class="pl-kos">}</span><span class="pl-kos">;</span>
+
+<span class="pl-c1">#<span class="pl-kos">[</span>tokio<span class="pl-kos">::</span>main<span class="pl-kos">]</span></span>
+<span class="pl-k">async</span> <span class="pl-k">fn</span> <span class="pl-en">main</span><span class="pl-kos">(</span><span class="pl-kos">)</span> -&gt; <span class="pl-smi">Result</span><span class="pl-kos">&lt;</span><span class="pl-kos">(</span><span class="pl-kos">)</span><span class="pl-kos">,</span> <span class="pl-smi">Box</span><span class="pl-kos">&lt;</span><span class="pl-k">dyn</span> std<span class="pl-kos">::</span>error<span class="pl-kos">::</span><span class="pl-smi">Error</span><span class="pl-kos">&gt;</span><span class="pl-kos">&gt;</span> <span class="pl-kos">{</span>
+    <span class="pl-k">let</span> listener = <span class="pl-smi">TcpListener</span><span class="pl-kos">::</span><span class="pl-en">bind</span><span class="pl-kos">(</span><span class="pl-s">"127.0.0.1:8080"</span><span class="pl-kos">)</span><span class="pl-kos">.</span><span class="pl-k">await</span>?<span class="pl-kos">;</span>
+
+    <span class="pl-k">loop</span> <span class="pl-kos">{</span>
+        <span class="pl-k">let</span> <span class="pl-kos">(</span><span class="pl-k">mut</span> socket<span class="pl-kos">,</span> _<span class="pl-kos">)</span> = listener<span class="pl-kos">.</span><span class="pl-en">accept</span><span class="pl-kos">(</span><span class="pl-kos">)</span><span class="pl-kos">.</span><span class="pl-k">await</span>?<span class="pl-kos">;</span>
+
+        tokio<span class="pl-kos">::</span><span class="pl-en">spawn</span><span class="pl-kos">(</span><span class="pl-k">async</span> <span class="pl-k">move</span> <span class="pl-kos">{</span>
+            <span class="pl-k">let</span> <span class="pl-k">mut</span> buf = <span class="pl-kos">[</span><span class="pl-c1">0</span><span class="pl-kos">;</span> <span class="pl-c1">1024</span><span class="pl-kos">]</span><span class="pl-kos">;</span>
+
+            <span class="pl-c">// In a loop, read data from the socket and write the data back.</span>
+            <span class="pl-k">loop</span> <span class="pl-kos">{</span>
+                <span class="pl-k">let</span> n = <span class="pl-k">match</span> socket<span class="pl-kos">.</span><span class="pl-en">read</span><span class="pl-kos">(</span><span class="pl-c1">&amp;</span><span class="pl-k">mut</span> buf<span class="pl-kos">)</span><span class="pl-kos">.</span><span class="pl-k">await</span> <span class="pl-kos">{</span>
+                    <span class="pl-c">// socket closed</span>
+                    <span class="pl-v">Ok</span><span class="pl-kos">(</span><span class="pl-c1">0</span><span class="pl-kos">)</span> =&gt; <span class="pl-k">return</span><span class="pl-kos">,</span>
+                    <span class="pl-v">Ok</span><span class="pl-kos">(</span>n<span class="pl-kos">)</span> =&gt; n<span class="pl-kos">,</span>
+                    <span class="pl-v">Err</span><span class="pl-kos">(</span>e<span class="pl-kos">)</span> =&gt; <span class="pl-kos">{</span>
+                        <span class="pl-en">eprintln</span><span class="pl-en">!</span><span class="pl-kos">(</span><span class="pl-s">"failed to read from socket; err = {:?}"</span><span class="pl-kos">,</span> e<span class="pl-kos">)</span><span class="pl-kos">;</span>
+                        <span class="pl-k">return</span><span class="pl-kos">;</span>
+                    <span class="pl-kos">}</span>
+                <span class="pl-kos">}</span><span class="pl-kos">;</span>
+
+                <span class="pl-c">// Write the data back</span>
+                <span class="pl-k">if</span> <span class="pl-k">let</span> <span class="pl-v">Err</span><span class="pl-kos">(</span>e<span class="pl-kos">)</span> = socket<span class="pl-kos">.</span><span class="pl-en">write_all</span><span class="pl-kos">(</span><span class="pl-c1">&amp;</span>buf<span class="pl-kos">[</span><span class="pl-c1">0</span>..n<span class="pl-kos">]</span><span class="pl-kos">)</span><span class="pl-kos">.</span><span class="pl-k">await</span> <span class="pl-kos">{</span>
+                    <span class="pl-en">eprintln</span><span class="pl-en">!</span><span class="pl-kos">(</span><span class="pl-s">"failed to write to socket; err = {:?}"</span><span class="pl-kos">,</span> e<span class="pl-kos">)</span><span class="pl-kos">;</span>
+                    <span class="pl-k">return</span><span class="pl-kos">;</span>
+                <span class="pl-kos">}</span>
+            <span class="pl-kos">}</span>
+        <span class="pl-kos">}</span><span class="pl-kos">)</span><span class="pl-kos">;</span>
+    <span class="pl-kos">}</span>
+<span class="pl-kos">}</span></pre></div>
+<p dir="auto">More examples can be found <a href="https://github.com/tokio-rs/tokio/tree/master/examples">here</a>. For a larger "real world" example, see the
+<a href="https://github.com/tokio-rs/mini-redis/">mini-redis</a> repository.</p>
+<p dir="auto">To see a list of the available feature flags that can be enabled, check our
+<a href="https://docs.rs/tokio/#feature-flags" rel="nofollow">docs</a>.</p>
+<div class="markdown-heading" dir="auto"><h2 class="heading-element" dir="auto">Getting Help</h2><a id="user-content-getting-help" class="anchor" aria-label="Permalink: Getting Help" href="#getting-help"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">First, see if the answer to your question can be found in the <a href="https://tokio.rs/tokio/tutorial" rel="nofollow">Guides</a> or the
+<a href="https://docs.rs/tokio/latest/tokio" rel="nofollow">API documentation</a>. If the answer is not there, there is an active community in
+the <a href="https://discord.gg/tokio" rel="nofollow">Tokio Discord server</a>. We would be happy to try to answer your
+question. You can also ask your question on <a href="https://github.com/tokio-rs/tokio/discussions">the discussions page</a>.</p>
+<div class="markdown-heading" dir="auto"><h2 class="heading-element" dir="auto">Contributing</h2><a id="user-content-contributing" class="anchor" aria-label="Permalink: Contributing" href="#contributing"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">🎈 Thanks for your help improving the project! We are so happy to have
+you! We have a <a href="https://github.com/tokio-rs/tokio/blob/master/docs/contributing/README.md">contributing guide</a> to help you get involved in the Tokio
+project.</p>
+<div class="markdown-heading" dir="auto"><h2 class="heading-element" dir="auto">Related Projects</h2><a id="user-content-related-projects" class="anchor" aria-label="Permalink: Related Projects" href="#related-projects"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">In addition to the crates in this repository, the Tokio project also maintains
+several other libraries, including:</p>
+<ul dir="auto">
+<li>
+<p dir="auto"><a href="https://github.com/tokio-rs/toasty"><code>toasty</code></a>: An async ORM for Rust supporting both SQL and NoSQL databases.</p>
+</li>
+<li>
+<p dir="auto"><a href="https://github.com/tokio-rs/axum"><code>axum</code></a>: A web application framework that focuses on ergonomics and modularity.</p>
+</li>
+<li>
+<p dir="auto"><a href="https://github.com/hyperium/hyper"><code>hyper</code></a>: A fast and correct HTTP/1.1 and HTTP/2 implementation for Rust.</p>
+</li>
+<li>
+<p dir="auto"><a href="https://github.com/hyperium/tonic"><code>tonic</code></a>: A gRPC over HTTP/2 implementation focused on high performance, interoperability, and flexibility.</p>
+</li>
+<li>
+<p dir="auto"><a href="https://github.com/seanmonstar/warp"><code>warp</code></a>: A super-easy, composable, web server framework for warp speeds.</p>
+</li>
+<li>
+<p dir="auto"><a href="https://github.com/tower-rs/tower"><code>tower</code></a>: A library of modular and reusable components for building robust networking clients and servers.</p>
+</li>
+<li>
+<p dir="auto"><a href="https://github.com/tokio-rs/tracing"><code>tracing</code></a> (formerly <code>tokio-trace</code>): A framework for application-level tracing and async-aware diagnostics.</p>
+</li>
+<li>
+<p dir="auto"><a href="https://github.com/tokio-rs/mio"><code>mio</code></a>: A low-level, cross-platform abstraction over OS I/O APIs that powers <code>tokio</code>.</p>
+</li>
+<li>
+<p dir="auto"><a href="https://github.com/tokio-rs/bytes"><code>bytes</code></a>: Utilities for working with bytes, including efficient byte buffers.</p>
+</li>
+<li>
+<p dir="auto"><a href="https://github.com/tokio-rs/loom"><code>loom</code></a>: A testing tool for concurrent Rust code.</p>
+</li>
+</ul>
+<div class="markdown-heading" dir="auto"><h2 class="heading-element" dir="auto">Changelog</h2><a id="user-content-changelog" class="anchor" aria-label="Permalink: Changelog" href="#changelog"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">The Tokio repository contains multiple crates. Each crate has its own changelog.</p>
+<ul dir="auto">
+<li><code>tokio</code> - <a href="https://github.com/tokio-rs/tokio/blob/master/tokio/CHANGELOG.md">view changelog</a></li>
+<li><code>tokio-util</code> - <a href="https://github.com/tokio-rs/tokio/blob/master/tokio-util/CHANGELOG.md">view changelog</a></li>
+<li><code>tokio-stream</code> - <a href="https://github.com/tokio-rs/tokio/blob/master/tokio-stream/CHANGELOG.md">view changelog</a></li>
+<li><code>tokio-macros</code> - <a href="https://github.com/tokio-rs/tokio/blob/master/tokio-macros/CHANGELOG.md">view changelog</a></li>
+<li><code>tokio-test</code> - <a href="https://github.com/tokio-rs/tokio/blob/master/tokio-test/CHANGELOG.md">view changelog</a></li>
+</ul>
+<div class="markdown-heading" dir="auto"><h2 class="heading-element" dir="auto">Supported Rust Versions</h2><a id="user-content-supported-rust-versions" class="anchor" aria-label="Permalink: Supported Rust Versions" href="#supported-rust-versions"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+
+<p dir="auto">Tokio will keep a rolling MSRV (minimum supported rust version) policy of <strong>at
+least</strong> 6 months. When increasing the MSRV, the new Rust version must have been
+released at least six months ago. The current MSRV is 1.85.</p>
+<p dir="auto">Note that the MSRV is not increased automatically, and only as part of a minor
+release. The MSRV history for past minor releases can be found below:</p>
+<ul dir="auto">
+<li>1.54 to now  - Rust 1.85</li>
+<li>1.48 to 1.53 - Rust 1.71</li>
+<li>1.39 to 1.47 - Rust 1.70</li>
+<li>1.30 to 1.38 - Rust 1.63</li>
+<li>1.27 to 1.29 - Rust 1.56</li>
+<li>1.17 to 1.26 - Rust 1.49</li>
+<li>1.15 to 1.16 - Rust 1.46</li>
+<li>1.0 to 1.14 - Rust 1.45</li>
+</ul>
+<p dir="auto">Note that although we try to avoid the situation where a dependency transitively
+increases the MSRV of Tokio, we do not guarantee that this does not happen.
+However, every minor release will have some set of versions of dependencies that
+works with the MSRV of that minor release.</p>
+<div class="markdown-heading" dir="auto"><h2 class="heading-element" dir="auto">Release schedule</h2><a id="user-content-release-schedule" class="anchor" aria-label="Permalink: Release schedule" href="#release-schedule"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">Tokio doesn't follow a fixed release schedule, but we typically make one minor
+release each month. We make patch releases for bugfixes as necessary.</p>
+<div class="markdown-heading" dir="auto"><h2 class="heading-element" dir="auto">Bug patching policy</h2><a id="user-content-bug-patching-policy" class="anchor" aria-label="Permalink: Bug patching policy" href="#bug-patching-policy"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">For the purposes of making patch releases with bugfixes, we have designated
+certain minor releases as LTS (long term support) releases. Whenever a bug
+warrants a patch release with a fix for the bug, it will be backported and
+released as a new patch release for each LTS minor version. Our current LTS
+releases are:</p>
+<ul dir="auto">
+<li><code>1.51.x</code> - LTS release until March 2027. (MSRV 1.71)</li>
+<li><code>1.53.x</code> - LTS release until September 2027. (MSRV 1.71)</li>
+</ul>
+<p dir="auto">Each LTS release will continue to receive backported fixes for at least a year.
+If you wish to use a fixed minor release in your project, we recommend that you
+use an LTS release.</p>
+<p dir="auto">To use a fixed minor version, you can specify the version with a tilde. For
+example, to specify that you wish to use the newest <code>1.51.x</code> patch release, you
+can use the following dependency specification:</p>
+<div class="snippet-clipboard-content notranslate position-relative overflow-auto" data-snippet-clipboard-copy-content="tokio = { version = &quot;~1.51&quot;, features = [...] }"><pre lang="text" class="notranslate"><code>tokio = { version = "~1.51", features = [...] }
+</code></pre></div>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">Previous LTS releases</h3><a id="user-content-previous-lts-releases" class="anchor" aria-label="Permalink: Previous LTS releases" href="#previous-lts-releases"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<ul dir="auto">
+<li><code>1.8.x</code> - LTS release until February 2022.</li>
+<li><code>1.14.x</code> - LTS release until June 2022.</li>
+<li><code>1.18.x</code> - LTS release until June 2023.</li>
+<li><code>1.20.x</code> - LTS release until September 2023.</li>
+<li><code>1.25.x</code> - LTS release until March 2024.</li>
+<li><code>1.32.x</code> - LTS release until September 2024.</li>
+<li><code>1.36.x</code> - LTS release until March 2025.</li>
+<li><code>1.38.x</code> - LTS release until July 2025.</li>
+<li><code>1.43.x</code> - LTS release until March 2026.</li>
+<li><code>1.47.x</code> - LTS release until September 2026.</li>
+</ul>
+<div class="markdown-heading" dir="auto"><h2 class="heading-element" dir="auto">License</h2><a id="user-content-license" class="anchor" aria-label="Permalink: License" href="#license"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">This project is licensed under the <a href="https://github.com/tokio-rs/tokio/blob/master/LICENSE">MIT license</a>.</p>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">Contribution</h3><a id="user-content-contribution" class="anchor" aria-label="Permalink: Contribution" href="#contribution"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">Unless you explicitly state otherwise, any contribution intentionally submitted
+for inclusion in Tokio by you shall be licensed as MIT, without any additional
+terms or conditions.</p>
+</article></div>

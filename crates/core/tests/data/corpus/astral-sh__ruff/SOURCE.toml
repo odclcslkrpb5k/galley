@@ -1,0 +1,6 @@
+repo = "astral-sh/ruff"
+commit = "eb625e43e489bc090aae9c4aa4a407cf389f65d0"
+path = "README.md"
+licence = "MIT"
+rendered_by = "GET /repos/astral-sh/ruff/readme?ref=eb625e43e489bc090aae9c4aa4a407cf389f65d0 (Accept: application/vnd.github.html+json)"
+fetched = "2026-10-11"

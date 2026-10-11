@@ -1,0 +1,6 @@
+repo = "nushell/nushell"
+commit = "e56aca9da6c068b6c6d33bbb70bd1da82b7fd483"
+path = "README.md"
+licence = "MIT"
+rendered_by = "GET /repos/nushell/nushell/readme?ref=e56aca9da6c068b6c6d33bbb70bd1da82b7fd483 (Accept: application/vnd.github.html+json)"
+fetched = "2026-10-11"

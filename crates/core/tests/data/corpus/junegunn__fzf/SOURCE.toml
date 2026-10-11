@@ -1,0 +1,6 @@
+repo = "junegunn/fzf"
+commit = "c0a193e031f01fb50bf6f7be4381990a3753f7cf"
+path = "README.md"
+licence = "MIT"
+rendered_by = "GET /repos/junegunn/fzf/readme?ref=c0a193e031f01fb50bf6f7be4381990a3753f7cf (Accept: application/vnd.github.html+json)"
+fetched = "2026-10-11"

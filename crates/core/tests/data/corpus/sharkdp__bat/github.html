@@ -1,0 +1,721 @@
+<div id="readme" class="md" data-path="README.md"><article class="markdown-body entry-content container-lg" itemprop="text"><p align="center" dir="auto">
+  <a target="_blank" rel="noopener noreferrer" href="doc/logo-header.svg"><img src="doc/logo-header.svg" alt="bat - a cat clone with wings" style="max-width: 100%;"></a><br>
+  <a href="https://github.com/sharkdp/bat/actions?query=workflow%3ACICD"><img src="https://github.com/sharkdp/bat/workflows/CICD/badge.svg" alt="Build Status" style="max-width: 100%;"></a>
+  <a target="_blank" rel="noopener noreferrer nofollow" href="https://camo.githubusercontent.com/431d2b3cfd1a0c0edb22a70dad85d4054a656a3d0b2fc0d27b45b245e3c90e93/68747470733a2f2f696d672e736869656c64732e696f2f6372617465732f6c2f6261742e737667"><img src="https://camo.githubusercontent.com/431d2b3cfd1a0c0edb22a70dad85d4054a656a3d0b2fc0d27b45b245e3c90e93/68747470733a2f2f696d672e736869656c64732e696f2f6372617465732f6c2f6261742e737667" alt="license" data-canonical-src="https://img.shields.io/crates/l/bat.svg" style="max-width: 100%;"></a>
+  <a href="https://crates.io/crates/bat" rel="nofollow"><img src="https://camo.githubusercontent.com/c8ffbb238a35ef51e14b65e43dd974778a4914d61b929068427116c66f03f548/68747470733a2f2f696d672e736869656c64732e696f2f6372617465732f762f6261742e7376673f636f6c6f72423d333139653863" alt="Version info" data-canonical-src="https://img.shields.io/crates/v/bat.svg?colorB=319e8c" style="max-width: 100%;"></a><br>
+  A <i>cat(1)</i> clone with syntax highlighting and Git integration.
+</p>
+<p align="center" dir="auto">
+  <a href="#syntax-highlighting">Key Features</a> •
+  <a href="#how-to-use">How To Use</a> •
+  <a href="#installation">Installation</a> •
+  <a href="#customization">Customization</a> •
+  <a href="#project-goals-and-alternatives">Project goals, alternatives</a><br>
+  [English]
+  [<a href="doc/README-zh.md">中文</a>]
+  [<a href="doc/README-ja.md">日本語</a>]
+  [<a href="doc/README-ko.md">한국어</a>]
+  [<a href="doc/README-ru.md">Русский</a>]
+</p>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">Syntax highlighting</h3><a id="user-content-syntax-highlighting" class="anchor" aria-label="Permalink: Syntax highlighting" href="#syntax-highlighting"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto"><code>bat</code> supports syntax highlighting for a large number of programming and markup
+languages:</p>
+<p dir="auto"><a target="_blank" rel="noopener noreferrer nofollow" href="https://camo.githubusercontent.com/6afa2b6da8f06618b280178dc5828939242e6bf6183a385ea3734e8dbf8114c7/68747470733a2f2f696d6775722e636f6d2f724773646e44652e706e67"><img src="https://camo.githubusercontent.com/6afa2b6da8f06618b280178dc5828939242e6bf6183a385ea3734e8dbf8114c7/68747470733a2f2f696d6775722e636f6d2f724773646e44652e706e67" alt="Syntax highlighting example" data-canonical-src="https://imgur.com/rGsdnDe.png" style="max-width: 100%;"></a></p>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">Git integration</h3><a id="user-content-git-integration" class="anchor" aria-label="Permalink: Git integration" href="#git-integration"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto"><code>bat</code> communicates with <code>git</code> to show modifications with respect to the index
+(see left sidebar):</p>
+<p dir="auto"><a target="_blank" rel="noopener noreferrer nofollow" href="https://camo.githubusercontent.com/46b1d63d8c4a647bcfc34eef014232fce5125c03f0aa94b2a06d6765a2f1c6bb/68747470733a2f2f692e696d6775722e636f6d2f326c53573452452e706e67"><img src="https://camo.githubusercontent.com/46b1d63d8c4a647bcfc34eef014232fce5125c03f0aa94b2a06d6765a2f1c6bb/68747470733a2f2f692e696d6775722e636f6d2f326c53573452452e706e67" alt="Git integration example" data-canonical-src="https://i.imgur.com/2lSW4RE.png" style="max-width: 100%;"></a></p>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">Show non-printable characters</h3><a id="user-content-show-non-printable-characters" class="anchor" aria-label="Permalink: Show non-printable characters" href="#show-non-printable-characters"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">You can use the <code>-A</code>/<code>--show-all</code> option to show and highlight non-printable
+characters:</p>
+<p dir="auto"><a target="_blank" rel="noopener noreferrer nofollow" href="https://camo.githubusercontent.com/1730e45a13bf21546cb827352bc8ca9650f5e96f325cef2fe6173f08a3fe7c08/68747470733a2f2f692e696d6775722e636f6d2f576e64477039482e706e67"><img src="https://camo.githubusercontent.com/1730e45a13bf21546cb827352bc8ca9650f5e96f325cef2fe6173f08a3fe7c08/68747470733a2f2f692e696d6775722e636f6d2f576e64477039482e706e67" alt="Non-printable character example" data-canonical-src="https://i.imgur.com/WndGp9H.png" style="max-width: 100%;"></a></p>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">Automatic paging</h3><a id="user-content-automatic-paging" class="anchor" aria-label="Permalink: Automatic paging" href="#automatic-paging"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">By default, <code>bat</code> pipes its own output to a pager (e.g. <code>less</code>) if the output is too large for one screen.
+If you would rather <code>bat</code> work like <code>cat</code> all the time (never page output), you can set <code>--paging=never</code> as an option, either on the command line or in your configuration file.
+If you intend to alias <code>cat</code> to <code>bat</code> in your shell configuration, you can use <code>alias cat='bat --paging=never'</code> to preserve the default behavior.</p>
+<div class="markdown-heading" dir="auto"><h4 class="heading-element" dir="auto">File concatenation</h4><a id="user-content-file-concatenation" class="anchor" aria-label="Permalink: File concatenation" href="#file-concatenation"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">Even with a pager set, you can still use <code>bat</code> to concatenate files 😉.
+Whenever <code>bat</code> detects a non-interactive terminal (i.e. when you pipe into another process or into a file), <code>bat</code> will act as a drop-in replacement for <code>cat</code> and fall back to printing the plain file contents, regardless of the <code>--pager</code> option's value.</p>
+<div class="markdown-heading" dir="auto"><h2 class="heading-element" dir="auto">How to use</h2><a id="user-content-how-to-use" class="anchor" aria-label="Permalink: How to use" href="#how-to-use"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">Display a single file on the terminal</p>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="bat README.md"><pre>bat README.md</pre></div>
+<p dir="auto">Display multiple files at once</p>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="bat src/*.rs"><pre>bat src/<span class="pl-k">*</span>.rs</pre></div>
+<p dir="auto">Read from stdin, determine the syntax automatically (note, highlighting will
+only work if the syntax can be determined from the first line of the file,
+usually through a shebang such as <code>#!/bin/sh</code>)</p>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="curl -s https://sh.rustup.rs | bat"><pre>curl -s https://sh.rustup.rs <span class="pl-k">|</span> bat</pre></div>
+<p dir="auto">Read from stdin, specify the language explicitly</p>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="yaml2json .travis.yml | json_pp | bat -l json"><pre>yaml2json .travis.yml <span class="pl-k">|</span> json_pp <span class="pl-k">|</span> bat -l json</pre></div>
+<p dir="auto">Show and highlight non-printable characters:</p>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="bat -A /etc/hosts"><pre>bat -A /etc/hosts</pre></div>
+<p dir="auto">Use it as a <code>cat</code> replacement:</p>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="bat &gt; note.md  # quickly create a new file
+
+bat header.md content.md footer.md &gt; document.md
+
+bat -n main.rs  # show line numbers (only)
+
+bat f - g  # output 'f', then stdin, then 'g'."><pre>bat <span class="pl-k">&gt;</span> note.md  <span class="pl-c"><span class="pl-c">#</span> quickly create a new file</span>
+
+bat header.md content.md footer.md <span class="pl-k">&gt;</span> document.md
+
+bat -n main.rs  <span class="pl-c"><span class="pl-c">#</span> show line numbers (only)</span>
+
+bat f - g  <span class="pl-c"><span class="pl-c">#</span> output 'f', then stdin, then 'g'.</span></pre></div>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">Integration with other tools</h3><a id="user-content-integration-with-other-tools" class="anchor" aria-label="Permalink: Integration with other tools" href="#integration-with-other-tools"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<div class="markdown-heading" dir="auto"><h4 class="heading-element" dir="auto"><code>fzf</code></h4><a id="user-content-fzf" class="anchor" aria-label="Permalink: fzf" href="#fzf"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">You can use <code>bat</code> as a previewer for <a href="https://github.com/junegunn/fzf"><code>fzf</code></a>. To do this,
+use <code>bat</code>'s <code>--color=always</code> option to force colorized output. You can also use <code>--line-range</code>
+option to restrict the load times for long files:</p>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="fzf --preview &quot;bat --color=always --style=numbers --line-range=:500 {}&quot;"><pre>fzf --preview <span class="pl-s"><span class="pl-pds">"</span>bat --color=always --style=numbers --line-range=:500 {}<span class="pl-pds">"</span></span></pre></div>
+<p dir="auto">For more information, see <a href="https://github.com/junegunn/fzf#preview-window"><code>fzf</code>'s <code>README</code></a>.</p>
+<div class="markdown-heading" dir="auto"><h4 class="heading-element" dir="auto"><code>find</code> or <code>fd</code></h4><a id="user-content-find-or-fd" class="anchor" aria-label="Permalink: find or fd" href="#find-or-fd"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">You can use the <code>-exec</code> option of <code>find</code> to preview all search results with <code>bat</code>:</p>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="find … -exec bat {} +"><pre>find … -exec bat {} +</pre></div>
+<p dir="auto">If you happen to use <a href="https://github.com/sharkdp/fd"><code>fd</code></a>, you can use the <code>-X</code>/<code>--exec-batch</code> option to do the same:</p>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="fd … -X bat"><pre>fd … -X bat</pre></div>
+<div class="markdown-heading" dir="auto"><h4 class="heading-element" dir="auto"><code>ripgrep</code></h4><a id="user-content-ripgrep" class="anchor" aria-label="Permalink: ripgrep" href="#ripgrep"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">With <a href="https://github.com/eth-p/bat-extras/blob/master/doc/batgrep.md"><code>batgrep</code></a>, <code>bat</code> can be used as the printer for <a href="https://github.com/BurntSushi/ripgrep"><code>ripgrep</code></a> search results.</p>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="batgrep needle src/"><pre>batgrep needle src/</pre></div>
+<div class="markdown-heading" dir="auto"><h4 class="heading-element" dir="auto"><code>tail -f</code></h4><a id="user-content-tail--f" class="anchor" aria-label="Permalink: tail -f" href="#tail--f"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto"><code>bat</code> can be combined with <code>tail -f</code> to continuously monitor a given file with syntax highlighting.</p>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="tail -f /var/log/pacman.log | bat --paging=never -l log"><pre>tail -f /var/log/pacman.log <span class="pl-k">|</span> bat --paging=never -l log</pre></div>
+<p dir="auto">Note that we have to switch off paging in order for this to work. We have also specified the syntax
+explicitly (<code>-l log</code>), as it can not be auto-detected in this case.</p>
+<div class="markdown-heading" dir="auto"><h4 class="heading-element" dir="auto"><code>git</code></h4><a id="user-content-git" class="anchor" aria-label="Permalink: git" href="#git"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">You can combine <code>bat</code> with <code>git show</code> to view an older version of a given file with proper syntax
+highlighting:</p>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="git show v0.6.0:src/main.rs | bat -l rs"><pre>git show v0.6.0:src/main.rs <span class="pl-k">|</span> bat -l rs</pre></div>
+<div class="markdown-heading" dir="auto"><h4 class="heading-element" dir="auto"><code>git diff</code></h4><a id="user-content-git-diff" class="anchor" aria-label="Permalink: git diff" href="#git-diff"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">You can combine <code>bat</code> with <code>git diff</code> to view lines around code changes with proper syntax
+highlighting:</p>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="batdiff() {
+    git diff --name-only --relative --diff-filter=d -z | xargs -0 bat --diff
+}"><pre><span class="pl-en">batdiff</span>() {
+    git diff --name-only --relative --diff-filter=d -z <span class="pl-k">|</span> xargs -0 bat --diff
+}</pre></div>
+<p dir="auto">If you prefer to use this as a separate tool, check out <code>batdiff</code> in <a href="https://github.com/eth-p/bat-extras"><code>bat-extras</code></a>.</p>
+<p dir="auto">If you are looking for more support for git and diff operations, check out <a href="https://github.com/dandavison/delta"><code>delta</code></a>.</p>
+<div class="markdown-heading" dir="auto"><h4 class="heading-element" dir="auto"><code>xclip</code></h4><a id="user-content-xclip" class="anchor" aria-label="Permalink: xclip" href="#xclip"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">The line numbers and Git modification markers in the output of <code>bat</code> can make it hard to copy
+the contents of a file. To prevent this, you can call <code>bat</code> with the <code>-p</code>/<code>--plain</code> option or
+simply pipe the output into <code>xclip</code>:</p>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="bat main.cpp | xclip"><pre>bat main.cpp <span class="pl-k">|</span> xclip</pre></div>
+<p dir="auto"><code>bat</code> will detect that the output is being redirected and print the plain file contents.</p>
+<div class="markdown-heading" dir="auto"><h4 class="heading-element" dir="auto"><code>man</code></h4><a id="user-content-man" class="anchor" aria-label="Permalink: man" href="#man"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto"><code>bat</code> can be used as a colorizing pager for <code>man</code>, by setting the
+<code>MANPAGER</code> environment variable:</p>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="export MANPAGER=&quot;bat -plman&quot;
+man 2 select"><pre><span class="pl-k">export</span> MANPAGER=<span class="pl-s"><span class="pl-pds">"</span>bat -plman<span class="pl-pds">"</span></span>
+man 2 <span class="pl-k">select</span></pre></div>
+<p dir="auto">(on some older Debian or Ubuntu releases, the executable is named <code>batcat</code> instead of <code>bat</code>)</p>
+<p dir="auto">If you prefer to have this bundled in a new command, you can also use <a href="https://github.com/eth-p/bat-extras/blob/master/doc/batman.md"><code>batman</code></a>.</p>
+<p dir="auto">Note that the <a href="assets/syntaxes/02_Extra/Manpage.sublime-syntax">Manpage syntax</a> is developed in this repository and still needs some work.</p>
+<div class="markdown-heading" dir="auto"><h4 class="heading-element" dir="auto"><code>prettier</code> / <code>shfmt</code> / <code>rustfmt</code></h4><a id="user-content-prettier--shfmt--rustfmt" class="anchor" aria-label="Permalink: prettier / shfmt / rustfmt" href="#prettier--shfmt--rustfmt"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">The <a href="https://github.com/eth-p/bat-extras/blob/master/doc/prettybat.md"><code>prettybat</code></a> script is a wrapper that will format code and print it with <code>bat</code>.</p>
+<div class="markdown-heading" dir="auto"><h4 class="heading-element" dir="auto">Highlighting <code>--help</code> messages</h4><a id="user-content-highlighting---help-messages" class="anchor" aria-label="Permalink: Highlighting --help messages" href="#highlighting---help-messages"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">You can use <code>bat</code> to colorize help text: <code>$ cp --help | bat -plhelp</code></p>
+<p dir="auto">You can also use a wrapper around this:</p>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="# in your .bashrc/.zshrc/*rc
+alias bathelp='bat --plain --language=help'
+help() {
+    &quot;$@&quot; --help 2&gt;&amp;1 | bathelp
+}"><pre><span class="pl-c"><span class="pl-c">#</span> in your .bashrc/.zshrc/*rc</span>
+<span class="pl-c1">alias</span> bathelp=<span class="pl-s"><span class="pl-pds">'</span>bat --plain --language=help<span class="pl-pds">'</span></span>
+<span class="pl-en">help</span>() {
+    <span class="pl-s"><span class="pl-pds">"</span><span class="pl-smi">$@</span><span class="pl-pds">"</span></span> --help <span class="pl-k">2&gt;&amp;1</span> <span class="pl-k">|</span> bathelp
+}</pre></div>
+<p dir="auto">Then you can do <code>$ help cp</code> or <code>$ help git commit</code>.</p>
+<p dir="auto">When you are using <code>zsh</code>, you can also use global aliases to override <code>-h</code> and <code>--help</code> entirely:</p>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="alias -g -- -h='-h 2&gt;&amp;1 | bat --language=help --style=plain'
+alias -g -- --help='--help 2&gt;&amp;1 | bat --language=help --style=plain'"><pre><span class="pl-c1">alias</span> -g -- -h=<span class="pl-s"><span class="pl-pds">'</span>-h 2&gt;&amp;1 | bat --language=help --style=plain<span class="pl-pds">'</span></span>
+<span class="pl-c1">alias</span> -g -- --help=<span class="pl-s"><span class="pl-pds">'</span>--help 2&gt;&amp;1 | bat --language=help --style=plain<span class="pl-pds">'</span></span></pre></div>
+<p dir="auto">For <code>fish</code>, you can use abbreviations:</p>
+<div class="highlight highlight-source-fish notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="abbr -a --position anywhere -- --help '--help | bat -plhelp'
+abbr -a --position anywhere -- -h '-h | bat -plhelp'"><pre>abbr <span class="pl-s">-a</span> <span class="pl-s">--position</span> anywhere -- <span class="pl-s">--help</span> <span class="pl-s"><span class="pl-pds">'</span>--help | bat -plhelp<span class="pl-pds">'</span></span>
+abbr <span class="pl-s">-a</span> <span class="pl-s">--position</span> anywhere -- <span class="pl-s">-h</span> <span class="pl-s"><span class="pl-pds">'</span>-h | bat -plhelp<span class="pl-pds">'</span></span></pre></div>
+<p dir="auto">This way, you can keep on using <code>cp --help</code>, but get colorized help pages.</p>
+<div class="markdown-alert markdown-alert-tip" dir="auto"><p class="markdown-alert-title" dir="auto"><svg data-component="Octicon" class="octicon octicon-light-bulb mr-2" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="M8 1.5c-2.363 0-4 1.69-4 3.75 0 .984.424 1.625.984 2.304l.214.253c.223.264.47.556.673.848.284.411.537.896.621 1.49a.75.75 0 0 1-1.484.211c-.04-.282-.163-.547-.37-.847a8.456 8.456 0 0 0-.542-.68c-.084-.1-.173-.205-.268-.32C3.201 7.75 2.5 6.766 2.5 5.25 2.5 2.31 4.863 0 8 0s5.5 2.31 5.5 5.25c0 1.516-.701 2.5-1.328 3.259-.095.115-.184.22-.268.319-.207.245-.383.453-.541.681-.208.3-.33.565-.37.847a.751.751 0 0 1-1.485-.212c.084-.593.337-1.078.621-1.489.203-.292.45-.584.673-.848.075-.088.147-.173.213-.253.561-.679.985-1.32.985-2.304 0-2.06-1.637-3.75-4-3.75ZM5.75 12h4.5a.75.75 0 0 1 0 1.5h-4.5a.75.75 0 0 1 0-1.5ZM6 15.25a.75.75 0 0 1 .75-.75h2.5a.75.75 0 0 1 0 1.5h-2.5a.75.75 0 0 1-.75-.75Z"></path></svg>Tip</p><p dir="auto">To remove these abbreviations later, run:</p>
+<div class="highlight highlight-source-fish notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="abbr -e -- --help
+abbr -e -- -h"><pre>abbr <span class="pl-s">-e</span> -- <span class="pl-s">--help</span>
+abbr <span class="pl-s">-e</span> -- <span class="pl-s">-h</span></pre></div>
+<p dir="auto">The <code>--</code> before the abbreviation name is required because <code>--help</code> and <code>-h</code> start with dashes, which would otherwise be interpreted as flags to <code>abbr</code> itself.</p>
+</div>
+<p dir="auto">Be aware that in some cases, <code>-h</code> may not be a shorthand of <code>--help</code> (for example with <code>ls</code>). In cases where you need to use <code>-h</code>
+as a command argument you can prepend <code>\</code> to the argument (eg. <code>ls \-h</code>) to escape the aliasing defined above.</p>
+<p dir="auto">Please report any issues with the help syntax in <a href="https://github.com/victor-gp/cmd-help-sublime-syntax">this repository</a>.</p>
+<div class="markdown-heading" dir="auto"><h2 class="heading-element" dir="auto">Installation</h2><a id="user-content-installation" class="anchor" aria-label="Permalink: Installation" href="#installation"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+
+<p dir="auto"><a href="https://repology.org/project/bat-cat/versions" rel="nofollow"><img src="https://camo.githubusercontent.com/e5f7226cf418eb44a7372645b9f8047cf436002a6b9f4c6e5d1920d8f7d9400a/68747470733a2f2f7265706f6c6f67792e6f72672f62616467652f766572746963616c2d616c6c7265706f732f6261742d6361742e7376673f636f6c756d6e733d33266578636c7564655f756e737570706f727465643d31" alt="Packaging status" data-canonical-src="https://repology.org/badge/vertical-allrepos/bat-cat.svg?columns=3&amp;exclude_unsupported=1" style="max-width: 100%;"></a></p>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">On Ubuntu (using <code>apt</code>)</h3><a id="user-content-on-ubuntu-using-apt" class="anchor" aria-label="Permalink: On Ubuntu (using apt)" href="#on-ubuntu-using-apt"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto"><em>... and other Debian-based Linux distributions.</em></p>
+<p dir="auto"><code>bat</code> is available on <a href="https://packages.ubuntu.com/search?keywords=bat&amp;exact=1" rel="nofollow">Ubuntu since 20.04 ("Focal")</a> and <a href="https://packages.debian.org/bullseye/bat" rel="nofollow">Debian since August 2021 (Debian 11 - "Bullseye")</a>.</p>
+<p dir="auto">If your Ubuntu/Debian installation is new enough you can simply run:</p>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="sudo apt install bat"><pre>sudo apt install bat</pre></div>
+<p dir="auto"><strong>Important</strong>: On some older Ubuntu/Debian releases, the executable is installed as <code>batcat</code> instead of <code>bat</code> (due to <a href="https://github.com/sharkdp/bat/issues/982" data-hovercard-type="issue" data-hovercard-url="/sharkdp/bat/issues/982/hovercard">a name
+clash with another package</a>). On newer releases, the executable is available as <code>bat</code>. If <code>bat --version</code> does not work after installation, try <code>batcat --version</code> instead. You can set up a <code>bat -&gt; batcat</code> symlink or alias to prevent any issues that may come up because of this and to be consistent with other distributions:</p>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="mkdir -p ~/.local/bin
+ln -s /usr/bin/batcat ~/.local/bin/bat"><pre>mkdir -p <span class="pl-k">~</span>/.local/bin
+ln -s /usr/bin/batcat <span class="pl-k">~</span>/.local/bin/bat</pre></div>
+<p dir="auto">an example alias for <code>batcat</code> as <code>bat</code>:</p>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="alias bat=&quot;batcat&quot;"><pre><span class="pl-c1">alias</span> bat=<span class="pl-s"><span class="pl-pds">"</span>batcat<span class="pl-pds">"</span></span></pre></div>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">On Ubuntu (using most recent <code>.deb</code> packages)</h3><a id="user-content-on-ubuntu-using-most-recent-deb-packages" class="anchor" aria-label="Permalink: On Ubuntu (using most recent .deb packages)" href="#on-ubuntu-using-most-recent-deb-packages"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto"><em>... and other Debian-based Linux distributions.</em></p>
+<p dir="auto">If the package has not yet been promoted to your Ubuntu/Debian installation, or you want
+the most recent release of <code>bat</code>, download the latest <code>.deb</code> package from the
+<a href="https://github.com/sharkdp/bat/releases">release page</a> and install it via:</p>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="sudo dpkg -i bat_0.18.3_amd64.deb  # adapt version number and architecture"><pre>sudo dpkg -i bat_0.18.3_amd64.deb  <span class="pl-c"><span class="pl-c">#</span> adapt version number and architecture</span></pre></div>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">On Alpine Linux</h3><a id="user-content-on-alpine-linux" class="anchor" aria-label="Permalink: On Alpine Linux" href="#on-alpine-linux"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">You can install <a href="https://pkgs.alpinelinux.org/packages?name=bat" rel="nofollow">the <code>bat</code> package</a>
+from the official sources, provided you have the appropriate repository enabled:</p>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="apk add bat"><pre>apk add bat</pre></div>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">On Arch Linux</h3><a id="user-content-on-arch-linux" class="anchor" aria-label="Permalink: On Arch Linux" href="#on-arch-linux"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">You can install <a href="https://www.archlinux.org/packages/extra/x86_64/bat/" rel="nofollow">the <code>bat</code> package</a>
+from the official sources:</p>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="pacman -S bat"><pre>pacman -S bat</pre></div>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">On Fedora</h3><a id="user-content-on-fedora" class="anchor" aria-label="Permalink: On Fedora" href="#on-fedora"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">You can install <a href="https://packages.fedoraproject.org/pkgs/rust-bat/bat/" rel="nofollow">the <code>bat</code> package</a> from the official sources:</p>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="dnf install bat"><pre>dnf install bat</pre></div>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">On Gentoo Linux</h3><a id="user-content-on-gentoo-linux" class="anchor" aria-label="Permalink: On Gentoo Linux" href="#on-gentoo-linux"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">You can install <a href="https://packages.gentoo.org/packages/sys-apps/bat" rel="nofollow">the <code>bat</code> package</a>
+from the official sources:</p>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="emerge sys-apps/bat"><pre>emerge sys-apps/bat</pre></div>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">On FreeBSD</h3><a id="user-content-on-freebsd" class="anchor" aria-label="Permalink: On FreeBSD" href="#on-freebsd"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">You can install a precompiled <a href="https://www.freshports.org/textproc/bat" rel="nofollow"><code>bat</code> package</a> with pkg:</p>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="pkg install bat"><pre>pkg install bat</pre></div>
+<p dir="auto">or build it on your own from the FreeBSD ports:</p>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="cd /usr/ports/textproc/bat
+make install"><pre><span class="pl-c1">cd</span> /usr/ports/textproc/bat
+make install</pre></div>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">On OpenBSD</h3><a id="user-content-on-openbsd" class="anchor" aria-label="Permalink: On OpenBSD" href="#on-openbsd"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">You can install <code>bat</code> package using <a href="https://man.openbsd.org/pkg_add.1" rel="nofollow"><code>pkg_add(1)</code></a>:</p>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="pkg_add bat"><pre>pkg_add bat</pre></div>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">Via nix</h3><a id="user-content-via-nix" class="anchor" aria-label="Permalink: Via nix" href="#via-nix"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">You can install <code>bat</code> using the <a href="https://nixos.org/nix" rel="nofollow">nix package manager</a>:</p>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="nix-env -i bat"><pre>nix-env -i bat</pre></div>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">On openSUSE</h3><a id="user-content-on-opensuse" class="anchor" aria-label="Permalink: On openSUSE" href="#on-opensuse"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">You can install <code>bat</code> with zypper:</p>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="zypper install bat"><pre>zypper install bat</pre></div>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">Via snap package</h3><a id="user-content-via-snap-package" class="anchor" aria-label="Permalink: Via snap package" href="#via-snap-package"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">There is currently no recommended snap package available.
+Existing packages may be available, but are not officially supported and may contain <a href="https://github.com/sharkdp/bat/issues/1519" data-hovercard-type="issue" data-hovercard-url="/sharkdp/bat/issues/1519/hovercard">issues</a>.</p>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">On macOS (or Linux) via Homebrew</h3><a id="user-content-on-macos-or-linux-via-homebrew" class="anchor" aria-label="Permalink: On macOS (or Linux) via Homebrew" href="#on-macos-or-linux-via-homebrew"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">You can install <code>bat</code> with <a href="https://formulae.brew.sh/formula/bat" rel="nofollow">Homebrew</a>:</p>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="brew install bat"><pre>brew install bat</pre></div>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">On macOS via MacPorts</h3><a id="user-content-on-macos-via-macports" class="anchor" aria-label="Permalink: On macOS via MacPorts" href="#on-macos-via-macports"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">Or install <code>bat</code> with <a href="https://ports.macports.org/port/bat/summary" rel="nofollow">MacPorts</a>:</p>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="port install bat"><pre>port install bat</pre></div>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">On Windows</h3><a id="user-content-on-windows" class="anchor" aria-label="Permalink: On Windows" href="#on-windows"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">There are a few options to install <code>bat</code> on Windows. Once you have installed <code>bat</code>,
+take a look at the <a href="#using-bat-on-windows">"Using <code>bat</code> on Windows"</a> section.</p>
+<div class="markdown-heading" dir="auto"><h4 class="heading-element" dir="auto">Prerequisites</h4><a id="user-content-prerequisites" class="anchor" aria-label="Permalink: Prerequisites" href="#prerequisites"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">You will need to install the <a href="https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist#latest-microsoft-visual-c-redistributable-version" rel="nofollow">Visual C++ Redistributable</a></p>
+<div class="markdown-heading" dir="auto"><h4 class="heading-element" dir="auto">With WinGet</h4><a id="user-content-with-winget" class="anchor" aria-label="Permalink: With WinGet" href="#with-winget"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">You can install <code>bat</code> via <a href="https://learn.microsoft.com/en-us/windows/package-manager/winget" rel="nofollow">WinGet</a>:</p>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="winget install sharkdp.bat"><pre>winget install sharkdp.bat</pre></div>
+<div class="markdown-heading" dir="auto"><h4 class="heading-element" dir="auto">With Chocolatey</h4><a id="user-content-with-chocolatey" class="anchor" aria-label="Permalink: With Chocolatey" href="#with-chocolatey"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">You can install <code>bat</code> via <a href="https://chocolatey.org/packages/Bat" rel="nofollow">Chocolatey</a>:</p>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="choco install bat"><pre>choco install bat</pre></div>
+<div class="markdown-heading" dir="auto"><h4 class="heading-element" dir="auto">With Scoop</h4><a id="user-content-with-scoop" class="anchor" aria-label="Permalink: With Scoop" href="#with-scoop"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">You can install <code>bat</code> via <a href="https://scoop.sh/" rel="nofollow">scoop</a>:</p>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="scoop install bat"><pre>scoop install bat</pre></div>
+<div class="markdown-heading" dir="auto"><h4 class="heading-element" dir="auto">From prebuilt binaries:</h4><a id="user-content-from-prebuilt-binaries" class="anchor" aria-label="Permalink: From prebuilt binaries:" href="#from-prebuilt-binaries"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">You can download prebuilt binaries from the <a href="https://github.com/sharkdp/bat/releases">Release page</a>,</p>
+<p dir="auto">You will need to install the <a href="https://support.microsoft.com/en-us/help/2977003/the-latest-supported-visual-c-downloads" rel="nofollow">Visual C++ Redistributable</a> package.</p>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">From binaries</h3><a id="user-content-from-binaries" class="anchor" aria-label="Permalink: From binaries" href="#from-binaries"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">Check out the <a href="https://github.com/sharkdp/bat/releases">Release page</a> for
+prebuilt versions of <code>bat</code> for many different architectures. Statically-linked
+binaries are also available: look for archives with <code>musl</code> in the file name.</p>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">From source</h3><a id="user-content-from-source" class="anchor" aria-label="Permalink: From source" href="#from-source"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">If you want to build <code>bat</code> from source, you need Rust 1.79.0 or
+higher. You can then use <code>cargo</code> to build everything:</p>
+<div class="markdown-heading" dir="auto"><h4 class="heading-element" dir="auto">From local source</h4><a id="user-content-from-local-source" class="anchor" aria-label="Permalink: From local source" href="#from-local-source"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="cargo install --path . --locked"><pre>cargo install --path <span class="pl-c1">.</span> --locked</pre></div>
+<div class="markdown-alert markdown-alert-note" dir="auto"><p class="markdown-alert-title" dir="auto"><svg data-component="Octicon" class="octicon octicon-info mr-2" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8Zm8-6.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13ZM6.5 7.75A.75.75 0 0 1 7.25 7h1a.75.75 0 0 1 .75.75v2.75h.25a.75.75 0 0 1 0 1.5h-2a.75.75 0 0 1 0-1.5h.25v-2h-.25a.75.75 0 0 1-.75-.75ZM8 6a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z"></path></svg>Note</p><p dir="auto">The <code>--path .</code> above specifies the directory of the source code and NOT where <code>bat</code> will be installed.
+For more information see the docs for <a href="https://doc.rust-lang.org/cargo/commands/cargo-install.html" rel="nofollow"><code>cargo install</code></a>.</p>
+</div>
+<div class="markdown-heading" dir="auto"><h4 class="heading-element" dir="auto">From <code>crates.io</code></h4><a id="user-content-from-cratesio" class="anchor" aria-label="Permalink: From crates.io" href="#from-cratesio"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="cargo install --locked bat"><pre>cargo install --locked bat</pre></div>
+<p dir="auto">Note that additional files like the man page or shell completion
+files can not be installed automatically in both these ways.
+If installing from a local source, they will be generated by <code>cargo</code>
+and should be available in the cargo target folder under <code>build</code>.</p>
+<p dir="auto">Furthermore, shell completions are also available by running:</p>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="bat --completion &lt;shell&gt;
+# see --help for supported shells"><pre>bat --completion <span class="pl-k">&lt;</span>shell<span class="pl-k">&gt;</span>
+<span class="pl-c"><span class="pl-c">#</span> see --help for supported shells</span></pre></div>
+<div class="markdown-heading" dir="auto"><h2 class="heading-element" dir="auto">Customization</h2><a id="user-content-customization" class="anchor" aria-label="Permalink: Customization" href="#customization"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">Highlighting theme</h3><a id="user-content-highlighting-theme" class="anchor" aria-label="Permalink: Highlighting theme" href="#highlighting-theme"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">Use <code>bat --list-themes</code> to get a list of all available themes for syntax
+highlighting. By default, <code>bat</code> uses <code>Monokai Extended</code> or <code>Monokai Extended Light</code>
+for dark and light themes respectively. To select the <code>TwoDark</code> theme, call <code>bat</code>
+with the <code>--theme=TwoDark</code> option or set the <code>BAT_THEME</code> environment variable to
+<code>TwoDark</code>. Use <code>export BAT_THEME="TwoDark"</code> in your shell's startup file to
+make the change permanent. Alternatively, use <code>bat</code>'s
+<a href="#configuration-file">configuration file</a>.</p>
+<p dir="auto">If you want to preview the different themes on a custom file, you can use
+the following command (you need <a href="https://github.com/junegunn/fzf"><code>fzf</code></a> for this):</p>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="bat --list-themes | fzf --preview=&quot;bat --theme={} --color=always /path/to/file&quot;"><pre>bat --list-themes <span class="pl-k">|</span> fzf --preview=<span class="pl-s"><span class="pl-pds">"</span>bat --theme={} --color=always /path/to/file<span class="pl-pds">"</span></span></pre></div>
+<p dir="auto"><code>bat</code> automatically picks a fitting theme depending on your terminal's background color.
+You can use the <code>--theme-dark</code> / <code>--theme-light</code> options or the <code>BAT_THEME_DARK</code> / <code>BAT_THEME_LIGHT</code> environment variables
+to customize the themes used. This is especially useful if you frequently switch between dark and light mode.</p>
+<p dir="auto">You can also use a custom theme by following the
+<a href="#adding-new-themes">'Adding new themes' section below</a>.</p>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">8-bit themes</h3><a id="user-content-8-bit-themes" class="anchor" aria-label="Permalink: 8-bit themes" href="#8-bit-themes"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto"><code>bat</code> has three themes that always use <a href="https://en.wikipedia.org/wiki/ANSI_escape_code#Colors" rel="nofollow">8-bit colors</a>,
+even when truecolor support is available:</p>
+<ul dir="auto">
+<li><code>ansi</code> looks decent on any terminal. It uses 3-bit colors: black, red, green,
+yellow, blue, magenta, cyan, and white.</li>
+<li><code>base16</code> is designed for <a href="https://github.com/tinted-theming/home">base16</a> terminal themes. It uses
+4-bit colors (3-bit colors plus bright variants) in accordance with the
+<a href="https://github.com/tinted-theming/home/blob/main/styling.md">base16 styling guidelines</a>.</li>
+<li><code>base16-256</code> is designed for <a href="https://github.com/tinted-theming/tinted-shell">tinted-shell</a>.
+It replaces certain bright colors with 8-bit colors from 16 to 21. <strong>Do not</strong> use this simply
+because you have a 256-color terminal but are not using tinted-shell.</li>
+</ul>
+<p dir="auto">Although these themes are more restricted, they have three advantages over truecolor themes. They:</p>
+<ul dir="auto">
+<li>Enjoy maximum compatibility. Some terminal utilities do not support more than 3-bit colors.</li>
+<li>Adapt to terminal theme changes. Even for already printed output.</li>
+<li>Visually harmonize better with other terminal software.</li>
+</ul>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">Output style</h3><a id="user-content-output-style" class="anchor" aria-label="Permalink: Output style" href="#output-style"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">You can use the <code>--style</code> option to control the appearance of <code>bat</code>'s output.
+You can use <code>--style=numbers,changes</code>, for example, to show only Git changes
+and line numbers but no grid and no file header. Set the <code>BAT_STYLE</code> environment
+variable to make these changes permanent or use <code>bat</code>'s
+<a href="#configuration-file">configuration file</a>.</p>
+<p dir="auto">By default, <code>bat</code> enables <code>changes</code>, <code>grid</code>, <code>header-filename</code>, <code>numbers</code>, and <code>snip</code>.</p>
+<p dir="auto">The available pre-defined styles are:</p>
+<markdown-accessiblity-table><table>
+<thead>
+<tr>
+<th>Style</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>default</code></td>
+<td>Enables the recommended style components listed above.</td>
+</tr>
+<tr>
+<td><code>full</code></td>
+<td>Enables all available components.</td>
+</tr>
+<tr>
+<td><code>auto</code></td>
+<td>Same as <code>default</code>, unless the output is piped.</td>
+</tr>
+<tr>
+<td><code>plain</code></td>
+<td>Disables all available components.</td>
+</tr>
+</tbody>
+</table></markdown-accessiblity-table>
+<p dir="auto">The available individual components are:</p>
+<markdown-accessiblity-table><table>
+<thead>
+<tr>
+<th>Component</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>changes</code></td>
+<td>Show Git modification markers.</td>
+</tr>
+<tr>
+<td><code>header</code></td>
+<td>Alias for <code>header-filename</code>.</td>
+</tr>
+<tr>
+<td><code>header-filename</code></td>
+<td>Show filenames before the content.</td>
+</tr>
+<tr>
+<td><code>header-filesize</code></td>
+<td>Show file sizes before the content.</td>
+</tr>
+<tr>
+<td><code>grid</code></td>
+<td>Vertical/horizontal lines to separate the side bar and header from the content.</td>
+</tr>
+<tr>
+<td><code>rule</code></td>
+<td>Horizontal lines to delimit files.</td>
+</tr>
+<tr>
+<td><code>numbers</code></td>
+<td>Show line numbers in the side bar.</td>
+</tr>
+<tr>
+<td><code>snip</code></td>
+<td>Draw separation lines between distinct line ranges.</td>
+</tr>
+</tbody>
+</table></markdown-accessiblity-table>
+<div class="markdown-alert markdown-alert-tip" dir="auto"><p class="markdown-alert-title" dir="auto"><svg data-component="Octicon" class="octicon octicon-light-bulb mr-2" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="M8 1.5c-2.363 0-4 1.69-4 3.75 0 .984.424 1.625.984 2.304l.214.253c.223.264.47.556.673.848.284.411.537.896.621 1.49a.75.75 0 0 1-1.484.211c-.04-.282-.163-.547-.37-.847a8.456 8.456 0 0 0-.542-.68c-.084-.1-.173-.205-.268-.32C3.201 7.75 2.5 6.766 2.5 5.25 2.5 2.31 4.863 0 8 0s5.5 2.31 5.5 5.25c0 1.516-.701 2.5-1.328 3.259-.095.115-.184.22-.268.319-.207.245-.383.453-.541.681-.208.3-.33.565-.37.847a.751.751 0 0 1-1.485-.212c.084-.593.337-1.078.621-1.489.203-.292.45-.584.673-.848.075-.088.147-.173.213-.253.561-.679.985-1.32.985-2.304 0-2.06-1.637-3.75-4-3.75ZM5.75 12h4.5a.75.75 0 0 1 0 1.5h-4.5a.75.75 0 0 1 0-1.5ZM6 15.25a.75.75 0 0 1 .75-.75h2.5a.75.75 0 0 1 0 1.5h-2.5a.75.75 0 0 1-.75-.75Z"></path></svg>Tip</p><p dir="auto">If you specify a default style in <code>bat</code>'s config file, you can change which components
+are displayed during a single run of <code>bat</code> using the <code>--style</code> command-line argument.
+By prefixing a component with <code>+</code> or <code>-</code>, it can be added or removed from the current style.</p>
+<p dir="auto">For example, if your config contains <code>--style=full,-snip</code>, you can run bat with
+<code>--style=-grid,+snip</code> to remove the grid and add back the <code>snip</code> component.
+Or, if you want to override the styles completely, you use <code>--style=numbers</code> to
+only show the line numbers.</p>
+</div>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">Decorations</h3><a id="user-content-decorations" class="anchor" aria-label="Permalink: Decorations" href="#decorations"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">By default, <code>bat</code> only shows decorations (such as line numbers, file headers, grid borders, etc.) when outputting to an interactive terminal. You can control this behavior with the <code>--decorations</code> option. Use <code>--decorations=always</code> to show decorations even when piping output to another command, or <code>--decorations=never</code> to disable them entirely. Possible values are <code>auto</code> (default), <code>never</code>, and <code>always</code>.</p>
+<p dir="auto">There is also the <code>--force-colorization</code> option, which is an alias for <code>--decorations=always --color=always</code>. This is useful if you want to keep colorization and decorations when piping <code>bat</code>'s output to another program.</p>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">Adding new syntaxes / language definitions</h3><a id="user-content-adding-new-syntaxes--language-definitions" class="anchor" aria-label="Permalink: Adding new syntaxes / language definitions" href="#adding-new-syntaxes--language-definitions"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">Should you find that a particular syntax is not available within <code>bat</code>, you can follow these
+instructions to easily add new syntaxes to your current <code>bat</code> installation.</p>
+<p dir="auto"><code>bat</code> uses the excellent <a href="https://github.com/trishume/syntect/"><code>syntect</code></a>
+library for syntax highlighting. <code>syntect</code> can read any
+<a href="https://www.sublimetext.com/docs/3/syntax.html" rel="nofollow">Sublime Text <code>.sublime-syntax</code> file</a>
+and theme.</p>
+<p dir="auto">A good resource for finding Sublime Syntax packages is <a href="https://packagecontrol.io/" rel="nofollow">Package Control</a>. Once you found a
+syntax:</p>
+<ol dir="auto">
+<li>
+<p dir="auto">Create a folder with syntax definition files:</p>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="mkdir -p &quot;$(bat --config-dir)/syntaxes&quot;
+cd &quot;$(bat --config-dir)/syntaxes&quot;
+
+# Put new '.sublime-syntax' language definition files
+# in this folder (or its subdirectories), for example:
+git clone https://github.com/tellnobody1/sublime-purescript-syntax"><pre>mkdir -p <span class="pl-s"><span class="pl-pds">"</span><span class="pl-s"><span class="pl-pds">$(</span>bat --config-dir<span class="pl-pds">)</span></span>/syntaxes<span class="pl-pds">"</span></span>
+<span class="pl-c1">cd</span> <span class="pl-s"><span class="pl-pds">"</span><span class="pl-s"><span class="pl-pds">$(</span>bat --config-dir<span class="pl-pds">)</span></span>/syntaxes<span class="pl-pds">"</span></span>
+
+<span class="pl-c"><span class="pl-c">#</span> Put new '.sublime-syntax' language definition files</span>
+<span class="pl-c"><span class="pl-c">#</span> in this folder (or its subdirectories), for example:</span>
+git clone https://github.com/tellnobody1/sublime-purescript-syntax</pre></div>
+</li>
+<li>
+<p dir="auto">Now use the following command to parse these files into a binary cache:</p>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="bat cache --build"><pre>bat cache --build</pre></div>
+</li>
+<li>
+<p dir="auto">Finally, use <code>bat --list-languages</code> to check if the new languages are available.</p>
+<p dir="auto">If you ever want to go back to the default settings, call:</p>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="bat cache --clear"><pre>bat cache --clear</pre></div>
+</li>
+<li>
+<p dir="auto">If you think that a specific syntax should be included in <code>bat</code> by default, please
+consider opening a "syntax request" ticket after reading the policies and
+instructions <a href="doc/assets.md">here</a>: <a href="https://github.com/sharkdp/bat/issues/new?labels=syntax-request&amp;template=syntax_request.md">Open Syntax Request</a>.</p>
+</li>
+</ol>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">Adding new themes</h3><a id="user-content-adding-new-themes" class="anchor" aria-label="Permalink: Adding new themes" href="#adding-new-themes"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">This works very similar to how we add new syntax definitions.</p>
+<div class="markdown-alert markdown-alert-note" dir="auto"><p class="markdown-alert-title" dir="auto"><svg data-component="Octicon" class="octicon octicon-info mr-2" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8Zm8-6.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13ZM6.5 7.75A.75.75 0 0 1 7.25 7h1a.75.75 0 0 1 .75.75v2.75h.25a.75.75 0 0 1 0 1.5h-2a.75.75 0 0 1 0-1.5h.25v-2h-.25a.75.75 0 0 1-.75-.75ZM8 6a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z"></path></svg>Note</p><p dir="auto">Custom themes must be stored in <a href="https://www.sublimetext.com/docs/color_schemes_tmtheme.html" rel="nofollow"><code>.tmTheme</code> files</a>.
+Newer <code>.sublime-color-scheme</code> files are currently not supported.</p>
+</div>
+<p dir="auto">First, create a folder with the new syntax highlighting themes:</p>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="mkdir -p &quot;$(bat --config-dir)/themes&quot;
+cd &quot;$(bat --config-dir)/themes&quot;
+
+# Download a theme in '.tmTheme' format, for example:
+git clone https://github.com/greggb/sublime-snazzy
+
+# Update the binary cache
+bat cache --build"><pre>mkdir -p <span class="pl-s"><span class="pl-pds">"</span><span class="pl-s"><span class="pl-pds">$(</span>bat --config-dir<span class="pl-pds">)</span></span>/themes<span class="pl-pds">"</span></span>
+<span class="pl-c1">cd</span> <span class="pl-s"><span class="pl-pds">"</span><span class="pl-s"><span class="pl-pds">$(</span>bat --config-dir<span class="pl-pds">)</span></span>/themes<span class="pl-pds">"</span></span>
+
+<span class="pl-c"><span class="pl-c">#</span> Download a theme in '.tmTheme' format, for example:</span>
+git clone https://github.com/greggb/sublime-snazzy
+
+<span class="pl-c"><span class="pl-c">#</span> Update the binary cache</span>
+bat cache --build</pre></div>
+<p dir="auto">Finally, use <code>bat --list-themes</code> to check if the new themes are available.</p>
+<div class="markdown-alert markdown-alert-note" dir="auto"><p class="markdown-alert-title" dir="auto"><svg data-component="Octicon" class="octicon octicon-info mr-2" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8Zm8-6.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13ZM6.5 7.75A.75.75 0 0 1 7.25 7h1a.75.75 0 0 1 .75.75v2.75h.25a.75.75 0 0 1 0 1.5h-2a.75.75 0 0 1 0-1.5h.25v-2h-.25a.75.75 0 0 1-.75-.75ZM8 6a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z"></path></svg>Note</p><p dir="auto"><code>bat</code> uses the name of the <code>.tmTheme</code> file for the theme's name.</p>
+</div>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">Adding or changing file type associations</h3><a id="user-content-adding-or-changing-file-type-associations" class="anchor" aria-label="Permalink: Adding or changing file type associations" href="#adding-or-changing-file-type-associations"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">You can add new (or change existing) file name patterns using the <code>--map-syntax</code>
+command line option. The option takes an argument of the form <code>pattern:syntax</code> where
+<code>pattern</code> is a glob pattern that is matched against the file name and
+the absolute file path. The <code>syntax</code> part is the full name of a supported language
+(use <code>bat --list-languages</code> for an overview).</p>
+<p dir="auto"><strong>Note:</strong> You probably want to use this option as <a href="#configuration-file">an entry in <code>bat</code>'s configuration file</a>
+for persistence instead of passing it on the command line as a one-off. Generally
+you'd just use <code>-l</code> if you want to manually specify a language for a file.</p>
+<p dir="auto">Example: To use "INI" syntax highlighting for all files with a <code>.conf</code> file extension, use</p>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="--map-syntax='*.conf:INI'"><pre>--map-syntax=<span class="pl-s"><span class="pl-pds">'</span>*.conf:INI<span class="pl-pds">'</span></span></pre></div>
+<p dir="auto">Example: To open all files called <code>.ignore</code> (exact match) with the "Git Ignore" syntax, use:</p>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="--map-syntax='.ignore:Git Ignore'"><pre>--map-syntax=<span class="pl-s"><span class="pl-pds">'</span>.ignore:Git Ignore<span class="pl-pds">'</span></span></pre></div>
+<p dir="auto">Example: To open all <code>.conf</code> files in subfolders of <code>/etc/apache2</code> with the "Apache Conf"
+syntax, use (this mapping is already built in):</p>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="--map-syntax='/etc/apache2/**/*.conf:Apache Conf'"><pre>--map-syntax=<span class="pl-s"><span class="pl-pds">'</span>/etc/apache2/**/*.conf:Apache Conf<span class="pl-pds">'</span></span></pre></div>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">Using a different pager</h3><a id="user-content-using-a-different-pager" class="anchor" aria-label="Permalink: Using a different pager" href="#using-a-different-pager"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto"><code>bat</code> uses the pager that is specified in the <code>PAGER</code> environment variable. If this variable is not
+set, <code>less</code> is used by default. You can also use bat's built-in pager with <code>--pager=builtin</code> or
+by setting the <code>BAT_PAGER</code> environment variable to "builtin".</p>
+<p dir="auto">If you want to use a different pager, you can either modify the <code>PAGER</code> variable or set the
+<code>BAT_PAGER</code> environment variable to override what is specified in <code>PAGER</code>.</p>
+<div class="markdown-alert markdown-alert-note" dir="auto"><p class="markdown-alert-title" dir="auto"><svg data-component="Octicon" class="octicon octicon-info mr-2" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8Zm8-6.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13ZM6.5 7.75A.75.75 0 0 1 7.25 7h1a.75.75 0 0 1 .75.75v2.75h.25a.75.75 0 0 1 0 1.5h-2a.75.75 0 0 1 0-1.5h.25v-2h-.25a.75.75 0 0 1-.75-.75ZM8 6a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z"></path></svg>Note</p><p dir="auto">If <code>PAGER</code> is <code>more</code> or <code>most</code>, <code>bat</code> will silently use <code>less</code> instead to ensure support for colors.</p>
+</div>
+<p dir="auto">If you want to pass command-line arguments to the pager, you can also set them via the
+<code>PAGER</code>/<code>BAT_PAGER</code> variables:</p>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="export BAT_PAGER=&quot;less -RFK&quot;"><pre><span class="pl-k">export</span> BAT_PAGER=<span class="pl-s"><span class="pl-pds">"</span>less -RFK<span class="pl-pds">"</span></span></pre></div>
+<p dir="auto">Instead of using environment variables, you can also use <code>bat</code>'s <a href="#configuration-file">configuration file</a> to configure the pager (<code>--pager</code> option).</p>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">Using <code>less</code> as a pager</h3><a id="user-content-using-less-as-a-pager" class="anchor" aria-label="Permalink: Using less as a pager" href="#using-less-as-a-pager"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">When using <code>less</code> as a pager, <code>bat</code> will automatically pass extra options along to <code>less</code>
+to improve the experience. Specifically, <code>-R</code>/<code>--RAW-CONTROL-CHARS</code>, <code>-F</code>/<code>--quit-if-one-screen</code>,
+<code>-K</code>/<code>--quit-on-intr</code> and under certain conditions, <code>-X</code>/<code>--no-init</code> and/or <code>-S</code>/<code>--chop-long-lines</code>.</p>
+<div class="markdown-alert markdown-alert-important" dir="auto"><p class="markdown-alert-title" dir="auto"><svg data-component="Octicon" class="octicon octicon-report mr-2" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="M0 1.75C0 .784.784 0 1.75 0h12.5C15.216 0 16 .784 16 1.75v9.5A1.75 1.75 0 0 1 14.25 13H8.06l-2.573 2.573A1.458 1.458 0 0 1 3 14.543V13H1.75A1.75 1.75 0 0 1 0 11.25Zm1.75-.25a.25.25 0 0 0-.25.25v9.5c0 .138.112.25.25.25h2a.75.75 0 0 1 .75.75v2.19l2.72-2.72a.749.749 0 0 1 .53-.22h6.5a.25.25 0 0 0 .25-.25v-9.5a.25.25 0 0 0-.25-.25Zm7 2.25v2.5a.75.75 0 0 1-1.5 0v-2.5a.75.75 0 0 1 1.5 0ZM9 9a1 1 0 1 1-2 0 1 1 0 0 1 2 0Z"></path></svg>Important</p><p dir="auto">These options will not be added if:</p>
+<ul dir="auto">
+<li>The pager is not named <code>less</code>.</li>
+<li>The <code>--pager</code> argument contains any command-line arguments (e.g. <code>--pager="less -R"</code>).</li>
+<li>The <code>BAT_PAGER</code> environment variable contains any command-line arguments (e.g. <code>export BAT_PAGER="less -R"</code>)</li>
+</ul>
+<p dir="auto">The <code>--quit-if-one-screen</code> option will not be added when:</p>
+<ul dir="auto">
+<li>The <code>--paging=always</code> argument is used.</li>
+<li>The <code>BAT_PAGING</code> environment is set to <code>always</code>.</li>
+</ul>
+</div>
+<p dir="auto">The <code>-R</code>/<code>--RAW-CONTROL-CHARS</code> option is needed to interpret ANSI colors correctly.</p>
+<p dir="auto">The <code>-F</code>/<code>--quit-if-one-screen</code> option instructs <code>less</code> to exit immediately if the output size is smaller than
+the vertical size of the terminal. This is convenient for small files because you do not
+have to press <code>q</code> to quit the pager.</p>
+<p dir="auto">The <code>-K</code>/<code>--quit-on-intr</code> option instructs <code>less</code> to exit immediately when an interrupt signal is received.
+This is useful to ensure that <code>less</code> quits together with <code>bat</code> on SIGINT.</p>
+<p dir="auto">The <code>-X</code>/<code>--no-init</code> option is added to versions of <code>less</code> older than version 530 (older than 558 on Windows) to
+fix a bug with the <code>-F</code>/<code>--quit-if-one-screen</code> feature. Unfortunately, it also breaks mouse-wheel support in <code>less</code>.
+If you want to enable mouse-wheel scrolling on older versions of <code>less</code> and do not mind losing
+the quit-if-one-screen feature, you can set the pager (via <code>--pager</code> or <code>BAT_PAGER</code>) to <code>less -R</code>.
+For <code>less</code> 530 or newer, it should work out of the box.</p>
+<p dir="auto">The <code>-S</code>/<code>--chop-long-lines</code> option is added when <code>bat</code>'s <code>-S</code>/<code>--chop-long-lines</code> option is used. This tells <code>less</code>
+to truncate any lines larger than the terminal width.</p>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">Indentation</h3><a id="user-content-indentation" class="anchor" aria-label="Permalink: Indentation" href="#indentation"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto"><code>bat</code> expands tabs to 4 spaces by itself, not relying on the pager. To change this, simply add the
+<code>--tabs</code> argument with the number of spaces you want to be displayed.</p>
+<p dir="auto"><strong>Note</strong>: Defining tab stops for the pager (via the <code>--pager</code> argument by <code>bat</code>, or via the <code>LESS</code>
+environment variable for <code>less</code>) won't be taken into account because the pager will already get
+expanded spaces instead of tabs. This behaviour is added to avoid indentation issues caused by the
+sidebar. Calling <code>bat</code> with <code>--tabs=0</code> will override it and let tabs be consumed by the pager.</p>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">Dark mode</h3><a id="user-content-dark-mode" class="anchor" aria-label="Permalink: Dark mode" href="#dark-mode"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">If you make use of the dark mode feature in <strong>macOS</strong>, you might want to configure <code>bat</code> to use a different
+theme based on the OS theme. The following snippet uses the <code>default</code> theme when in the <em>dark mode</em>
+and the <code>GitHub</code> theme when in the <em>light mode</em>.</p>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="alias cat=&quot;bat --theme auto:system --theme-dark default --theme-light GitHub&quot;"><pre><span class="pl-c1">alias</span> cat=<span class="pl-s"><span class="pl-pds">"</span>bat --theme auto:system --theme-dark default --theme-light GitHub<span class="pl-pds">"</span></span></pre></div>
+<p dir="auto">The same dark mode feature is now available in <strong>GNOME</strong> and affects the <code>org.gnome.desktop.interface color-scheme</code> setting. The following code converts the above to use said setting.</p>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="# .bashrc
+sys_color_scheme_is_dark() {
+    condition=$(gsettings get org.gnome.desktop.interface color-scheme)
+    condition=$(echo &quot;$condition&quot; | tr -d &quot;[:space:]'&quot;)
+    if [ $condition == &quot;prefer-dark&quot; ]; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+bat_alias_wrapper() {
+    #get color scheme
+    sys_color_scheme_is_dark
+    if [[ $? -eq 0 ]]; then
+        # bat command with dark color scheme
+        bat --theme=default &quot;$@&quot;
+    else
+        # bat command with light color scheme
+        bat --theme=GitHub &quot;$@&quot;
+    fi
+}
+alias cat='bat_alias_wrapper'"><pre><span class="pl-c"><span class="pl-c">#</span> .bashrc</span>
+<span class="pl-en">sys_color_scheme_is_dark</span>() {
+    condition=<span class="pl-s"><span class="pl-pds">$(</span>gsettings get org.gnome.desktop.interface color-scheme<span class="pl-pds">)</span></span>
+    condition=<span class="pl-s"><span class="pl-pds">$(</span>echo <span class="pl-s"><span class="pl-pds">"</span><span class="pl-smi">$condition</span><span class="pl-pds">"</span></span> <span class="pl-k">|</span> tr -d <span class="pl-s"><span class="pl-pds">"</span>[:space:]'<span class="pl-pds">"</span></span><span class="pl-pds">)</span></span>
+    <span class="pl-k">if</span> [ <span class="pl-smi">$condition</span> <span class="pl-k">==</span> <span class="pl-s"><span class="pl-pds">"</span>prefer-dark<span class="pl-pds">"</span></span> ]<span class="pl-k">;</span> <span class="pl-k">then</span>
+        <span class="pl-k">return</span> 0
+    <span class="pl-k">else</span>
+        <span class="pl-k">return</span> 1
+    <span class="pl-k">fi</span>
+}
+
+<span class="pl-en">bat_alias_wrapper</span>() {
+    <span class="pl-c"><span class="pl-c">#</span>get color scheme</span>
+    sys_color_scheme_is_dark
+    <span class="pl-k">if</span> [[ <span class="pl-smi">$?</span> <span class="pl-k">-eq</span> 0 ]]<span class="pl-k">;</span> <span class="pl-k">then</span>
+        <span class="pl-c"><span class="pl-c">#</span> bat command with dark color scheme</span>
+        bat --theme=default <span class="pl-s"><span class="pl-pds">"</span><span class="pl-smi">$@</span><span class="pl-pds">"</span></span>
+    <span class="pl-k">else</span>
+        <span class="pl-c"><span class="pl-c">#</span> bat command with light color scheme</span>
+        bat --theme=GitHub <span class="pl-s"><span class="pl-pds">"</span><span class="pl-smi">$@</span><span class="pl-pds">"</span></span>
+    <span class="pl-k">fi</span>
+}
+<span class="pl-c1">alias</span> cat=<span class="pl-s"><span class="pl-pds">'</span>bat_alias_wrapper<span class="pl-pds">'</span></span></pre></div>
+<div class="markdown-heading" dir="auto"><h2 class="heading-element" dir="auto">Configuration file</h2><a id="user-content-configuration-file" class="anchor" aria-label="Permalink: Configuration file" href="#configuration-file"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto"><code>bat</code> can also be customized with a configuration file. The location of the file is dependent
+on your operating system. To get the default path for your system, call</p>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="bat --config-file"><pre>bat --config-file</pre></div>
+<p dir="auto">Alternatively, you can use <code>BAT_CONFIG_PATH</code> or <code>BAT_CONFIG_DIR</code> environment variables to point <code>bat</code>
+to a non-default location of the configuration file or the configuration directory respectively:</p>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="export BAT_CONFIG_PATH=&quot;/path/to/bat/bat.conf&quot;
+export BAT_CONFIG_DIR=&quot;/path/to/bat&quot;"><pre><span class="pl-k">export</span> BAT_CONFIG_PATH=<span class="pl-s"><span class="pl-pds">"</span>/path/to/bat/bat.conf<span class="pl-pds">"</span></span>
+<span class="pl-k">export</span> BAT_CONFIG_DIR=<span class="pl-s"><span class="pl-pds">"</span>/path/to/bat<span class="pl-pds">"</span></span></pre></div>
+<p dir="auto">A default configuration file can be created with the <code>--generate-config-file</code> option.</p>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="bat --generate-config-file"><pre>bat --generate-config-file</pre></div>
+<p dir="auto">There is also now a systemwide configuration file, which is located under <code>/etc/bat/config</code> on
+Linux and Mac OS and <code>C:\ProgramData\bat\config</code> on windows. If the system wide configuration
+file is present, the content of the user configuration will simply be appended to it.</p>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">Format</h3><a id="user-content-format" class="anchor" aria-label="Permalink: Format" href="#format"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">The configuration file is a simple list of command line arguments. Use <code>bat --help</code> to see a full list of possible options and values. In addition, you can add comments by prepending a line with the <code>#</code> character.</p>
+<p dir="auto">Example configuration file:</p>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="# Set the theme to &quot;TwoDark&quot;
+--theme=&quot;TwoDark&quot;
+
+# Show line numbers, Git modifications and file header (but no grid)
+--style=&quot;numbers,changes,header&quot;
+
+# Use italic text on the terminal (not supported on all terminals)
+--italic-text=always
+
+# Use C++ syntax for Arduino .ino files
+--map-syntax &quot;*.ino:C++&quot;"><pre><span class="pl-c"><span class="pl-c">#</span> Set the theme to "TwoDark"</span>
+--theme=<span class="pl-s"><span class="pl-pds">"</span>TwoDark<span class="pl-pds">"</span></span>
+
+<span class="pl-c"><span class="pl-c">#</span> Show line numbers, Git modifications and file header (but no grid)</span>
+--style=<span class="pl-s"><span class="pl-pds">"</span>numbers,changes,header<span class="pl-pds">"</span></span>
+
+<span class="pl-c"><span class="pl-c">#</span> Use italic text on the terminal (not supported on all terminals)</span>
+--italic-text=always
+
+<span class="pl-c"><span class="pl-c">#</span> Use C++ syntax for Arduino .ino files</span>
+--map-syntax <span class="pl-s"><span class="pl-pds">"</span>*.ino:C++<span class="pl-pds">"</span></span></pre></div>
+<div class="markdown-heading" dir="auto"><h2 class="heading-element" dir="auto">Using <code>bat</code> on Windows</h2><a id="user-content-using-bat-on-windows" class="anchor" aria-label="Permalink: Using bat on Windows" href="#using-bat-on-windows"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto"><code>bat</code> mostly works out-of-the-box on Windows, but a few features may need extra configuration.</p>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">Prerequisites</h3><a id="user-content-prerequisites-1" class="anchor" aria-label="Permalink: Prerequisites" href="#prerequisites-1"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">You will need to install the <a href="https://support.microsoft.com/en-us/help/2977003/the-latest-supported-visual-c-downloads" rel="nofollow">Visual C++ Redistributable</a> package.</p>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">Paging</h3><a id="user-content-paging" class="anchor" aria-label="Permalink: Paging" href="#paging"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">Windows only includes a very limited pager in the form of <code>more</code>. You can download a Windows binary
+for <code>less</code> <a href="http://www.greenwoodsoftware.com/less/download.html" rel="nofollow">from its homepage</a> or <a href="https://chocolatey.org/packages/Less" rel="nofollow">through
+Chocolatey</a>. To use it, place the binary in a directory in
+your <code>PATH</code> or <a href="#using-a-different-pager">define an environment variable</a>. The <a href="#on-windows">Chocolatey package</a> installs <code>less</code> automatically.</p>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">Colors</h3><a id="user-content-colors" class="anchor" aria-label="Permalink: Colors" href="#colors"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">Windows 10 natively supports colors in both <code>conhost.exe</code> (Command Prompt) and PowerShell since
+<a href="https://en.wikipedia.org/wiki/Windows_10_version_history#Version_1511_(November_Update)" rel="nofollow">v1511</a>, as
+well as in newer versions of bash. On earlier versions of Windows, you can use
+<a href="http://cmder.app/" rel="nofollow">Cmder</a>, which includes <a href="https://conemu.github.io/" rel="nofollow">ConEmu</a>.</p>
+<p dir="auto"><strong>Note:</strong> Old versions of <code>less</code> do not correctly interpret colors on Windows. To fix this, you can add the optional Unix tools to your PATH when installing Git. If you don’t have any other pagers installed, you can disable paging entirely by passing <code>--paging=never</code> or by setting <code>BAT_PAGER</code> to an empty string.</p>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">Cygwin</h3><a id="user-content-cygwin" class="anchor" aria-label="Permalink: Cygwin" href="#cygwin"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto"><code>bat</code> on Windows does not natively support Cygwin's unix-style paths (<code>/cygdrive/*</code>). When passed an absolute cygwin path as an argument, <code>bat</code> will encounter the following error: <code>The system cannot find the path specified. (os error 3)</code></p>
+<p dir="auto">This can be solved by creating a wrapper or adding the following function to your <code>.bash_profile</code> file:</p>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="bat() {
+    local index
+    local args=(&quot;$@&quot;)
+    for index in $(seq 0 ${#args[@]}) ; do
+        case &quot;${args[index]}&quot; in
+        -*) continue;;
+        *)  [ -e &quot;${args[index]}&quot; ] &amp;&amp; args[index]=&quot;$(cygpath --windows &quot;${args[index]}&quot;)&quot;;;
+        esac
+    done
+    command bat &quot;${args[@]}&quot;
+}"><pre><span class="pl-en">bat</span>() {
+    <span class="pl-k">local</span> index
+    <span class="pl-k">local</span> args=(<span class="pl-s"><span class="pl-pds">"</span><span class="pl-smi">$@</span><span class="pl-pds">"</span></span>)
+    <span class="pl-k">for</span> <span class="pl-smi">index</span> <span class="pl-k">in</span> <span class="pl-s"><span class="pl-pds">$(</span>seq 0 <span class="pl-smi">${<span class="pl-k">#</span>args[@]}</span><span class="pl-pds">)</span></span> <span class="pl-k">;</span> <span class="pl-k">do</span>
+        <span class="pl-k">case</span> <span class="pl-s"><span class="pl-pds">"</span><span class="pl-smi">${args[index]}</span><span class="pl-pds">"</span></span> <span class="pl-k">in</span>
+        -<span class="pl-k">*</span>) <span class="pl-k">continue</span>;;
+        <span class="pl-k">*</span>)  [ <span class="pl-k">-e</span> <span class="pl-s"><span class="pl-pds">"</span><span class="pl-smi">${args[index]}</span><span class="pl-pds">"</span></span> ] <span class="pl-k">&amp;&amp;</span> args[index]=<span class="pl-s"><span class="pl-pds">"</span><span class="pl-s"><span class="pl-pds">$(</span>cygpath --windows <span class="pl-s"><span class="pl-pds">"</span><span class="pl-smi">${args[index]}</span><span class="pl-pds">"</span></span><span class="pl-pds">)</span></span><span class="pl-pds">"</span></span>;;
+        <span class="pl-k">esac</span>
+    <span class="pl-k">done</span>
+    <span class="pl-c1">command</span> bat <span class="pl-s"><span class="pl-pds">"</span><span class="pl-smi">${args[@]}</span><span class="pl-pds">"</span></span>
+}</pre></div>
+<div class="markdown-heading" dir="auto"><h2 class="heading-element" dir="auto">Troubleshooting</h2><a id="user-content-troubleshooting" class="anchor" aria-label="Permalink: Troubleshooting" href="#troubleshooting"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">Garbled output</h3><a id="user-content-garbled-output" class="anchor" aria-label="Permalink: Garbled output" href="#garbled-output"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">If an input file contains color codes or other ANSI escape sequences or control characters, <code>bat</code> will have problems
+performing syntax highlighting and text wrapping, and thus the output can become garbled.</p>
+<p dir="auto">If your version of <code>bat</code> supports the <code>--strip-ansi=auto</code> option, it can be used to remove such sequences
+before syntax highlighting. Alternatively, you may disable both syntax highlighting and wrapping by
+passing the <code>--color=never --wrap=never</code> options to <code>bat</code>.</p>
+<p dir="auto">For untrusted input, the <code>--sanitize=auto|always|never</code> option additionally replaces terminal-active
+control bytes and Unicode bidi / zero-width formatting characters with the Unicode replacement
+character. It implies <code>--strip-ansi</code> at the same value.</p>
+<div class="markdown-alert markdown-alert-note" dir="auto"><p class="markdown-alert-title" dir="auto"><svg data-component="Octicon" class="octicon octicon-info mr-2" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8Zm8-6.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13ZM6.5 7.75A.75.75 0 0 1 7.25 7h1a.75.75 0 0 1 .75.75v2.75h.25a.75.75 0 0 1 0 1.5h-2a.75.75 0 0 1 0-1.5h.25v-2h-.25a.75.75 0 0 1-.75-.75ZM8 6a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z"></path></svg>Note</p><p dir="auto">The <code>auto</code> option of <code>--strip-ansi</code> avoids removing escape sequences when the syntax is plain text.</p>
+</div>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">Terminals &amp; colors</h3><a id="user-content-terminals--colors" class="anchor" aria-label="Permalink: Terminals &amp; colors" href="#terminals--colors"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto"><code>bat</code> handles terminals <em>with</em> and <em>without</em> truecolor support. However, the colors in most syntax
+highlighting themes are not optimized for 8-bit colors. It is therefore strongly recommended
+that you use a terminal with 24-bit truecolor support (<code>terminator</code>, <code>konsole</code>, <code>iTerm2</code>, ...),
+or use one of the basic <a href="#8-bit-themes">8-bit themes</a> designed for a restricted set of colors.
+See <a href="https://gist.github.com/XVilka/8346728">this article</a> for more details and a full list of
+terminals with truecolor support.</p>
+<p dir="auto">Make sure that your truecolor terminal sets the <code>COLORTERM</code> variable to either <code>truecolor</code> or
+<code>24bit</code>. Otherwise, <code>bat</code> will not be able to determine whether or not 24-bit escape sequences
+are supported (and fall back to 8-bit colors).</p>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">Line numbers and grid are hardly visible</h3><a id="user-content-line-numbers-and-grid-are-hardly-visible" class="anchor" aria-label="Permalink: Line numbers and grid are hardly visible" href="#line-numbers-and-grid-are-hardly-visible"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">Please try a different theme (see <code>bat --list-themes</code> for a list). The <code>OneHalfDark</code> and
+<code>OneHalfLight</code> themes provide grid and line colors that are brighter.</p>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">File encodings</h3><a id="user-content-file-encodings" class="anchor" aria-label="Permalink: File encodings" href="#file-encodings"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto"><code>bat</code> natively supports UTF-8 as well as UTF-16. For every other file encoding, you may need to
+convert to UTF-8 first because the encodings can typically not be auto-detected. You can <code>iconv</code>
+to do so.
+Example: if you have a PHP file in Latin-1 (ISO-8859-1) encoding, you can call:</p>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="iconv -f ISO-8859-1 -t UTF-8 my-file.php | bat"><pre>iconv -f ISO-8859-1 -t UTF-8 my-file.php <span class="pl-k">|</span> bat</pre></div>
+<p dir="auto">Note: you might have to use the <code>-l</code>/<code>--language</code> option if the syntax can not be auto-detected
+by <code>bat</code>.</p>
+<div class="markdown-heading" dir="auto"><h2 class="heading-element" dir="auto">Development</h2><a id="user-content-development" class="anchor" aria-label="Permalink: Development" href="#development"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="# Recursive clone to retrieve all submodules
+git clone --recursive https://github.com/sharkdp/bat
+
+# Build (debug version)
+cd bat
+cargo build --bins
+
+# Run unit tests and integration tests
+cargo test
+
+# Install (release version)
+cargo install --path . --locked
+
+# Build a bat binary with modified syntaxes and themes
+bash assets/create.sh
+cargo install --path . --locked --force"><pre><span class="pl-c"><span class="pl-c">#</span> Recursive clone to retrieve all submodules</span>
+git clone --recursive https://github.com/sharkdp/bat
+
+<span class="pl-c"><span class="pl-c">#</span> Build (debug version)</span>
+<span class="pl-c1">cd</span> bat
+cargo build --bins
+
+<span class="pl-c"><span class="pl-c">#</span> Run unit tests and integration tests</span>
+cargo <span class="pl-c1">test</span>
+
+<span class="pl-c"><span class="pl-c">#</span> Install (release version)</span>
+cargo install --path <span class="pl-c1">.</span> --locked
+
+<span class="pl-c"><span class="pl-c">#</span> Build a bat binary with modified syntaxes and themes</span>
+bash assets/create.sh
+cargo install --path <span class="pl-c1">.</span> --locked --force</pre></div>
+<p dir="auto">If you want to build an application that uses <code>bat</code>'s pretty-printing
+features as a library, check out the <a href="https://docs.rs/bat/" rel="nofollow">API documentation</a>.
+Note that you have to use either <code>regex-onig</code> or <code>regex-fancy</code> as a feature
+when you depend on <code>bat</code> as a library.</p>
+<div class="markdown-heading" dir="auto"><h2 class="heading-element" dir="auto">Contributing</h2><a id="user-content-contributing" class="anchor" aria-label="Permalink: Contributing" href="#contributing"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">Take a look at the <a href="CONTRIBUTING.md"><code>CONTRIBUTING.md</code></a> guide.</p>
+<div class="markdown-heading" dir="auto"><h2 class="heading-element" dir="auto">Maintainers</h2><a id="user-content-maintainers" class="anchor" aria-label="Permalink: Maintainers" href="#maintainers"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<ul dir="auto">
+<li><a href="https://github.com/sharkdp">sharkdp</a></li>
+<li><a href="https://github.com/eth-p">eth-p</a></li>
+<li><a href="https://github.com/keith-hall">keith-hall</a></li>
+<li><a href="https://github.com/Enselic">Enselic</a></li>
+</ul>
+<div class="markdown-heading" dir="auto"><h2 class="heading-element" dir="auto">Security vulnerabilities</h2><a id="user-content-security-vulnerabilities" class="anchor" aria-label="Permalink: Security vulnerabilities" href="#security-vulnerabilities"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">See <a href="SECURITY.md"><code>SECURITY.md</code></a>.</p>
+<div class="markdown-heading" dir="auto"><h2 class="heading-element" dir="auto">Project goals and alternatives</h2><a id="user-content-project-goals-and-alternatives" class="anchor" aria-label="Permalink: Project goals and alternatives" href="#project-goals-and-alternatives"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto"><code>bat</code> tries to achieve the following goals:</p>
+<ul dir="auto">
+<li>Provide beautiful, advanced syntax highlighting</li>
+<li>Integrate with Git to show file modifications</li>
+<li>Be a drop-in replacement for (POSIX) <code>cat</code></li>
+<li>Offer a user-friendly command-line interface</li>
+</ul>
+<p dir="auto">There are a lot of alternatives, if you are looking for similar programs. See
+<a href="doc/alternatives.md">this document</a> for a comparison.</p>
+<div class="markdown-heading" dir="auto"><h2 class="heading-element" dir="auto">License</h2><a id="user-content-license" class="anchor" aria-label="Permalink: License" href="#license"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">Copyright (c) 2018-2025 <a href="https://github.com/sharkdp/bat">bat-developers</a>.</p>
+<p dir="auto"><code>bat</code> is made available under the terms of either the MIT License or the Apache License 2.0, at your option.</p>
+<p dir="auto">See the <a href="LICENSE-APACHE">LICENSE-APACHE</a> and <a href="LICENSE-MIT">LICENSE-MIT</a> files for license details.</p>
+</article></div>

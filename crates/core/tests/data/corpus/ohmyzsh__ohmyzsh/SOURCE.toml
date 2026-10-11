@@ -1,0 +1,6 @@
+repo = "ohmyzsh/ohmyzsh"
+commit = "48feb570f7b7d80cc7554629ba428c520ea8a3d5"
+path = "README.md"
+licence = "MIT"
+rendered_by = "GET /repos/ohmyzsh/ohmyzsh/readme?ref=48feb570f7b7d80cc7554629ba428c520ea8a3d5 (Accept: application/vnd.github.html+json)"
+fetched = "2026-10-11"

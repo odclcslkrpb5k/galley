@@ -1,0 +1,6 @@
+repo = "astral-sh/uv"
+commit = "5cc7f15c359b83eed2c68c5578c1000bfd27e0da"
+path = "README.md"
+licence = "Apache-2.0"
+rendered_by = "GET /repos/astral-sh/uv/readme?ref=5cc7f15c359b83eed2c68c5578c1000bfd27e0da (Accept: application/vnd.github.html+json)"
+fetched = "2026-10-11"

@@ -1,0 +1,681 @@
+<div id="readme" class="md" data-path="README.md"><article class="markdown-body entry-content container-lg" itemprop="text"><div align="center" dir="auto">
+<sup>Special thanks to:</sup>
+<br>
+<br>
+<a href="https://www.warp.dev/?utm_source=github&amp;utm_medium=referral&amp;utm_campaign=lazygit_20231023" rel="nofollow">
+  <div dir="auto">
+    <img src="https://github.com/warpdotdev/brand-assets/raw/main/Github/Sponsor/Warp-Github-LG-02.png?raw=true" width="400" alt="Warp" style="max-width: 100%;">
+  </div>
+  <b>Warp, the intelligent terminal</b>
+  <br>
+  <b>Available for macOS and Linux</b>
+  <br>
+  <div dir="auto">
+    <sup>Visit warp.dev to learn more.</sup>
+  </div>
+</a>
+<br>
+<hr>
+<a href="https://tuple.app/lazygit" rel="nofollow">
+  <div dir="auto">
+    <img src="../assets/tuple.png" width="400" alt="Tuple" style="max-width: 100%;">
+  </div>
+  <b>Tuple, the premier screen sharing app for developers on macOS and Windows.</b>
+</a>
+<br>
+<hr>
+<br>
+<a href="https://www.subble.com" rel="nofollow">
+  <div dir="auto">
+    <img src="../assets/subble.webp" width="400" alt="Subble" style="max-width: 100%;">
+  </div>
+  <b>I (Jesse) co-founded Subble to save your company time and money by finding unused and over-provisioned SaaS licences. Check it out!</b>
+</a>
+<br>
+<hr>
+</div>
+<p align="center" dir="auto">
+  <a target="_blank" rel="noopener noreferrer nofollow" href="https://user-images.githubusercontent.com/8456633/174470852-339b5011-5800-4bb9-a628-ff230aa8cd4e.png"><img width="536" src="https://user-images.githubusercontent.com/8456633/174470852-339b5011-5800-4bb9-a628-ff230aa8cd4e.png" style="max-width: 100%;"></a>
+</p>
+<div align="center" dir="auto">
+<p dir="auto">A simple terminal UI for git commands
+<br></p>
+<p dir="auto"><a href="https://github.com/jesseduffield/lazygit/releases"><img src="https://camo.githubusercontent.com/a4686f430de3bd09c88ab405ead41a5f959d7333360f907cff528f4ec4b67978/68747470733a2f2f696d672e736869656c64732e696f2f6769746875622f646f776e6c6f6164732f6a657373656475666669656c642f6c617a796769742f746f74616c" alt="GitHub Releases" data-canonical-src="https://img.shields.io/github/downloads/jesseduffield/lazygit/total" style="max-width: 100%;"></a> <a href="https://goreportcard.com/report/github.com/jesseduffield/lazygit" rel="nofollow"><img src="https://camo.githubusercontent.com/f5688d461ff11246865c7aa702c1c01fd86251973267e63de452d821ce677bd2/68747470733a2f2f676f7265706f7274636172642e636f6d2f62616467652f6769746875622e636f6d2f6a657373656475666669656c642f6c617a79676974" alt="Go Report Card" data-canonical-src="https://goreportcard.com/badge/github.com/jesseduffield/lazygit" style="max-width: 100%;"></a> <a href="https://app.codacy.com/gh/jesseduffield/lazygit/dashboard?utm_source=gh&amp;utm_medium=referral&amp;utm_content=&amp;utm_campaign=Badge_grade" rel="nofollow"><img src="https://camo.githubusercontent.com/f38cc9072dc21c6ee6701981976ed1ad6f670b7303c1424ffa1b9c1887bc28bb/68747470733a2f2f6170702e636f646163792e636f6d2f70726f6a6563742f62616467652f47726164652f6634363431366237313564373436323238393536353739333566636164613231" alt="Codacy Badge" data-canonical-src="https://app.codacy.com/project/badge/Grade/f46416b715d74622895657935fcada21" style="max-width: 100%;"></a> <a href="https://app.codacy.com/gh/jesseduffield/lazygit/dashboard?utm_source=gh&amp;utm_medium=referral&amp;utm_content=&amp;utm_campaign=Badge_coverage" rel="nofollow"><img src="https://camo.githubusercontent.com/1e01c77e9a16a22919135253ca9461d06e43e70686828e0d43a44dc08cbc9f37/68747470733a2f2f6170702e636f646163792e636f6d2f70726f6a6563742f62616467652f436f7665726167652f6634363431366237313564373436323238393536353739333566636164613231" alt="Codacy Badge" data-canonical-src="https://app.codacy.com/project/badge/Coverage/f46416b715d74622895657935fcada21" style="max-width: 100%;"></a> <a href="https://golangci-lint.run/" rel="nofollow"><img src="https://camo.githubusercontent.com/3a55ef41780899aa057131ad780d9a02b81ade9172106dc95472a02a952ab7d8/68747470733a2f2f696d672e736869656c64732e696f2f62616467652f6c696e74656425323062792d676f6c616e6763692d2d6c696e742d627269676874677265656e" alt="golangci-lint" data-canonical-src="https://img.shields.io/badge/linted%20by-golangci--lint-brightgreen" style="max-width: 100%;"></a> <a href="https://github.com/jesseduffield/lazygit/releases/latest"><img src="https://camo.githubusercontent.com/01f997aac8028f54c3108b882d65539956ed140a362c1cbcf1c151645654ff9d/68747470733a2f2f696d672e736869656c64732e696f2f6769746875622f762f7461672f6a657373656475666669656c642f6c617a796769743f636f6c6f723d626c7565" alt="GitHub tag" data-canonical-src="https://img.shields.io/github/v/tag/jesseduffield/lazygit?color=blue" style="max-width: 100%;"></a> <a href="https://formulae.brew.sh/formula/lazygit" rel="nofollow"><img src="https://camo.githubusercontent.com/e733446022438b9d2c1573d334f4c58a3cffc99f4d06f4f28e381c3d386cea24/68747470733a2f2f696d672e736869656c64732e696f2f686f6d65627265772f762f6c617a796769743f636f6c6f723d626c7565" alt="homebrew" data-canonical-src="https://img.shields.io/homebrew/v/lazygit?color=blue" style="max-width: 100%;"></a></p>
+
+<p dir="auto"><gh:secured-asset-reference resource_type="UserAsset" resource_id="665855392"></gh:secured-asset-reference></p><details open="" class="details-reset border rounded-2">
+  <summary class="tmp-px-3 py-2">
+    <svg aria-hidden="true" data-component="Octicon" height="16" viewBox="0 0 16 16" version="1.1" width="16" data-view-component="true" class="octicon octicon-device-camera-video">
+    <path d="M16 3.75v8.5a.75.75 0 0 1-1.136.643L11 10.575v.675A1.75 1.75 0 0 1 9.25 13h-7.5A1.75 1.75 0 0 1 0 11.25v-6.5C0 3.784.784 3 1.75 3h7.5c.966 0 1.75.784 1.75 1.75v.675l3.864-2.318A.75.75 0 0 1 16 3.75Zm-6.5 1a.25.25 0 0 0-.25-.25h-7.5a.25.25 0 0 0-.25.25v6.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-6.5ZM11 8.825l3.5 2.1v-5.85l-3.5 2.1Z"></path>
+</svg>
+    <span class="m-1">commit_and_push.mp4</span>
+    <span class="dropdown-caret"></span>
+  </summary>
+
+  <video src="https://github.com/user-attachments/assets/031799d1-740d-4cda-90cf-689513fa9860" data-canonical-src="https://github.com/user-attachments/assets/031799d1-740d-4cda-90cf-689513fa9860" controls="controls" muted="muted" class="d-block rounded-bottom-2 border-top width-fit" style="max-height:640px; min-height: 200px">
+
+  </video>
+</details>
+<p></p>
+</div>
+<div class="markdown-heading" dir="auto"><h2 class="heading-element" dir="auto">Sponsors</h2><a id="user-content-sponsors" class="anchor" aria-label="Permalink: Sponsors" href="#sponsors"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p align="center" dir="auto">
+ Maintenance of this project is made possible by all the <a href="https://github.com/jesseduffield/lazygit/graphs/contributors">contributors</a> and <a href="https://github.com/sponsors/jesseduffield">sponsors</a>. If you'd like to sponsor this project and have your avatar or company logo appear below <a href="https://github.com/sponsors/jesseduffield">click here</a>. 💙
+</p>
+<p align="center" dir="auto">
+<a href="https://github.com/intabulas"><img src="https://github.com/intabulas.png" width="60px" alt="User avatar: Mark Lussier" style="max-width: 100%;"></a><a href="https://github.com/peppy"><img src="https://github.com/peppy.png" width="60px" alt="User avatar: Dean Herbert" style="max-width: 100%;"></a><a href="https://github.com/piot"><img src="https://github.com/piot.png" width="60px" alt="User avatar: Peter Bjorklund" style="max-width: 100%;"></a><a href="https://github.com/oliverguenther"><img src="https://github.com/oliverguenther.png" width="60px" alt="User avatar: Oliver Günther" style="max-width: 100%;"></a><a href="https://github.com/pawanjay176"><img src="https://github.com/pawanjay176.png" width="60px" alt="User avatar: Pawan Dhananjay" style="max-width: 100%;"></a><a href="https://github.com/naoey"><img src="https://github.com/naoey.png" width="60px" alt="User avatar: " style="max-width: 100%;"></a><a href="https://github.com/carstengehling"><img src="https://github.com/carstengehling.png" width="60px" alt="User avatar: Carsten Gehling" style="max-width: 100%;"></a><a href="https://github.com/Xetera"><img src="https://github.com/Xetera.png" width="60px" alt="User avatar: Ali" style="max-width: 100%;"></a><a href="https://github.com/nartc"><img src="https://github.com/nartc.png" width="60px" alt="User avatar: Chau Tran" style="max-width: 100%;"></a><a href="https://github.com/matejcik"><img src="https://github.com/matejcik.png" width="60px" alt="User avatar: matejcik" style="max-width: 100%;"></a><a href="https://github.com/lucatume"><img src="https://github.com/lucatume.png" width="60px" alt="User avatar: theAverageDev (Luca Tumedei)" style="max-width: 100%;"></a><a href="https://github.com/escrafford"><img src="https://github.com/escrafford.png" width="60px" alt="User avatar: Erik Scrafford" style="max-width: 100%;"></a><a href="https://github.com/IvanZuy"><img src="https://github.com/IvanZuy.png" width="60px" alt="User avatar: " style="max-width: 100%;"></a><a href="https://github.com/ava1ar"><img src="https://github.com/ava1ar.png" width="60px" alt="User avatar: Alex Stelmachonak" style="max-width: 100%;"></a><a href="https://github.com/pedropombeiro"><img src="https://github.com/pedropombeiro.png" width="60px" alt="User avatar: Pedro Pombeiro" style="max-width: 100%;"></a><a href="https://github.com/bburgy"><img src="https://github.com/bburgy.png" width="60px" alt="User avatar: Burgy Benjamin" style="max-width: 100%;"></a><a href="https://github.com/JoeKlemmer"><img src="https://github.com/JoeKlemmer.png" width="60px" alt="User avatar: Joe Klemmer" style="max-width: 100%;"></a><a href="https://github.com/tobi"><img src="https://github.com/tobi.png" width="60px" alt="User avatar: Tobias Lütke" style="max-width: 100%;"></a><a href="https://github.com/benbfortis"><img src="https://github.com/benbfortis.png" width="60px" alt="User avatar: Ben Beaumont" style="max-width: 100%;"></a><a href="https://github.com/jakewarren"><img src="https://github.com/jakewarren.png" width="60px" alt="User avatar: " style="max-width: 100%;"></a><a href="https://github.com/tgpholly"><img src="https://github.com/tgpholly.png" width="60px" alt="User avatar: Holly" style="max-width: 100%;"></a><a href="https://github.com/Tommylans"><img src="https://github.com/Tommylans.png" width="60px" alt="User avatar: Tom Lanser" style="max-width: 100%;"></a><a href="https://github.com/socketbox"><img src="https://github.com/socketbox.png" width="60px" alt="User avatar: Casey Boettcher" style="max-width: 100%;"></a><a href="https://github.com/bitprophet"><img src="https://github.com/bitprophet.png" width="60px" alt="User avatar: Jeff Forcier" style="max-width: 100%;"></a><a href="https://github.com/tayleighr"><img src="https://github.com/tayleighr.png" width="60px" alt="User avatar: " style="max-width: 100%;"></a><a href="https://github.com/Novakov"><img src="https://github.com/Novakov.png" width="60px" alt="User avatar: Maciej T. Nowak" style="max-width: 100%;"></a><a href="https://github.com/jhillyerd"><img src="https://github.com/jhillyerd.png" width="60px" alt="User avatar: James Hillyerd" style="max-width: 100%;"></a><a href="https://github.com/nekhaevskiy"><img src="https://github.com/nekhaevskiy.png" width="60px" alt="User avatar: Yury" style="max-width: 100%;"></a><a href="https://github.com/reivilibre"><img src="https://github.com/reivilibre.png" width="60px" alt="User avatar: Olivier reivilibre" style="max-width: 100%;"></a><a href="https://github.com/BSteffaniak"><img src="https://github.com/BSteffaniak.png" width="60px" alt="User avatar: Braden Steffaniak" style="max-width: 100%;"></a><a href="https://github.com/smangels"><img src="https://github.com/smangels.png" width="60px" alt="User avatar: Sebastian" style="max-width: 100%;"></a><a href="https://github.com/amslezak"><img src="https://github.com/amslezak.png" width="60px" alt="User avatar: Andy Slezak" style="max-width: 100%;"></a><a href="https://github.com/mkock"><img src="https://github.com/mkock.png" width="60px" alt="User avatar: Martin Kock" style="max-width: 100%;"></a><a href="https://github.com/danielkokott"><img src="https://github.com/danielkokott.png" width="60px" alt="User avatar: Daniel Kokott" style="max-width: 100%;"></a><a href="https://github.com/heijmans"><img src="https://github.com/heijmans.png" width="60px" alt="User avatar: Jan Heijmans" style="max-width: 100%;"></a><a href="https://github.com/knowald"><img src="https://github.com/knowald.png" width="60px" alt="User avatar: Kevin Nowald" style="max-width: 100%;"></a><a href="https://github.com/ethanjli"><img src="https://github.com/ethanjli.png" width="60px" alt="User avatar: Ethan Li" style="max-width: 100%;"></a><a href="https://github.com/phubaba"><img src="https://github.com/phubaba.png" width="60px" alt="User avatar: Robert Forler" style="max-width: 100%;"></a><a href="https://github.com/neunkasulle"><img src="https://github.com/neunkasulle.png" width="60px" alt="User avatar: Jan Zenkner" style="max-width: 100%;"></a><a href="https://github.com/RVxLab"><img src="https://github.com/RVxLab.png" width="60px" alt="User avatar: " style="max-width: 100%;"></a><a href="https://github.com/FrederickGeek8"><img src="https://github.com/FrederickGeek8.png" width="60px" alt="User avatar: Frederick Morlock" style="max-width: 100%;"></a><a href="https://github.com/ezdac"><img src="https://github.com/ezdac.png" width="60px" alt="User avatar: Maximilian Langenfeld" style="max-width: 100%;"></a><a href="https://github.com/amalavet"><img src="https://github.com/amalavet.png" width="60px" alt="User avatar: Alejandro" style="max-width: 100%;"></a><a href="https://github.com/lppassos"><img src="https://github.com/lppassos.png" width="60px" alt="User avatar: " style="max-width: 100%;"></a><a href="https://github.com/neilcode"><img src="https://github.com/neilcode.png" width="60px" alt="User avatar: Neil Lambert" style="max-width: 100%;"></a><a href="https://github.com/dhh"><img src="https://github.com/dhh.png" width="60px" alt="User avatar: David Heinemeier Hansson" style="max-width: 100%;"></a><a href="https://github.com/ethanfischer"><img src="https://github.com/ethanfischer.png" width="60px" alt="User avatar: Ethan Fischer" style="max-width: 100%;"></a><a href="https://github.com/poshboytl"><img src="https://github.com/poshboytl.png" width="60px" alt="User avatar: Terry Tai" style="max-width: 100%;"></a><a href="https://github.com/roesnera"><img src="https://github.com/roesnera.png" width="60px" alt="User avatar: Adam Roesner" style="max-width: 100%;"></a><a href="https://github.com/seven1m"><img src="https://github.com/seven1m.png" width="60px" alt="User avatar: Tim Morgan" style="max-width: 100%;"></a><a href="https://github.com/sgoridotla1"><img src="https://github.com/sgoridotla1.png" width="60px" alt="User avatar: Maksym Shypulniak" style="max-width: 100%;"></a><a href="https://github.com/ADIX7"><img src="https://github.com/ADIX7.png" width="60px" alt="User avatar: Kovács Ádám" style="max-width: 100%;"></a><a href="https://github.com/serranomorante"><img src="https://github.com/serranomorante.png" width="60px" alt="User avatar: Patricio Serrano" style="max-width: 100%;"></a><a href="https://github.com/kiriDevs"><img src="https://github.com/kiriDevs.png" width="60px" alt="User avatar: Kiri" style="max-width: 100%;"></a><a href="https://github.com/StevenMasini"><img src="https://github.com/StevenMasini.png" width="60px" alt="User avatar: Steven Masini" style="max-width: 100%;"></a><a href="https://github.com/bjornevik"><img src="https://github.com/bjornevik.png" width="60px" alt="User avatar: John Even Bjørnevik" style="max-width: 100%;"></a><a href="https://github.com/moberst"><img src="https://github.com/moberst.png" width="60px" alt="User avatar: Michael Oberst" style="max-width: 100%;"></a><a href="https://github.com/adam-e-trepanier"><img src="https://github.com/adam-e-trepanier.png" width="60px" alt="User avatar: Adam Trepanier" style="max-width: 100%;"></a><a href="https://github.com/arkalon76"><img src="https://github.com/arkalon76.png" width="60px" alt="User avatar: Kenth Fagerlund" style="max-width: 100%;"></a><a href="https://github.com/Djuuu"><img src="https://github.com/Djuuu.png" width="60px" alt="User avatar: Julien Tardot" style="max-width: 100%;"></a><a href="https://github.com/ellord"><img src="https://github.com/ellord.png" width="60px" alt="User avatar: Ellord Tayag" style="max-width: 100%;"></a><a href="https://github.com/EdgarPost"><img src="https://github.com/EdgarPost.png" width="60px" alt="User avatar: Edgar Post-Buijs" style="max-width: 100%;"></a><a href="https://github.com/caillou"><img src="https://github.com/caillou.png" width="60px" alt="User avatar: Pierre Spring" style="max-width: 100%;"></a><a href="https://github.com/mebezac"><img src="https://github.com/mebezac.png" width="60px" alt="User avatar: Zac Clay" style="max-width: 100%;"></a><a href="https://github.com/Tom94"><img src="https://github.com/Tom94.png" width="60px" alt="User avatar: Thomas Müller" style="max-width: 100%;"></a><a href="https://github.com/carlassmann"><img src="https://github.com/carlassmann.png" width="60px" alt="User avatar: Carl Assmann" style="max-width: 100%;"></a><a href="https://github.com/moodyhunter"><img src="https://github.com/moodyhunter.png" width="60px" alt="User avatar: Moody Liu" style="max-width: 100%;"></a><a href="https://github.com/elithper"><img src="https://github.com/elithper.png" width="60px" alt="User avatar: Michael Howard" style="max-width: 100%;"></a><a href="https://github.com/LasseBloch"><img src="https://github.com/LasseBloch.png" width="60px" alt="User avatar: Lasse Bloch Lauritsen" style="max-width: 100%;"></a><a href="https://github.com/slavshik"><img src="https://github.com/slavshik.png" width="60px" alt="User avatar: Alexander Slavschik" style="max-width: 100%;"></a><a href="https://github.com/aidalgol"><img src="https://github.com/aidalgol.png" width="60px" alt="User avatar: Aidan Gauland" style="max-width: 100%;"></a><a href="https://github.com/mbienkowsk"><img src="https://github.com/mbienkowsk.png" width="60px" alt="User avatar: Maksym Bieńkowski" style="max-width: 100%;"></a><a href="https://github.com/joshuawootonn"><img src="https://github.com/joshuawootonn.png" width="60px" alt="User avatar: Joshua Wootonn" style="max-width: 100%;"></a><a href="https://github.com/I4nJ"><img src="https://github.com/I4nJ.png" width="60px" alt="User avatar: " style="max-width: 100%;"></a><a href="https://github.com/sandviklee"><img src="https://github.com/sandviklee.png" width="60px" alt="User avatar: Simon Sandvik Lee" style="max-width: 100%;"></a><a href="https://github.com/glagnar"><img src="https://github.com/glagnar.png" width="60px" alt="User avatar: Thomas Gilbert" style="max-width: 100%;"></a><a href="https://github.com/skrzepto"><img src="https://github.com/skrzepto.png" width="60px" alt="User avatar: Szymon Mucha" style="max-width: 100%;"></a><a href="https://github.com/unnawut"><img src="https://github.com/unnawut.png" width="60px" alt="User avatar: Unnawut Leepaisalsuwanna" style="max-width: 100%;"></a><a href="https://github.com/wortmanb"><img src="https://github.com/wortmanb.png" width="60px" alt="User avatar: Bret Wortman" style="max-width: 100%;"></a><a href="https://github.com/simoncdna"><img src="https://github.com/simoncdna.png" width="60px" alt="User avatar: Simon Cardona" style="max-width: 100%;"></a><a href="https://github.com/andre-lameirinhas"><img src="https://github.com/andre-lameirinhas.png" width="60px" alt="User avatar: André Lameirinhas" style="max-width: 100%;"></a><a href="https://github.com/SVappsLAB"><img src="https://github.com/SVappsLAB.png" width="60px" alt="User avatar: Scott Velez" style="max-width: 100%;"></a><a href="https://github.com/ooojustin"><img src="https://github.com/ooojustin.png" width="60px" alt="User avatar: justin" style="max-width: 100%;"></a><a href="https://github.com/mayfieldiv"><img src="https://github.com/mayfieldiv.png" width="60px" alt="User avatar: Mayfield" style="max-width: 100%;"></a><a href="https://github.com/somaholiday"><img src="https://github.com/somaholiday.png" width="60px" alt="User avatar: Soma Holiday" style="max-width: 100%;"></a><a href="https://github.com/drew-council"><img src="https://github.com/drew-council.png" width="60px" alt="User avatar: Drew Council" style="max-width: 100%;"></a><a href="https://github.com/dessalines"><img src="https://github.com/dessalines.png" width="60px" alt="User avatar: Dessalines" style="max-width: 100%;"></a><a href="https://github.com/asukaminato0721"><img src="https://github.com/asukaminato0721.png" width="60px" alt="User avatar: Asuka Minato" style="max-width: 100%;"></a><a href="https://github.com/felipeospina21"><img src="https://github.com/felipeospina21.png" width="60px" alt="User avatar: Felipe Ospina" style="max-width: 100%;"></a><a href="https://github.com/riccardoNovaglia"><img src="https://github.com/riccardoNovaglia.png" width="60px" alt="User avatar: Riccardo Novaglia" style="max-width: 100%;"></a><a href="https://github.com/rbuchberger"><img src="https://github.com/rbuchberger.png" width="60px" alt="User avatar: Robert Buchberger" style="max-width: 100%;"></a><a href="https://github.com/gintsgints"><img src="https://github.com/gintsgints.png" width="60px" alt="User avatar: Gints" style="max-width: 100%;"></a><a href="https://github.com/tyamori"><img src="https://github.com/tyamori.png" width="60px" alt="User avatar: housekeeper" style="max-width: 100%;"></a><a href="https://github.com/fogrye"><img src="https://github.com/fogrye.png" width="60px" alt="User avatar: Yurii" style="max-width: 100%;"></a><a href="https://github.com/ShGKme"><img src="https://github.com/ShGKme.png" width="60px" alt="User avatar: Grigorii K. Shartsev" style="max-width: 100%;"></a><a href="https://github.com/jccint"><img src="https://github.com/jccint.png" width="60px" alt="User avatar: " style="max-width: 100%;"></a><a href="https://github.com/odysseyalive"><img src="https://github.com/odysseyalive.png" width="60px" alt="User avatar: Francis Meetze" style="max-width: 100%;"></a><a href="https://github.com/CarlosElizalde98"><img src="https://github.com/CarlosElizalde98.png" width="60px" alt="User avatar: Carlos E" style="max-width: 100%;"></a><a href="https://github.com/darrenspurgeon"><img src="https://github.com/darrenspurgeon.png" width="60px" alt="User avatar: Darren Spurgeon" style="max-width: 100%;"></a><a href="https://github.com/nestor-custodio"><img src="https://github.com/nestor-custodio.png" width="60px" alt="User avatar: Nestor Custodio" style="max-width: 100%;"></a>
+</p>
+<div class="markdown-heading" dir="auto"><h2 class="heading-element" dir="auto">Elevator Pitch</h2><a id="user-content-elevator-pitch" class="anchor" aria-label="Permalink: Elevator Pitch" href="#elevator-pitch"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">Rant time: You've heard it before, git is <em>powerful</em>, but what good is that power when everything is so damn hard to do? Interactive rebasing requires you to edit a goddamn TODO file in your editor? <em>Are you kidding me?</em> To stage part of a file you need to use a command line program to step through each hunk and if a hunk can't be split down any further but contains code you don't want to stage, you have to edit an arcane patch file <em>by hand</em>? <em>Are you KIDDING me?!</em> Sometimes you get asked to stash your changes when switching branches only to realise that after you switch and unstash that there weren't even any conflicts and it would have been fine to just checkout the branch directly? <em>YOU HAVE GOT TO BE KIDDING ME!</em></p>
+<p dir="auto">If you're a mere mortal like me and you're tired of hearing how powerful git is when in your daily life it's a powerful pain in your ass, lazygit might be for you.</p>
+<div class="markdown-heading" dir="auto"><h2 class="heading-element" dir="auto">Table of contents</h2><a id="user-content-table-of-contents" class="anchor" aria-label="Permalink: Table of contents" href="#table-of-contents"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<ul dir="auto">
+<li><a href="#sponsors">Sponsors</a></li>
+<li><a href="#elevator-pitch">Elevator Pitch</a></li>
+<li><a href="#table-of-contents">Table of contents</a></li>
+<li><a href="#features">Features</a>
+<ul dir="auto">
+<li><a href="#stage-hunks-or-individual-lines">Stage hunks or individual lines</a></li>
+<li><a href="#interactive-rebase">Interactive Rebase</a></li>
+<li><a href="#cherry-pick">Cherry-pick</a></li>
+<li><a href="#bisect">Bisect</a></li>
+<li><a href="#nuke-the-working-tree">Nuke the working tree</a></li>
+<li><a href="#amend-an-old-commit">Amend an old commit</a></li>
+<li><a href="#filter">Filter</a></li>
+<li><a href="#invoke-a-custom-command">Invoke a custom command</a></li>
+<li><a href="#worktrees">Worktrees</a></li>
+<li><a href="#rebase-magic-custom-patches">Rebase magic (custom patches)</a></li>
+<li><a href="#rebase-from-marked-base-commit">Rebase from marked base commit</a></li>
+<li><a href="#undo">Undo</a></li>
+<li><a href="#commit-graph">Commit graph</a></li>
+<li><a href="#compare-two-commits">Compare two commits</a></li>
+</ul>
+</li>
+<li><a href="#tutorials">Tutorials</a></li>
+<li><a href="#installation">Installation</a>
+<ul dir="auto">
+<li><a href="#binary-releases">Binary Releases</a></li>
+<li><a href="#dev-container-feature">Dev container</a></li>
+<li><a href="#homebrew">Homebrew</a></li>
+<li><a href="#macports">MacPorts</a></li>
+<li><a href="#void-linux">Void Linux</a></li>
+<li><a href="#scoop-windows">Scoop (Windows)</a></li>
+<li><a href="#gah-linux-and-mac-os">gah (Linux and Mac OS)</a></li>
+<li><a href="#arch-linux">Arch Linux</a></li>
+<li><a href="#fedora--amazon-linux-2023--centos-stream">Fedora / Amazon Linux 2023 / CentOS Stream</a>
+<ul dir="auto">
+<li><a href="#fedora--rhel-derivatives-terra">Fedora / RHEL Derivatives (Terra)</a></li>
+</ul>
+</li>
+<li><a href="#solus-linux">Solus Linux</a></li>
+<li><a href="#debian-and-ubuntu">Debian and Ubuntu</a></li>
+<li><a href="#funtoo-linux">Funtoo Linux</a></li>
+<li><a href="#gentoo-linux">Gentoo Linux</a></li>
+<li><a href="#opensuse">openSUSE</a></li>
+<li><a href="#nixos">NixOS</a></li>
+<li><a href="#flox">Flox</a></li>
+<li><a href="#freebsd">FreeBSD</a></li>
+<li><a href="#termux">Termux</a></li>
+<li><a href="#conda">Conda</a></li>
+<li><a href="#go">Go</a></li>
+<li><a href="#chocolatey-windows">Chocolatey (Windows)</a></li>
+<li><a href="#winget-windows-10-1709-or-later">Winget (Windows 10 1709 or later)</a></li>
+<li><a href="#manual">Manual</a></li>
+</ul>
+</li>
+<li><a href="#usage">Usage</a>
+<ul dir="auto">
+<li><a href="#keybindings">Keybindings</a></li>
+<li><a href="#changing-directory-on-exit">Changing Directory On Exit</a></li>
+<li><a href="#undoredo">Undo/Redo</a></li>
+</ul>
+</li>
+<li><a href="#configuration">Configuration</a>
+<ul dir="auto">
+<li><a href="#custom-diff-renderers">Custom Diff Renderers</a></li>
+<li><a href="#custom-commands">Custom Commands</a></li>
+<li><a href="#git-flow-support">Git flow support</a></li>
+</ul>
+</li>
+<li><a href="#contributing">Contributing</a>
+<ul dir="auto">
+<li><a href="#debugging-locally">Debugging Locally</a></li>
+</ul>
+</li>
+<li><a href="#donate">Donate</a></li>
+<li><a href="#faq">FAQ</a>
+<ul dir="auto">
+<li><a href="#what-do-the-commit-colors-represent">What do the commit colors represent?</a></li>
+</ul>
+</li>
+<li><a href="#shameless-plug">Shameless Plug</a></li>
+<li><a href="#alternatives">Alternatives</a></li>
+</ul>
+<p dir="auto">Lazygit is not my fulltime job but it is a hefty part time job so if you want to support the project please consider <a href="https://github.com/sponsors/jesseduffield">sponsoring me</a></p>
+<div class="markdown-heading" dir="auto"><h2 class="heading-element" dir="auto">Features</h2><a id="user-content-features" class="anchor" aria-label="Permalink: Features" href="#features"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">Stage hunks or individual lines</h3><a id="user-content-stage-hunks-or-individual-lines" class="anchor" aria-label="Permalink: Stage hunks or individual lines" href="#stage-hunks-or-individual-lines"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">Press <code>0</code> on a changed file to focus its diff in the main view. The selection covers a whole hunk to begin with, so <code>&lt;space&gt;</code> stages that hunk and moves on to the next one. When you want only part of a hunk, press <code>a</code> for line-by-line selection and <code>v</code> to select a range of lines. What you staged shows up in the pane below. Press <code>&lt;tab&gt;</code> to move between the two panes; <code>&lt;space&gt;</code> unstages in the lower one. Press <code>c</code> to commit without leaving the diff.</p>
+
+<p dir="auto"><gh:secured-asset-reference resource_type="UserAsset" resource_id="665856121"></gh:secured-asset-reference></p><details open="" class="details-reset border rounded-2">
+  <summary class="tmp-px-3 py-2">
+    <svg aria-hidden="true" data-component="Octicon" height="16" viewBox="0 0 16 16" version="1.1" width="16" data-view-component="true" class="octicon octicon-device-camera-video">
+    <path d="M16 3.75v8.5a.75.75 0 0 1-1.136.643L11 10.575v.675A1.75 1.75 0 0 1 9.25 13h-7.5A1.75 1.75 0 0 1 0 11.25v-6.5C0 3.784.784 3 1.75 3h7.5c.966 0 1.75.784 1.75 1.75v.675l3.864-2.318A.75.75 0 0 1 16 3.75Zm-6.5 1a.25.25 0 0 0-.25-.25h-7.5a.25.25 0 0 0-.25.25v6.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-6.5ZM11 8.825l3.5 2.1v-5.85l-3.5 2.1Z"></path>
+</svg>
+    <span class="m-1">stage_hunks_or_lines.mp4</span>
+    <span class="dropdown-caret"></span>
+  </summary>
+
+  <video src="https://github.com/user-attachments/assets/f02dfaca-c64b-4836-953a-9c856c00f7c2" data-canonical-src="https://github.com/user-attachments/assets/f02dfaca-c64b-4836-953a-9c856c00f7c2" controls="controls" muted="muted" class="d-block rounded-bottom-2 border-top width-fit" style="max-height:640px; min-height: 200px">
+
+  </video>
+</details>
+<p></p>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">Interactive Rebase</h3><a id="user-content-interactive-rebase" class="anchor" aria-label="Permalink: Interactive Rebase" href="#interactive-rebase"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">Press <code>i</code> to start an interactive rebase. Then squash (<code>s</code>), fixup (<code>f</code>), drop (<code>d</code>), edit (<code>e</code>), move up (<code>ctrl+k</code>) or move down (<code>ctrl+j</code>) any of the TODO commits, before continuing the rebase by bringing up the rebase options menu with <code>m</code> and then selecting <code>continue</code>.</p>
+<p dir="auto">You can also perform any of these actions as a once-off (e.g. pressing <code>s</code> on a commit to squash it) without explicitly starting a rebase.</p>
+<p dir="auto">This demo also uses shift+down to select a range of commits to move and fixup.</p>
+
+<p dir="auto"><gh:secured-asset-reference resource_type="UserAsset" resource_id="665856691"></gh:secured-asset-reference></p><details open="" class="details-reset border rounded-2">
+  <summary class="tmp-px-3 py-2">
+    <svg aria-hidden="true" data-component="Octicon" height="16" viewBox="0 0 16 16" version="1.1" width="16" data-view-component="true" class="octicon octicon-device-camera-video">
+    <path d="M16 3.75v8.5a.75.75 0 0 1-1.136.643L11 10.575v.675A1.75 1.75 0 0 1 9.25 13h-7.5A1.75 1.75 0 0 1 0 11.25v-6.5C0 3.784.784 3 1.75 3h7.5c.966 0 1.75.784 1.75 1.75v.675l3.864-2.318A.75.75 0 0 1 16 3.75Zm-6.5 1a.25.25 0 0 0-.25-.25h-7.5a.25.25 0 0 0-.25.25v6.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-6.5ZM11 8.825l3.5 2.1v-5.85l-3.5 2.1Z"></path>
+</svg>
+    <span class="m-1">interactive_rebase.mp4</span>
+    <span class="dropdown-caret"></span>
+  </summary>
+
+  <video src="https://github.com/user-attachments/assets/fc546a17-7bde-41d4-b58d-2ec95134d8ae" data-canonical-src="https://github.com/user-attachments/assets/fc546a17-7bde-41d4-b58d-2ec95134d8ae" controls="controls" muted="muted" class="d-block rounded-bottom-2 border-top width-fit" style="max-height:640px; min-height: 200px">
+
+  </video>
+</details>
+<p></p>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">Cherry-pick</h3><a id="user-content-cherry-pick" class="anchor" aria-label="Permalink: Cherry-pick" href="#cherry-pick"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">Press <code>shift+c</code> on a commit to copy it and press <code>shift+v</code> to paste (cherry-pick) it.</p>
+
+<p dir="auto"><gh:secured-asset-reference resource_type="UserAsset" resource_id="665857228"></gh:secured-asset-reference></p><details open="" class="details-reset border rounded-2">
+  <summary class="tmp-px-3 py-2">
+    <svg aria-hidden="true" data-component="Octicon" height="16" viewBox="0 0 16 16" version="1.1" width="16" data-view-component="true" class="octicon octicon-device-camera-video">
+    <path d="M16 3.75v8.5a.75.75 0 0 1-1.136.643L11 10.575v.675A1.75 1.75 0 0 1 9.25 13h-7.5A1.75 1.75 0 0 1 0 11.25v-6.5C0 3.784.784 3 1.75 3h7.5c.966 0 1.75.784 1.75 1.75v.675l3.864-2.318A.75.75 0 0 1 16 3.75Zm-6.5 1a.25.25 0 0 0-.25-.25h-7.5a.25.25 0 0 0-.25.25v6.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-6.5ZM11 8.825l3.5 2.1v-5.85l-3.5 2.1Z"></path>
+</svg>
+    <span class="m-1">cherry_pick.mp4</span>
+    <span class="dropdown-caret"></span>
+  </summary>
+
+  <video src="https://github.com/user-attachments/assets/740d3af2-e548-47ad-8480-6b117dca939e" data-canonical-src="https://github.com/user-attachments/assets/740d3af2-e548-47ad-8480-6b117dca939e" controls="controls" muted="muted" class="d-block rounded-bottom-2 border-top width-fit" style="max-height:640px; min-height: 200px">
+
+  </video>
+</details>
+<p></p>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">Bisect</h3><a id="user-content-bisect" class="anchor" aria-label="Permalink: Bisect" href="#bisect"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">Press <code>b</code> in the commits view to mark a commit as good/bad in order to begin a git bisect.</p>
+
+<p dir="auto"><gh:secured-asset-reference resource_type="UserAsset" resource_id="665858050"></gh:secured-asset-reference></p><details open="" class="details-reset border rounded-2">
+  <summary class="tmp-px-3 py-2">
+    <svg aria-hidden="true" data-component="Octicon" height="16" viewBox="0 0 16 16" version="1.1" width="16" data-view-component="true" class="octicon octicon-device-camera-video">
+    <path d="M16 3.75v8.5a.75.75 0 0 1-1.136.643L11 10.575v.675A1.75 1.75 0 0 1 9.25 13h-7.5A1.75 1.75 0 0 1 0 11.25v-6.5C0 3.784.784 3 1.75 3h7.5c.966 0 1.75.784 1.75 1.75v.675l3.864-2.318A.75.75 0 0 1 16 3.75Zm-6.5 1a.25.25 0 0 0-.25-.25h-7.5a.25.25 0 0 0-.25.25v6.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-6.5ZM11 8.825l3.5 2.1v-5.85l-3.5 2.1Z"></path>
+</svg>
+    <span class="m-1">bisect.mp4</span>
+    <span class="dropdown-caret"></span>
+  </summary>
+
+  <video src="https://github.com/user-attachments/assets/b05f3d63-7c78-43ef-b4ed-dc335065cdef" data-canonical-src="https://github.com/user-attachments/assets/b05f3d63-7c78-43ef-b4ed-dc335065cdef" controls="controls" muted="muted" class="d-block rounded-bottom-2 border-top width-fit" style="max-height:640px; min-height: 200px">
+
+  </video>
+</details>
+<p></p>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">Nuke the working tree</h3><a id="user-content-nuke-the-working-tree" class="anchor" aria-label="Permalink: Nuke the working tree" href="#nuke-the-working-tree"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">For when you really want to just get rid of anything that shows up when you run <code>git status</code> (and yes that includes dirty submodules) <a href="https://www.youtube.com/watch?v=N4E2B_k2Bss" rel="nofollow">kidpix style</a>, press <code>shift+d</code> to bring up the reset options menu and then select the 'nuke' option.</p>
+
+<p dir="auto"><gh:secured-asset-reference resource_type="UserAsset" resource_id="665858605"></gh:secured-asset-reference></p><details open="" class="details-reset border rounded-2">
+  <summary class="tmp-px-3 py-2">
+    <svg aria-hidden="true" data-component="Octicon" height="16" viewBox="0 0 16 16" version="1.1" width="16" data-view-component="true" class="octicon octicon-device-camera-video">
+    <path d="M16 3.75v8.5a.75.75 0 0 1-1.136.643L11 10.575v.675A1.75 1.75 0 0 1 9.25 13h-7.5A1.75 1.75 0 0 1 0 11.25v-6.5C0 3.784.784 3 1.75 3h7.5c.966 0 1.75.784 1.75 1.75v.675l3.864-2.318A.75.75 0 0 1 16 3.75Zm-6.5 1a.25.25 0 0 0-.25-.25h-7.5a.25.25 0 0 0-.25.25v6.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-6.5ZM11 8.825l3.5 2.1v-5.85l-3.5 2.1Z"></path>
+</svg>
+    <span class="m-1">nuke_working_tree.mp4</span>
+    <span class="dropdown-caret"></span>
+  </summary>
+
+  <video src="https://github.com/user-attachments/assets/81f3d396-54f7-4b92-92d7-4711f56b9c17" data-canonical-src="https://github.com/user-attachments/assets/81f3d396-54f7-4b92-92d7-4711f56b9c17" controls="controls" muted="muted" class="d-block rounded-bottom-2 border-top width-fit" style="max-height:640px; min-height: 200px">
+
+  </video>
+</details>
+<p></p>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">Amend an old commit</h3><a id="user-content-amend-an-old-commit" class="anchor" aria-label="Permalink: Amend an old commit" href="#amend-an-old-commit"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">Pressing <code>shift+a</code> on any commit will amend that commit with the currently staged changes (running an interactive rebase in the background).</p>
+
+<p dir="auto"><gh:secured-asset-reference resource_type="UserAsset" resource_id="665859315"></gh:secured-asset-reference></p><details open="" class="details-reset border rounded-2">
+  <summary class="tmp-px-3 py-2">
+    <svg aria-hidden="true" data-component="Octicon" height="16" viewBox="0 0 16 16" version="1.1" width="16" data-view-component="true" class="octicon octicon-device-camera-video">
+    <path d="M16 3.75v8.5a.75.75 0 0 1-1.136.643L11 10.575v.675A1.75 1.75 0 0 1 9.25 13h-7.5A1.75 1.75 0 0 1 0 11.25v-6.5C0 3.784.784 3 1.75 3h7.5c.966 0 1.75.784 1.75 1.75v.675l3.864-2.318A.75.75 0 0 1 16 3.75Zm-6.5 1a.25.25 0 0 0-.25-.25h-7.5a.25.25 0 0 0-.25.25v6.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-6.5ZM11 8.825l3.5 2.1v-5.85l-3.5 2.1Z"></path>
+</svg>
+    <span class="m-1">amend_old_commit.mp4</span>
+    <span class="dropdown-caret"></span>
+  </summary>
+
+  <video src="https://github.com/user-attachments/assets/41e34cac-1698-446e-bae8-9eb794b33b3d" data-canonical-src="https://github.com/user-attachments/assets/41e34cac-1698-446e-bae8-9eb794b33b3d" controls="controls" muted="muted" class="d-block rounded-bottom-2 border-top width-fit" style="max-height:640px; min-height: 200px">
+
+  </video>
+</details>
+<p></p>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">Filter</h3><a id="user-content-filter" class="anchor" aria-label="Permalink: Filter" href="#filter"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">You can filter a view with <code>/</code>. Here we filter down our branches view and then hit <code>enter</code> to view its commits.</p>
+
+<p dir="auto"><gh:secured-asset-reference resource_type="UserAsset" resource_id="665859744"></gh:secured-asset-reference></p><details open="" class="details-reset border rounded-2">
+  <summary class="tmp-px-3 py-2">
+    <svg aria-hidden="true" data-component="Octicon" height="16" viewBox="0 0 16 16" version="1.1" width="16" data-view-component="true" class="octicon octicon-device-camera-video">
+    <path d="M16 3.75v8.5a.75.75 0 0 1-1.136.643L11 10.575v.675A1.75 1.75 0 0 1 9.25 13h-7.5A1.75 1.75 0 0 1 0 11.25v-6.5C0 3.784.784 3 1.75 3h7.5c.966 0 1.75.784 1.75 1.75v.675l3.864-2.318A.75.75 0 0 1 16 3.75Zm-6.5 1a.25.25 0 0 0-.25-.25h-7.5a.25.25 0 0 0-.25.25v6.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-6.5ZM11 8.825l3.5 2.1v-5.85l-3.5 2.1Z"></path>
+</svg>
+    <span class="m-1">filter.mp4</span>
+    <span class="dropdown-caret"></span>
+  </summary>
+
+  <video src="https://github.com/user-attachments/assets/94bf28e8-2309-45b6-9e3d-de7f43200d22" data-canonical-src="https://github.com/user-attachments/assets/94bf28e8-2309-45b6-9e3d-de7f43200d22" controls="controls" muted="muted" class="d-block rounded-bottom-2 border-top width-fit" style="max-height:640px; min-height: 200px">
+
+  </video>
+</details>
+<p></p>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">Invoke a custom command</h3><a id="user-content-invoke-a-custom-command" class="anchor" aria-label="Permalink: Invoke a custom command" href="#invoke-a-custom-command"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">Lazygit has a very flexible <a href="docs/Custom_Command_Keybindings.md">custom command system</a>. In this example a custom command is defined which emulates the built-in branch checkout action.</p>
+
+<p dir="auto"><gh:secured-asset-reference resource_type="UserAsset" resource_id="665860202"></gh:secured-asset-reference></p><details open="" class="details-reset border rounded-2">
+  <summary class="tmp-px-3 py-2">
+    <svg aria-hidden="true" data-component="Octicon" height="16" viewBox="0 0 16 16" version="1.1" width="16" data-view-component="true" class="octicon octicon-device-camera-video">
+    <path d="M16 3.75v8.5a.75.75 0 0 1-1.136.643L11 10.575v.675A1.75 1.75 0 0 1 9.25 13h-7.5A1.75 1.75 0 0 1 0 11.25v-6.5C0 3.784.784 3 1.75 3h7.5c.966 0 1.75.784 1.75 1.75v.675l3.864-2.318A.75.75 0 0 1 16 3.75Zm-6.5 1a.25.25 0 0 0-.25-.25h-7.5a.25.25 0 0 0-.25.25v6.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-6.5ZM11 8.825l3.5 2.1v-5.85l-3.5 2.1Z"></path>
+</svg>
+    <span class="m-1">custom_command.mp4</span>
+    <span class="dropdown-caret"></span>
+  </summary>
+
+  <video src="https://github.com/user-attachments/assets/f7c68622-2c58-43b9-bd47-a1117ff11fd3" data-canonical-src="https://github.com/user-attachments/assets/f7c68622-2c58-43b9-bd47-a1117ff11fd3" controls="controls" muted="muted" class="d-block rounded-bottom-2 border-top width-fit" style="max-height:640px; min-height: 200px">
+
+  </video>
+</details>
+<p></p>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">Worktrees</h3><a id="user-content-worktrees" class="anchor" aria-label="Permalink: Worktrees" href="#worktrees"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">You can create worktrees to have multiple branches going at once without the need for stashing or creating WIP commits when switching between them. Press <code>w</code> in the branches view to create a worktree from the selected branch and switch to it.</p>
+
+<p dir="auto"><gh:secured-asset-reference resource_type="UserAsset" resource_id="665860710"></gh:secured-asset-reference></p><details open="" class="details-reset border rounded-2">
+  <summary class="tmp-px-3 py-2">
+    <svg aria-hidden="true" data-component="Octicon" height="16" viewBox="0 0 16 16" version="1.1" width="16" data-view-component="true" class="octicon octicon-device-camera-video">
+    <path d="M16 3.75v8.5a.75.75 0 0 1-1.136.643L11 10.575v.675A1.75 1.75 0 0 1 9.25 13h-7.5A1.75 1.75 0 0 1 0 11.25v-6.5C0 3.784.784 3 1.75 3h7.5c.966 0 1.75.784 1.75 1.75v.675l3.864-2.318A.75.75 0 0 1 16 3.75Zm-6.5 1a.25.25 0 0 0-.25-.25h-7.5a.25.25 0 0 0-.25.25v6.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-6.5ZM11 8.825l3.5 2.1v-5.85l-3.5 2.1Z"></path>
+</svg>
+    <span class="m-1">worktree_create_from_branches.mp4</span>
+    <span class="dropdown-caret"></span>
+  </summary>
+
+  <video src="https://github.com/user-attachments/assets/a8cafbb6-9fc0-45bb-860e-cbd88f8b65bb" data-canonical-src="https://github.com/user-attachments/assets/a8cafbb6-9fc0-45bb-860e-cbd88f8b65bb" controls="controls" muted="muted" class="d-block rounded-bottom-2 border-top width-fit" style="max-height:640px; min-height: 200px">
+
+  </video>
+</details>
+<p></p>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">Rebase magic (custom patches)</h3><a id="user-content-rebase-magic-custom-patches" class="anchor" aria-label="Permalink: Rebase magic (custom patches)" href="#rebase-magic-custom-patches"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">You can build a custom patch from an old commit and then remove the patch from the commit, split out a new commit, apply the patch in reverse to the index, and more.</p>
+<p dir="auto">In this example an old commit contains a change that belongs in a commit of its own. We hit <code>0</code> on the commit to focus its diff. <code>&lt;space&gt;</code> on the hunk we want to move adds it to the custom patch, and <code>ctrl+p</code> opens the custom patch options, where we choose to move the patch into a new commit.</p>
+<p dir="auto">Learn more in the <a href="https://youtu.be/4XaToVut_hs" rel="nofollow">Rebase magic Youtube tutorial</a>.</p>
+
+<p dir="auto"><gh:secured-asset-reference resource_type="UserAsset" resource_id="665861337"></gh:secured-asset-reference></p><details open="" class="details-reset border rounded-2">
+  <summary class="tmp-px-3 py-2">
+    <svg aria-hidden="true" data-component="Octicon" height="16" viewBox="0 0 16 16" version="1.1" width="16" data-view-component="true" class="octicon octicon-device-camera-video">
+    <path d="M16 3.75v8.5a.75.75 0 0 1-1.136.643L11 10.575v.675A1.75 1.75 0 0 1 9.25 13h-7.5A1.75 1.75 0 0 1 0 11.25v-6.5C0 3.784.784 3 1.75 3h7.5c.966 0 1.75.784 1.75 1.75v.675l3.864-2.318A.75.75 0 0 1 16 3.75Zm-6.5 1a.25.25 0 0 0-.25-.25h-7.5a.25.25 0 0 0-.25.25v6.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-6.5ZM11 8.825l3.5 2.1v-5.85l-3.5 2.1Z"></path>
+</svg>
+    <span class="m-1">custom_patch.mp4</span>
+    <span class="dropdown-caret"></span>
+  </summary>
+
+  <video src="https://github.com/user-attachments/assets/9d36b387-56e6-4c72-9c44-83fcf5ad6228" data-canonical-src="https://github.com/user-attachments/assets/9d36b387-56e6-4c72-9c44-83fcf5ad6228" controls="controls" muted="muted" class="d-block rounded-bottom-2 border-top width-fit" style="max-height:640px; min-height: 200px">
+
+  </video>
+</details>
+<p></p>
+<p dir="auto">If you only want to remove a hunk from an old commit, you don't need a custom patch for that. Select the hunk in the commit's diff and press <code>d</code>. Lazygit rewrites the commit without it, running an interactive rebase in the background.</p>
+
+<p dir="auto"><gh:secured-asset-reference resource_type="UserAsset" resource_id="665861857"></gh:secured-asset-reference></p><details open="" class="details-reset border rounded-2">
+  <summary class="tmp-px-3 py-2">
+    <svg aria-hidden="true" data-component="Octicon" height="16" viewBox="0 0 16 16" version="1.1" width="16" data-view-component="true" class="octicon octicon-device-camera-video">
+    <path d="M16 3.75v8.5a.75.75 0 0 1-1.136.643L11 10.575v.675A1.75 1.75 0 0 1 9.25 13h-7.5A1.75 1.75 0 0 1 0 11.25v-6.5C0 3.784.784 3 1.75 3h7.5c.966 0 1.75.784 1.75 1.75v.675l3.864-2.318A.75.75 0 0 1 16 3.75Zm-6.5 1a.25.25 0 0 0-.25-.25h-7.5a.25.25 0 0 0-.25.25v6.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-6.5ZM11 8.825l3.5 2.1v-5.85l-3.5 2.1Z"></path>
+</svg>
+    <span class="m-1">remove_hunk_from_commit.mp4</span>
+    <span class="dropdown-caret"></span>
+  </summary>
+
+  <video src="https://github.com/user-attachments/assets/86d0b3ec-126d-4c80-a9f2-d2419ab1e578" data-canonical-src="https://github.com/user-attachments/assets/86d0b3ec-126d-4c80-a9f2-d2419ab1e578" controls="controls" muted="muted" class="d-block rounded-bottom-2 border-top width-fit" style="max-height:640px; min-height: 200px">
+
+  </video>
+</details>
+<p></p>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">Rebase from marked base commit</h3><a id="user-content-rebase-from-marked-base-commit" class="anchor" aria-label="Permalink: Rebase from marked base commit" href="#rebase-from-marked-base-commit"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">Say you're on a feature branch that was itself branched off of the develop branch, and you've decided you'd rather be branching off the master branch. You need a way to rebase only the commits from your feature branch. In this demo we check to see which was the last commit on the develop branch, then press <code>shift+b</code> to mark that commit as our base commit, then press <code>r</code> on the master branch to rebase onto it, only bringing across the commits from our feature branch. Then we push our changes with <code>shift+p</code>.</p>
+
+<p dir="auto"><gh:secured-asset-reference resource_type="UserAsset" resource_id="665862469"></gh:secured-asset-reference></p><details open="" class="details-reset border rounded-2">
+  <summary class="tmp-px-3 py-2">
+    <svg aria-hidden="true" data-component="Octicon" height="16" viewBox="0 0 16 16" version="1.1" width="16" data-view-component="true" class="octicon octicon-device-camera-video">
+    <path d="M16 3.75v8.5a.75.75 0 0 1-1.136.643L11 10.575v.675A1.75 1.75 0 0 1 9.25 13h-7.5A1.75 1.75 0 0 1 0 11.25v-6.5C0 3.784.784 3 1.75 3h7.5c.966 0 1.75.784 1.75 1.75v.675l3.864-2.318A.75.75 0 0 1 16 3.75Zm-6.5 1a.25.25 0 0 0-.25-.25h-7.5a.25.25 0 0 0-.25.25v6.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-6.5ZM11 8.825l3.5 2.1v-5.85l-3.5 2.1Z"></path>
+</svg>
+    <span class="m-1">rebase_onto.mp4</span>
+    <span class="dropdown-caret"></span>
+  </summary>
+
+  <video src="https://github.com/user-attachments/assets/7cd0c1d2-d737-4ef9-934e-54a01bd7d270" data-canonical-src="https://github.com/user-attachments/assets/7cd0c1d2-d737-4ef9-934e-54a01bd7d270" controls="controls" muted="muted" class="d-block rounded-bottom-2 border-top width-fit" style="max-height:640px; min-height: 200px">
+
+  </video>
+</details>
+<p></p>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">Undo</h3><a id="user-content-undo" class="anchor" aria-label="Permalink: Undo" href="#undo"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">You can undo the last action by pressing <code>z</code> and redo with <code>shift+z</code>. Here we drop a couple of commits and then undo the actions.
+Undo uses the reflog which is specific to commits and branches so we can't undo changes to the working tree or stash.</p>
+<p dir="auto"><a href="/docs/Undoing.md">More info</a></p>
+
+<p dir="auto"><gh:secured-asset-reference resource_type="UserAsset" resource_id="665863078"></gh:secured-asset-reference></p><details open="" class="details-reset border rounded-2">
+  <summary class="tmp-px-3 py-2">
+    <svg aria-hidden="true" data-component="Octicon" height="16" viewBox="0 0 16 16" version="1.1" width="16" data-view-component="true" class="octicon octicon-device-camera-video">
+    <path d="M16 3.75v8.5a.75.75 0 0 1-1.136.643L11 10.575v.675A1.75 1.75 0 0 1 9.25 13h-7.5A1.75 1.75 0 0 1 0 11.25v-6.5C0 3.784.784 3 1.75 3h7.5c.966 0 1.75.784 1.75 1.75v.675l3.864-2.318A.75.75 0 0 1 16 3.75Zm-6.5 1a.25.25 0 0 0-.25-.25h-7.5a.25.25 0 0 0-.25.25v6.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-6.5ZM11 8.825l3.5 2.1v-5.85l-3.5 2.1Z"></path>
+</svg>
+    <span class="m-1">undo.mp4</span>
+    <span class="dropdown-caret"></span>
+  </summary>
+
+  <video src="https://github.com/user-attachments/assets/8a870289-2ab7-4a7e-8152-a04fa52310c1" data-canonical-src="https://github.com/user-attachments/assets/8a870289-2ab7-4a7e-8152-a04fa52310c1" controls="controls" muted="muted" class="d-block rounded-bottom-2 border-top width-fit" style="max-height:640px; min-height: 200px">
+
+  </video>
+</details>
+<p></p>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">Commit graph</h3><a id="user-content-commit-graph" class="anchor" aria-label="Permalink: Commit graph" href="#commit-graph"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">When viewing the commit graph in an enlarged window (use <code>+</code> and <code>_</code> to cycle screen modes), the commit graph is shown. Colours correspond to the commit authors, and as you navigate down the graph, the parent commits of the selected commit are highlighted.</p>
+
+<p dir="auto"><gh:secured-asset-reference resource_type="UserAsset" resource_id="665863520"></gh:secured-asset-reference></p><details open="" class="details-reset border rounded-2">
+  <summary class="tmp-px-3 py-2">
+    <svg aria-hidden="true" data-component="Octicon" height="16" viewBox="0 0 16 16" version="1.1" width="16" data-view-component="true" class="octicon octicon-device-camera-video">
+    <path d="M16 3.75v8.5a.75.75 0 0 1-1.136.643L11 10.575v.675A1.75 1.75 0 0 1 9.25 13h-7.5A1.75 1.75 0 0 1 0 11.25v-6.5C0 3.784.784 3 1.75 3h7.5c.966 0 1.75.784 1.75 1.75v.675l3.864-2.318A.75.75 0 0 1 16 3.75Zm-6.5 1a.25.25 0 0 0-.25-.25h-7.5a.25.25 0 0 0-.25.25v6.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-6.5ZM11 8.825l3.5 2.1v-5.85l-3.5 2.1Z"></path>
+</svg>
+    <span class="m-1">commit_graph.mp4</span>
+    <span class="dropdown-caret"></span>
+  </summary>
+
+  <video src="https://github.com/user-attachments/assets/83b8103c-dafc-4540-acd2-0fd9f8227aff" data-canonical-src="https://github.com/user-attachments/assets/83b8103c-dafc-4540-acd2-0fd9f8227aff" controls="controls" muted="muted" class="d-block rounded-bottom-2 border-top width-fit" style="max-height:640px; min-height: 200px">
+
+  </video>
+</details>
+<p></p>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">Compare two commits</h3><a id="user-content-compare-two-commits" class="anchor" aria-label="Permalink: Compare two commits" href="#compare-two-commits"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">If you press <code>shift+w</code> on a commit (or branch/ref) a menu will open that allows you to mark that commit so that any other commit you select will be diffed against it. Once you've selected the second commit, you'll see the diff in the main view and if you press <code>&lt;enter&gt;</code> you'll see the files of the diff. You can press <code>shift+w</code> to view the diff menu again to see options like reversing the diff direction or exiting diff mode. You can also exit diff mode by pressing <code>&lt;escape&gt;</code>.</p>
+
+<p dir="auto"><gh:secured-asset-reference resource_type="UserAsset" resource_id="665863942"></gh:secured-asset-reference></p><details open="" class="details-reset border rounded-2">
+  <summary class="tmp-px-3 py-2">
+    <svg aria-hidden="true" data-component="Octicon" height="16" viewBox="0 0 16 16" version="1.1" width="16" data-view-component="true" class="octicon octicon-device-camera-video">
+    <path d="M16 3.75v8.5a.75.75 0 0 1-1.136.643L11 10.575v.675A1.75 1.75 0 0 1 9.25 13h-7.5A1.75 1.75 0 0 1 0 11.25v-6.5C0 3.784.784 3 1.75 3h7.5c.966 0 1.75.784 1.75 1.75v.675l3.864-2.318A.75.75 0 0 1 16 3.75Zm-6.5 1a.25.25 0 0 0-.25-.25h-7.5a.25.25 0 0 0-.25.25v6.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-6.5ZM11 8.825l3.5 2.1v-5.85l-3.5 2.1Z"></path>
+</svg>
+    <span class="m-1">diff_commits.mp4</span>
+    <span class="dropdown-caret"></span>
+  </summary>
+
+  <video src="https://github.com/user-attachments/assets/7094d9dd-d167-4caf-b79d-6da35a3f0279" data-canonical-src="https://github.com/user-attachments/assets/7094d9dd-d167-4caf-b79d-6da35a3f0279" controls="controls" muted="muted" class="d-block rounded-bottom-2 border-top width-fit" style="max-height:640px; min-height: 200px">
+
+  </video>
+</details>
+<p></p>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">Show GitHub pull requests</h3><a id="user-content-show-github-pull-requests" class="anchor" aria-label="Permalink: Show GitHub pull requests" href="#show-github-pull-requests"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">In the branches panel, lazygit can show which of your branches have an associated GitHub pull request by showing a GitHub icon next to the branch name; its color shows the state of the PR (open, merged, etc.). For those that have one, you can press <code>shift-G</code> to open the PR in the browser. There is no configuration needed to enable this for github.com, but it requires the <a href="https://cli.github.com/"><code>gh</code></a> tool to be installed, and you need to do <code>gh auth login</code> once to allow lazygit to access GitHub. For GitHub Enterprise, also run <code>gh auth login --hostname &lt;webDomain&gt;</code> and add a <a href="docs/Config.md#custom-pull-request-urls"><code>services</code> entry</a> for the host with the <code>github</code> provider.</p>
+<div class="markdown-heading" dir="auto"><h2 class="heading-element" dir="auto">Tutorials</h2><a id="user-content-tutorials" class="anchor" aria-label="Permalink: Tutorials" href="#tutorials"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto"><a href="https://youtu.be/CPLdltN7wgE" rel="nofollow"><img src="https://camo.githubusercontent.com/f5b23821b1f2af024d3fd961cea85243a0469e7450bc873f04e6bdb694edad14/68747470733a2f2f692e696d6775722e636f6d2f7356456b74446e2e706e67" data-canonical-src="https://i.imgur.com/sVEktDn.png" style="max-width: 100%;"></a></p>
+<ul dir="auto">
+<li><a href="https://youtu.be/CPLdltN7wgE" rel="nofollow">15 Lazygit Features in 15 Minutes</a></li>
+<li><a href="https://youtu.be/VDXvbHZYeKY" rel="nofollow">Basics Tutorial</a></li>
+<li><a href="https://youtu.be/4XaToVut_hs" rel="nofollow">Rebase Magic Tutorial</a></li>
+</ul>
+<div class="markdown-heading" dir="auto"><h2 class="heading-element" dir="auto">Installation</h2><a id="user-content-installation" class="anchor" aria-label="Permalink: Installation" href="#installation"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto"><a href="https://repology.org/project/lazygit/versions" rel="nofollow"><img src="https://camo.githubusercontent.com/58d682b3380c64f36525b5735654cef39a4feea5b610d48c7e9a7f52537f765e/68747470733a2f2f7265706f6c6f67792e6f72672f62616467652f766572746963616c2d616c6c7265706f732f6c617a796769742e7376673f636f6c756d6e733d33" alt="Packaging status" data-canonical-src="https://repology.org/badge/vertical-allrepos/lazygit.svg?columns=3" style="max-width: 100%;"></a></p>
+<p dir="auto"><em>Most of the above packages are maintained by third parties so be sure to vet them yourself and confirm that the maintainer is a trustworthy looking person who attends local sports games and gives back to their communities with barbeque fundraisers etc</em></p>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">Binary Releases</h3><a id="user-content-binary-releases" class="anchor" aria-label="Permalink: Binary Releases" href="#binary-releases"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">For Windows, Mac OS(10.12+) or Linux, you can download a binary release <a href="../../releases">here</a>.</p>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">Dev container feature</h3><a id="user-content-dev-container-feature" class="anchor" aria-label="Permalink: Dev container feature" href="#dev-container-feature"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">If you want to use lazygit in e.g. one of your GitHub Codespaces, there is a third-party <a href="https://github.com/GeorgOfenbeck/features/tree/main/src/lazygit-linuxbinary">dev container feature</a> based on the binary releases mentioned above.</p>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">Homebrew</h3><a id="user-content-homebrew" class="anchor" aria-label="Permalink: Homebrew" href="#homebrew"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">It works with Linux, too.</p>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="brew install lazygit"><pre>brew install lazygit</pre></div>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">MacPorts</h3><a id="user-content-macports" class="anchor" aria-label="Permalink: MacPorts" href="#macports"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">Latest version built from github releases.
+Tap:</p>
+<div class="snippet-clipboard-content notranslate position-relative overflow-auto" data-snippet-clipboard-copy-content="sudo port install lazygit"><pre class="notranslate"><code>sudo port install lazygit
+</code></pre></div>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">Void Linux</h3><a id="user-content-void-linux" class="anchor" aria-label="Permalink: Void Linux" href="#void-linux"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">Packages for Void Linux are available in the distro repo</p>
+<p dir="auto">They follow upstream latest releases</p>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="sudo xbps-install -S lazygit"><pre>sudo xbps-install -S lazygit</pre></div>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">Scoop (Windows)</h3><a id="user-content-scoop-windows" class="anchor" aria-label="Permalink: Scoop (Windows)" href="#scoop-windows"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">You can install <code>lazygit</code> using <a href="https://scoop.sh/" rel="nofollow">scoop</a>. It's in the <code>extras</code> bucket:</p>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="# Add the extras bucket
+scoop bucket add extras
+
+# Install lazygit
+scoop install lazygit"><pre><span class="pl-c"><span class="pl-c">#</span> Add the extras bucket</span>
+scoop bucket add extras
+
+<span class="pl-c"><span class="pl-c">#</span> Install lazygit</span>
+scoop install lazygit</pre></div>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">gah (Linux and Mac OS)</h3><a id="user-content-gah-linux-and-mac-os" class="anchor" aria-label="Permalink: gah (Linux and Mac OS)" href="#gah-linux-and-mac-os"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">You can install <code>lazygit</code> using <a href="https://github.com/marverix/gah/">gah</a>:</p>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="gah install lazygit"><pre>gah install lazygit</pre></div>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">Arch Linux</h3><a id="user-content-arch-linux" class="anchor" aria-label="Permalink: Arch Linux" href="#arch-linux"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">Packages for Arch Linux are available via pacman and AUR (Arch User Repository).</p>
+<p dir="auto">There are two packages. The stable one which is built with the latest release
+and the git version which builds from the most recent commit.</p>
+<ul dir="auto">
+<li>Stable: <code>sudo pacman -S lazygit</code></li>
+<li>Development: <a href="https://aur.archlinux.org/packages/lazygit-git/" rel="nofollow">https://aur.archlinux.org/packages/lazygit-git/</a></li>
+</ul>
+<p dir="auto">Instruction of how to install AUR content can be found here:
+<a href="https://wiki.archlinux.org/index.php/Arch_User_Repository" rel="nofollow">https://wiki.archlinux.org/index.php/Arch_User_Repository</a></p>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">Fedora / Amazon Linux 2023 / CentOS Stream</h3><a id="user-content-fedora--amazon-linux-2023--centos-stream" class="anchor" aria-label="Permalink: Fedora / Amazon Linux 2023 / CentOS Stream" href="#fedora--amazon-linux-2023--centos-stream"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">Packages for Fedora, Amazon Linux 2023 and CentOS Stream are available via
+<a href="https://copr.fedorainfracloud.org/coprs/dejan/lazygit/" rel="nofollow">Copr</a> (Cool Other Package Repo).</p>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="sudo dnf copr enable dejan/lazygit
+sudo dnf install lazygit"><pre>sudo dnf copr <span class="pl-c1">enable</span> dejan/lazygit
+sudo dnf install lazygit</pre></div>
+<p dir="auto">These packages are built using the RPM spec file located here: <a href="https://codeberg.org/dejan/rpm-lazygit" rel="nofollow">https://codeberg.org/dejan/rpm-lazygit</a></p>
+<p dir="auto">You should be able to build RPMs for Fedora 41 or older, and other Fedora derivatives using the
+SRPM (Source RPM) file that you can grab from the latest COPR build.</p>
+<div class="markdown-heading" dir="auto"><h4 class="heading-element" dir="auto">Fedora / RHEL Derivatives (Terra)</h4><a id="user-content-fedora--rhel-derivatives-terra" class="anchor" aria-label="Permalink: Fedora / RHEL Derivatives (Terra)" href="#fedora--rhel-derivatives-terra"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">Packages for Fedora and RHEL derivatives are also available from the <a href="https://terra.fyralabs.com/" rel="nofollow">Terra Repository</a>.</p>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="sudo dnf install --nogpgcheck --repofrompath 'terra,https://repos.fyralabs.com/terra$releasever' terra-release
+sudo dnf install lazygit"><pre>sudo dnf install --nogpgcheck --repofrompath <span class="pl-s"><span class="pl-pds">'</span>terra,https://repos.fyralabs.com/terra$releasever<span class="pl-pds">'</span></span> terra-release
+sudo dnf install lazygit</pre></div>
+<p dir="auto">(Install guide for Atomic/EL can be found on their <a href="https://github.com/terrapkg/packages/pull/9747" data-hovercard-type="pull_request" data-hovercard-url="/terrapkg/packages/pull/9747/hovercard">README</a>)</p>
+<p dir="auto">Terra also has <code>lazygit-doc</code>, which contains the contents of the <a href="https://github.com/jesseduffield/lazygit/tree/master/docs">docs</a> folder.</p>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">Solus Linux</h3><a id="user-content-solus-linux" class="anchor" aria-label="Permalink: Solus Linux" href="#solus-linux"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="sudo eopkg install lazygit"><pre>sudo eopkg install lazygit</pre></div>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">Debian and Ubuntu</h3><a id="user-content-debian-and-ubuntu" class="anchor" aria-label="Permalink: Debian and Ubuntu" href="#debian-and-ubuntu"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">For <strong>Debian 13 "Trixie", Sid</strong>, and later, or <strong>Ubuntu 25.10 "Questing Quokka"</strong> and later:</p>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="sudo apt install lazygit"><pre>sudo apt install lazygit</pre></div>
+<p dir="auto">For <strong>Debian 12 "Bookworm", Ubuntu 25.04 "Plucky Puffin"</strong> and earlier:</p>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="LAZYGIT_VERSION=$(curl -s &quot;https://api.github.com/repos/jesseduffield/lazygit/releases/latest&quot; | \grep -Po '&quot;tag_name&quot;: *&quot;v\K[^&quot;]*')
+LAZYGIT_ARCH=$(uname -m | sed -e 's/aarch64/arm64/')
+curl -Lo lazygit.tar.gz &quot;https://github.com/jesseduffield/lazygit/releases/download/v${LAZYGIT_VERSION}/lazygit_${LAZYGIT_VERSION}_Linux_${LAZYGIT_ARCH}.tar.gz&quot;
+tar xf lazygit.tar.gz lazygit
+sudo install lazygit -D -t /usr/local/bin/"><pre>LAZYGIT_VERSION=<span class="pl-s"><span class="pl-pds">$(</span>curl -s <span class="pl-s"><span class="pl-pds">"</span>https://api.github.com/repos/jesseduffield/lazygit/releases/latest<span class="pl-pds">"</span></span> <span class="pl-k">|</span> <span class="pl-cce">\g</span>rep -Po <span class="pl-s"><span class="pl-pds">'</span>"tag_name": *"v\K[^"]*<span class="pl-pds">'</span></span><span class="pl-pds">)</span></span>
+LAZYGIT_ARCH=<span class="pl-s"><span class="pl-pds">$(</span>uname -m <span class="pl-k">|</span> sed -e <span class="pl-s"><span class="pl-pds">'</span>s/aarch64/arm64/<span class="pl-pds">'</span></span><span class="pl-pds">)</span></span>
+curl -Lo lazygit.tar.gz <span class="pl-s"><span class="pl-pds">"</span>https://github.com/jesseduffield/lazygit/releases/download/v<span class="pl-smi">${LAZYGIT_VERSION}</span>/lazygit_<span class="pl-smi">${LAZYGIT_VERSION}</span>_Linux_<span class="pl-smi">${LAZYGIT_ARCH}</span>.tar.gz<span class="pl-pds">"</span></span>
+tar xf lazygit.tar.gz lazygit
+sudo install lazygit -D -t /usr/local/bin/</pre></div>
+<p dir="auto">Verify the correct installation of lazygit:</p>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="lazygit --version"><pre>lazygit --version</pre></div>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">Funtoo Linux</h3><a id="user-content-funtoo-linux" class="anchor" aria-label="Permalink: Funtoo Linux" href="#funtoo-linux"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">Funtoo Linux has an autogenerated lazygit package in <a href="https://github.com/funtoo/dev-kit/tree/1.4-release/dev-vcs/lazygit">dev-kit</a>:</p>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="sudo emerge dev-vcs/lazygit"><pre>sudo emerge dev-vcs/lazygit</pre></div>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">Gentoo Linux</h3><a id="user-content-gentoo-linux" class="anchor" aria-label="Permalink: Gentoo Linux" href="#gentoo-linux"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">Lazygit is not (yet) in main Gentoo portage, however an ebuild is available in <a href="https://github.com/gentoo-mirror/guru/tree/master/dev-vcs/lazygit">GURU overlay</a></p>
+<p dir="auto">You can either add the overlay to your system and install lazygit as usual:</p>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="sudo eselect repository enable guru
+sudo emaint sync -r guru
+sudo emerge dev-vcs/lazygit"><pre>sudo eselect repository <span class="pl-c1">enable</span> guru
+sudo emaint sync -r guru
+sudo emerge dev-vcs/lazygit</pre></div>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">openSUSE</h3><a id="user-content-opensuse" class="anchor" aria-label="Permalink: openSUSE" href="#opensuse"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">The lazygit package is currently built in <a href="https://build.opensuse.org/package/show/devel:languages:go/lazygit" rel="nofollow">devel:languages:go/lazygit</a>.</p>
+<p dir="auto">To install lazygit on openSUSE Tumbleweed run:</p>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="sudo zypper ar https://download.opensuse.org/repositories/devel:/languages:/go/openSUSE_Factory/devel:languages:go.repo
+sudo zypper ref &amp;&amp; sudo zypper in lazygit"><pre>sudo zypper ar https://download.opensuse.org/repositories/devel:/languages:/go/openSUSE_Factory/devel:languages:go.repo
+sudo zypper ref <span class="pl-k">&amp;&amp;</span> sudo zypper <span class="pl-k">in</span> lazygit</pre></div>
+<p dir="auto">To install lazygit on openSUSE Leap run:</p>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="source /etc/os-release
+sudo zypper ar https://download.opensuse.org/repositories/devel:/languages:/go/$VERSION_ID/devel:languages:go.repo
+sudo zypper ref &amp;&amp; sudo zypper in lazygit"><pre><span class="pl-c1">source</span> /etc/os-release
+sudo zypper ar https://download.opensuse.org/repositories/devel:/languages:/go/<span class="pl-smi">$VERSION_ID</span>/devel:languages:go.repo
+sudo zypper ref <span class="pl-k">&amp;&amp;</span> sudo zypper <span class="pl-k">in</span> lazygit</pre></div>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">NixOS</h3><a id="user-content-nixos" class="anchor" aria-label="Permalink: NixOS" href="#nixos"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<div class="markdown-heading" dir="auto"><h4 class="heading-element" dir="auto">Using lazygit from nixpkgs</h4><a id="user-content-using-lazygit-from-nixpkgs" class="anchor" aria-label="Permalink: Using lazygit from nixpkgs" href="#using-lazygit-from-nixpkgs"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">On NixOS, lazygit is packaged with nix and distributed via nixpkgs.
+You can try lazygit without installing it with:</p>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="nix-shell -p lazygit
+# or with flakes enabled
+nix run nixpkgs#lazygit"><pre>nix-shell -p lazygit
+<span class="pl-c"><span class="pl-c">#</span> or with flakes enabled</span>
+nix run nixpkgs#lazygit</pre></div>
+<p dir="auto">Or you can add lazygit to your <code>configuration.nix</code> using the <code>environment.systemPackages</code> option.
+More details can be found via NixOS search <a href="https://search.nixos.org/" rel="nofollow">page</a>.</p>
+<div class="markdown-heading" dir="auto"><h4 class="heading-element" dir="auto">Using the official lazygit flake</h4><a id="user-content-using-the-official-lazygit-flake" class="anchor" aria-label="Permalink: Using the official lazygit flake" href="#using-the-official-lazygit-flake"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">This repository includes a nix flake that provides the latest development version and additional development tools:</p>
+<p dir="auto"><strong>Run lazygit directly from the repository:</strong></p>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="nix run github:jesseduffield/lazygit
+# or from a local clone
+nix run ."><pre>nix run github:jesseduffield/lazygit
+<span class="pl-c"><span class="pl-c">#</span> or from a local clone</span>
+nix run <span class="pl-c1">.</span></pre></div>
+<p dir="auto"><strong>Build lazygit from source:</strong></p>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="nix build github:jesseduffield/lazygit
+# or from a local clone
+nix build ."><pre>nix build github:jesseduffield/lazygit
+<span class="pl-c"><span class="pl-c">#</span> or from a local clone</span>
+nix build <span class="pl-c1">.</span></pre></div>
+<p dir="auto"><strong>Development environment:</strong>
+For contributors, the flake provides a development shell with Go toolchain, development tools, and dependencies:</p>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="nix develop github:jesseduffield/lazygit
+# or from a local clone
+nix develop"><pre>nix develop github:jesseduffield/lazygit
+<span class="pl-c"><span class="pl-c">#</span> or from a local clone</span>
+nix develop</pre></div>
+<p dir="auto">The development shell includes:</p>
+<ul dir="auto">
+<li>Go toolchain</li>
+<li>git and make</li>
+<li>Proper environment variables for development</li>
+</ul>
+<p dir="auto"><strong>Using in other flakes:</strong>
+The flake also provides an overlay for easy integration into other flake-based projects:</p>
+<div class="highlight highlight-source-nix notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="{
+  inputs.lazygit.url = &quot;github:jesseduffield/lazygit&quot;;
+
+  outputs = { self, nixpkgs, lazygit }: {
+    # Use the overlay
+    nixpkgs.overlays = [ lazygit.overlays.default ];
+  };
+}"><pre><span class="pl-kos">{</span>
+  <span class="pl-c1"><span class="pl-s1">inputs</span><span class="pl-kos">.</span><span class="pl-s1">lazygit</span><span class="pl-kos">.</span><span class="pl-s1">url</span></span> <span class="pl-kos">=</span> <span class="pl-s">"github:jesseduffield/lazygit"</span><span class="pl-kos">;</span>
+
+  <span class="pl-c1"><span class="pl-s1">outputs</span></span> <span class="pl-kos">=</span> <span class="pl-kos">{</span> <span class="pl-s1">self</span><span class="pl-kos">,</span> <span class="pl-s1">nixpkgs</span><span class="pl-kos">,</span> <span class="pl-s1">lazygit</span> <span class="pl-kos">}</span>: <span class="pl-kos">{</span>
+    <span class="pl-c"># Use the overlay</span>
+    <span class="pl-c1"><span class="pl-s1">nixpkgs</span><span class="pl-kos">.</span><span class="pl-s1">overlays</span></span> <span class="pl-kos">=</span> <span class="pl-kos">[</span> <span class="pl-s1">lazygit</span><span class="pl-kos">.</span><span class="pl-c1"><span class="pl-s1">overlays</span><span class="pl-kos">.</span><span class="pl-s1">default</span></span> <span class="pl-kos">]</span><span class="pl-kos">;</span>
+  <span class="pl-kos">}</span><span class="pl-kos">;</span>
+<span class="pl-kos">}</span></pre></div>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">Flox</h3><a id="user-content-flox" class="anchor" aria-label="Permalink: Flox" href="#flox"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">Lazygit can be installed into a Flox environment as follows.</p>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="flox install lazygit"><pre>flox install lazygit</pre></div>
+<p dir="auto">More details about Flox can be found on <a href="https://flox.dev/" rel="nofollow">their website</a>.</p>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">FreeBSD</h3><a id="user-content-freebsd" class="anchor" aria-label="Permalink: FreeBSD" href="#freebsd"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="pkg install lazygit"><pre>pkg install lazygit</pre></div>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">Termux</h3><a id="user-content-termux" class="anchor" aria-label="Permalink: Termux" href="#termux"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="apt install lazygit"><pre>apt install lazygit</pre></div>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">Conda</h3><a id="user-content-conda" class="anchor" aria-label="Permalink: Conda" href="#conda"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">Released versions are available for different platforms, see <a href="https://anaconda.org/conda-forge/lazygit" rel="nofollow">https://anaconda.org/conda-forge/lazygit</a></p>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="conda install -c conda-forge lazygit"><pre>conda install -c conda-forge lazygit</pre></div>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">Go</h3><a id="user-content-go" class="anchor" aria-label="Permalink: Go" href="#go"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="go install github.com/jesseduffield/lazygit@latest"><pre>go install github.com/jesseduffield/lazygit@latest</pre></div>
+<p dir="auto">Please note:
+If you get an error claiming that lazygit cannot be found or is not defined, you
+may need to add <code>~/go/bin</code> to your $PATH (macOS/Linux), or <code>%HOME%\go\bin</code>
+(Windows). Not to be mistaken for <code>C:\Go\bin</code> (which is for Go's own binaries,
+not apps like lazygit).</p>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">Chocolatey (Windows)</h3><a id="user-content-chocolatey-windows" class="anchor" aria-label="Permalink: Chocolatey (Windows)" href="#chocolatey-windows"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">You can install <code>lazygit</code> using <a href="https://chocolatey.org/" rel="nofollow">Chocolatey</a>:</p>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="choco install lazygit"><pre>choco install lazygit</pre></div>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">Winget (Windows 10 1709 or later)</h3><a id="user-content-winget-windows-10-1709-or-later" class="anchor" aria-label="Permalink: Winget (Windows 10 1709 or later)" href="#winget-windows-10-1709-or-later"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">You can install <code>lazygit</code> using the <code>winget</code> command in the Windows Terminal with the following command:</p>
+<div class="highlight highlight-source-powershell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="winget install -e --id=JesseDuffield.lazygit"><pre>winget install <span class="pl-k">-</span>e <span class="pl-k">--</span>id<span class="pl-k">=</span>JesseDuffield.lazygit</pre></div>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">Manual</h3><a id="user-content-manual" class="anchor" aria-label="Permalink: Manual" href="#manual"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">You'll need to <a href="https://golang.org/doc/install" rel="nofollow">install Go</a></p>
+<div class="snippet-clipboard-content notranslate position-relative overflow-auto" data-snippet-clipboard-copy-content="git clone https://github.com/jesseduffield/lazygit.git
+cd lazygit
+go install"><pre class="notranslate"><code>git clone https://github.com/jesseduffield/lazygit.git
+cd lazygit
+go install
+</code></pre></div>
+<p dir="auto">You can also use <code>go run main.go</code> to compile and run in one go (pun definitely intended)</p>
+<div class="markdown-heading" dir="auto"><h2 class="heading-element" dir="auto">Usage</h2><a id="user-content-usage" class="anchor" aria-label="Permalink: Usage" href="#usage"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">Call <code>lazygit</code> in your terminal inside a git repository.</p>
+<div class="highlight highlight-source-shell notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="$ lazygit"><pre>$ lazygit</pre></div>
+<p dir="auto">If you want, you can
+also add an alias for this with <code>echo "alias lg='lazygit'" &gt;&gt; ~/.zshrc</code> (or
+whichever rc file you're using).</p>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">Keybindings</h3><a id="user-content-keybindings" class="anchor" aria-label="Permalink: Keybindings" href="#keybindings"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">You can check out the list of keybindings <a href="/docs/keybindings">here</a>.</p>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">Changing Directory On Exit</h3><a id="user-content-changing-directory-on-exit" class="anchor" aria-label="Permalink: Changing Directory On Exit" href="#changing-directory-on-exit"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">If you change repos in lazygit and want your shell to change directory into that repo on exiting lazygit, add this to your <code>~/.zshrc</code> (or other rc file):</p>
+<div class="snippet-clipboard-content notranslate position-relative overflow-auto" data-snippet-clipboard-copy-content="lg()
+{
+    export LAZYGIT_NEW_DIR_FILE=~/.lazygit/newdir
+
+    lazygit &quot;$@&quot;
+
+    if [ -f $LAZYGIT_NEW_DIR_FILE ]; then
+            cd &quot;$(cat $LAZYGIT_NEW_DIR_FILE)&quot;
+            rm -f $LAZYGIT_NEW_DIR_FILE &gt; /dev/null
+    fi
+}"><pre class="notranslate"><code>lg()
+{
+    export LAZYGIT_NEW_DIR_FILE=~/.lazygit/newdir
+
+    lazygit "$@"
+
+    if [ -f $LAZYGIT_NEW_DIR_FILE ]; then
+            cd "$(cat $LAZYGIT_NEW_DIR_FILE)"
+            rm -f $LAZYGIT_NEW_DIR_FILE &gt; /dev/null
+    fi
+}
+</code></pre></div>
+<p dir="auto">Then <code>source ~/.zshrc</code> and from now on when you call <code>lg</code> and exit you'll switch directories to whatever you were in inside lazygit. To override this behaviour you can exit using <code>shift+Q</code> rather than just <code>q</code>.</p>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">Undo/Redo</h3><a id="user-content-undoredo" class="anchor" aria-label="Permalink: Undo/Redo" href="#undoredo"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">See the <a href="/docs/Undoing.md">docs</a></p>
+<div class="markdown-heading" dir="auto"><h2 class="heading-element" dir="auto">Configuration</h2><a id="user-content-configuration" class="anchor" aria-label="Permalink: Configuration" href="#configuration"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">Check out the <a href="docs/Config.md">configuration docs</a>.</p>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">Custom Diff Renderers</h3><a id="user-content-custom-diff-renderers" class="anchor" aria-label="Permalink: Custom Diff Renderers" href="#custom-diff-renderers"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">See the <a href="docs/Custom_DiffRenderers.md">docs</a></p>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">Custom Commands</h3><a id="user-content-custom-commands" class="anchor" aria-label="Permalink: Custom Commands" href="#custom-commands"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">If lazygit is missing a feature, there's a good chance you can implement it yourself with a custom command!</p>
+<p dir="auto">See the <a href="docs/Custom_Command_Keybindings.md">docs</a></p>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">Git flow support</h3><a id="user-content-git-flow-support" class="anchor" aria-label="Permalink: Git flow support" href="#git-flow-support"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">Lazygit supports <a href="https://github.com/nvie/gitflow">Gitflow</a> (or <a href="https://github.com/gittower/git-flow-next">git-flow-next</a>) if you have it installed. To understand how the Gitflow model works check out Vincent Driessen's original <a href="https://nvie.com/posts/a-successful-git-branching-model/" rel="nofollow">post</a> explaining it. To view Gitflow options from within Lazygit, press <code>i</code> from within the branches view.</p>
+<div class="markdown-heading" dir="auto"><h2 class="heading-element" dir="auto">Contributing</h2><a id="user-content-contributing" class="anchor" aria-label="Permalink: Contributing" href="#contributing"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">We love your input! Please check out the <a href="CONTRIBUTING.md">contributing guide</a>.
+For contributor discussion about things not better discussed here in the repo, join the <a href="https://discord.gg/ehwFt2t4wt" rel="nofollow">discord channel</a></p>
+<p dir="auto"><a href="https://discord.gg/ehwFt2t4wt" rel="nofollow"><img src="../assets/discord.png" width="75" style="max-width: 100%;"></a></p>
+<p dir="auto">Check out this <a href="https://www.youtube.com/watch?v=kNavnhzZHtk" rel="nofollow">video</a> walking through the creation of a small feature in lazygit if you want an idea of where to get started.</p>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">Debugging Locally</h3><a id="user-content-debugging-locally" class="anchor" aria-label="Permalink: Debugging Locally" href="#debugging-locally"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">Run <code>lazygit --debug</code> in one terminal tab and <code>lazygit --logs</code> in another to view the program and its log output side by side</p>
+<div class="markdown-heading" dir="auto"><h2 class="heading-element" dir="auto">Donate</h2><a id="user-content-donate" class="anchor" aria-label="Permalink: Donate" href="#donate"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">If you would like to support the development of lazygit, consider <a href="https://github.com/sponsors/jesseduffield">sponsoring me</a> (github is matching all donations dollar-for-dollar for 12 months)</p>
+<div class="markdown-heading" dir="auto"><h2 class="heading-element" dir="auto">FAQ</h2><a id="user-content-faq" class="anchor" aria-label="Permalink: FAQ" href="#faq"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<div class="markdown-heading" dir="auto"><h3 class="heading-element" dir="auto">What do the commit colors represent?</h3><a id="user-content-what-do-the-commit-colors-represent" class="anchor" aria-label="Permalink: What do the commit colors represent?" href="#what-do-the-commit-colors-represent"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<ul dir="auto">
+<li>Green: the commit is included in the master branch</li>
+<li>Yellow: the commit is not included in the master branch</li>
+<li>Red: the commit has not been pushed to the upstream branch</li>
+</ul>
+<div class="markdown-heading" dir="auto"><h2 class="heading-element" dir="auto">Shameless Plug</h2><a id="user-content-shameless-plug" class="anchor" aria-label="Permalink: Shameless Plug" href="#shameless-plug"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">If you want to see what I (Jesse) am up to in terms of development, follow me on
+<a href="https://twitter.com/DuffieldJesse" rel="nofollow">twitter</a> or check out my <a href="https://jesseduffield.com/" rel="nofollow">blog</a></p>
+<div class="markdown-heading" dir="auto"><h2 class="heading-element" dir="auto">Alternatives</h2><a id="user-content-alternatives" class="anchor" aria-label="Permalink: Alternatives" href="#alternatives"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">If you find that lazygit doesn't quite satisfy your requirements, these may be a better fit:</p>
+<ul dir="auto">
+<li><a href="https://github.com/Extrawurst/gitui">GitUI</a></li>
+<li><a href="https://github.com/jonas/tig">tig</a></li>
+<li><a href="https://github.com/cadamsdev/gitarbor-tui">GitArbor TUI</a></li>
+</ul>
+</article></div>

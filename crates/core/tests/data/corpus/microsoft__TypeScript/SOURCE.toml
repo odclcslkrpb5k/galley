@@ -1,0 +1,6 @@
+repo = "microsoft/TypeScript"
+commit = "aa8149273b23401f0a79a5f0384c42de51888693"
+path = "README.md"
+licence = "Apache-2.0"
+rendered_by = "GET /repos/microsoft/TypeScript/readme?ref=aa8149273b23401f0a79a5f0384c42de51888693 (Accept: application/vnd.github.html+json)"
+fetched = "2026-10-11"

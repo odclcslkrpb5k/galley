@@ -1,0 +1,6 @@
+repo = "alacritty/alacritty"
+commit = "29dc55375da817d53540f4caefbe708703c57b07"
+path = "README.md"
+licence = "Apache-2.0"
+rendered_by = "GET /repos/alacritty/alacritty/readme?ref=29dc55375da817d53540f4caefbe708703c57b07 (Accept: application/vnd.github.html+json)"
+fetched = "2026-10-11"

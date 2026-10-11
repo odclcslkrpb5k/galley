@@ -1,0 +1,41 @@
+<div id="readme" class="md" data-path="README.md"><article class="markdown-body entry-content container-lg" itemprop="text"><div align="center" dir="auto"><a target="_blank" rel="noopener noreferrer nofollow" href="https://raw.githubusercontent.com/pallets/flask/refs/heads/stable/docs/_static/flask-name.svg"><img src="https://raw.githubusercontent.com/pallets/flask/refs/heads/stable/docs/_static/flask-name.svg" alt="" height="150" style="max-width: 100%; height: auto; max-height: 150px;"></a></div>
+<div class="markdown-heading" dir="auto"><h1 class="heading-element" dir="auto">Flask</h1><a id="user-content-flask" class="anchor" aria-label="Permalink: Flask" href="#flask"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">Flask is a lightweight <a href="https://wsgi.readthedocs.io/" rel="nofollow">WSGI</a> web application framework. It is designed
+to make getting started quick and easy, with the ability to scale up to
+complex applications. It began as a simple wrapper around <a href="https://werkzeug.palletsprojects.com/" rel="nofollow">Werkzeug</a>
+and <a href="https://jinja.palletsprojects.com/" rel="nofollow">Jinja</a>, and has become one of the most popular Python web
+application frameworks.</p>
+<p dir="auto">Flask offers suggestions, but doesn't enforce any dependencies or
+project layout. It is up to the developer to choose the tools and
+libraries they want to use. There are many extensions provided by the
+community that make adding new functionality easy.</p>
+<div class="markdown-heading" dir="auto"><h2 class="heading-element" dir="auto">A Simple Example</h2><a id="user-content-a-simple-example" class="anchor" aria-label="Permalink: A Simple Example" href="#a-simple-example"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<div class="highlight highlight-source-python notranslate position-relative overflow-auto" dir="auto" data-snippet-clipboard-copy-content="# save this as app.py
+from flask import Flask
+
+app = Flask(__name__)
+
+@app.route(&quot;/&quot;)
+def hello():
+    return &quot;Hello, World!&quot;"><pre><span class="pl-c"># save this as app.py</span>
+<span class="pl-k">from</span> <span class="pl-s1">flask</span> <span class="pl-k">import</span> <span class="pl-v">Flask</span>
+
+<span class="pl-s1">app</span> <span class="pl-c1">=</span> <span class="pl-en">Flask</span>(<span class="pl-s1">__name__</span>)
+
+<span class="pl-en">@<span class="pl-s1">app</span>.<span class="pl-c1">route</span>(<span class="pl-s">"/"</span>)</span>
+<span class="pl-k">def</span> <span class="pl-en">hello</span>():
+    <span class="pl-k">return</span> <span class="pl-s">"Hello, World!"</span></pre></div>
+<div class="snippet-clipboard-content notranslate position-relative overflow-auto" data-snippet-clipboard-copy-content="$ flask run
+  * Running on http://127.0.0.1:5000/ (Press CTRL+C to quit)"><pre class="notranslate"><code>$ flask run
+  * Running on http://127.0.0.1:5000/ (Press CTRL+C to quit)
+</code></pre></div>
+<div class="markdown-heading" dir="auto"><h2 class="heading-element" dir="auto">Donate</h2><a id="user-content-donate" class="anchor" aria-label="Permalink: Donate" href="#donate"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">The Pallets organization develops and supports Flask and the libraries
+it uses. In order to grow the community of contributors and users, and
+allow the maintainers to devote more time to the projects, <a href="https://palletsprojects.com/donate" rel="nofollow">please
+donate today</a>.</p>
+<div class="markdown-heading" dir="auto"><h2 class="heading-element" dir="auto">Contributing</h2><a id="user-content-contributing" class="anchor" aria-label="Permalink: Contributing" href="#contributing"><svg data-component="Octicon" class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto">See our <a href="https://palletsprojects.com/contributing/" rel="nofollow">detailed contributing documentation</a> for many ways to
+contribute, including reporting issues, requesting features, asking or answering
+questions, and making PRs.</p>
+</article></div>

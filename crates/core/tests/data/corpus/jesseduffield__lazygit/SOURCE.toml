@@ -1,0 +1,6 @@
+repo = "jesseduffield/lazygit"
+commit = "b741725a2413fc9cbc01529cab0e7cc654ad2054"
+path = "README.md"
+licence = "MIT"
+rendered_by = "GET /repos/jesseduffield/lazygit/readme?ref=b741725a2413fc9cbc01529cab0e7cc654ad2054 (Accept: application/vnd.github.html+json)"
+fetched = "2026-10-11"

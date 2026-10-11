@@ -1,0 +1,6 @@
+repo = "pallets/flask"
+commit = "d086db856be187255b8ec61ef409357393020f32"
+path = "README.md"
+licence = "BSD-3-Clause"
+rendered_by = "GET /repos/pallets/flask/readme?ref=d086db856be187255b8ec61ef409357393020f32 (Accept: application/vnd.github.html+json)"
+fetched = "2026-10-11"

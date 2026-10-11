@@ -1,0 +1,6 @@
+repo = "tauri-apps/tauri"
+commit = "5b23c82ea5ba6b9aec420dd71f60493edc486aa9"
+path = "README.md"
+licence = "Apache-2.0"
+rendered_by = "GET /repos/tauri-apps/tauri/readme?ref=5b23c82ea5ba6b9aec420dd71f60493edc486aa9 (Accept: application/vnd.github.html+json)"
+fetched = "2026-10-11"

@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+# The gate (docs/plan.md §8). Run before every push; the pre-push hook refuses unstamped trees.
+#
+# It checks the committed tree, not the working tree: it refuses to run with uncommitted
+# changes, and fails if the checks themselves leave files changed. On success it stamps the
+# tree hash in target/gate/, which .githooks/pre-push looks for.
+set -euo pipefail
+root=$(cd "$(dirname "$0")/.." && pwd)
+cd "$root"
+
+# Every clone gets the pre-push hook once it has run the gate.
+git config core.hooksPath .githooks
+
+if [[ -n "$(git status --porcelain)" ]]; then
+  echo "gate: uncommitted changes; the gate checks commits. Commit or stash first:" >&2
+  git status --short >&2
+  exit 1
+fi
+tree=$(git rev-parse 'HEAD^{tree}')
+started=$(date +%s)
+
+scripts/in-docker scripts/gate-steps
+
+if [[ -n "$(git status --porcelain)" ]]; then
+  echo "gate: the checks changed files in the tree:" >&2
+  git status --short >&2
+  exit 1
+fi
+mkdir -p target/gate
+touch "target/gate/$tree"
+echo
+echo "gate: passed in $(($(date +%s) - started)) s; tree $tree stamped"

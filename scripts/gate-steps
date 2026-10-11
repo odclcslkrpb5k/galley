@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+# Gate steps run inside the build container by scripts/check (docs/plan.md §8). Each is fatal.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+step() { printf '\n== gate: %s\n' "$*"; }
+
+step "format"
+cargo fmt --all --check
+
+step "clippy"
+cargo clippy --workspace --exclude gbk-markdown-lint-canary --all-targets --locked -- -D warnings
+
+step "lint canary"
+scripts/lint-canary
+
+step "boundaries"
+scripts/check-boundaries
+
+step "push guard"
+.claude/hooks/test-guard-push
+
+step "tests"
+cargo nextest run --locked --no-fail-fast
+scripts/check-test-floor
+
+step "cargo-deny"
+cargo deny --locked check
+
+step "release build"
+cargo build --release --locked
+
+step "smoke"
+scripts/gen-fixtures >/dev/null
+scripts/smoke

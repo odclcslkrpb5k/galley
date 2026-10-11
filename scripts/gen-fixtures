@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+# Generates the large benchmark fixtures into target/fixtures (docs/plan.md §6). Deterministic.
+#
+#   list-1mb.md   awesome-rust repeated: a few enormous nested lists
+#   table-1mb.md  one table of ~12 000 rows
+#   code-1mb.md   one fenced code block of ~25 000 lines
+#   readme-200kb.md  corpus READMEs concatenated
+set -euo pipefail
+root=$(cd "$(dirname "$0")/.." && pwd)
+corpus=$root/crates/core/tests/data/corpus
+out=$root/target/fixtures
+mkdir -p "$out"
+
+# Each fixture is written in full, then cut to size (piping into `head -c` would end the
+# generator with SIGPIPE under pipefail).
+cap() { truncate -s "<$1" "$2"; }
+
+for _ in 1 2 3; do cat "$corpus/rust-unofficial__awesome-rust/input.md"; done >"$out/list-1mb.md"
+cap 1048576 "$out/list-1mb.md"
+
+{
+  echo "# Table"
+  echo
+  echo "| Id | Name | Description | Status |"
+  echo "|---:|:-----|:------------|:------:|"
+  for ((i = 1; i <= 12000; i++)); do
+    echo "| $i | item-$i | A **row** with \`code\` and a [link](https://example.com/$i) | ok |"
+  done
+} >"$out/table-1mb.md"
+cap 1048576 "$out/table-1mb.md"
+
+{
+  echo "# Code"
+  echo
+  echo '```rust'
+  for ((i = 1; i <= 25000; i++)); do
+    echo "    let value_$i = compute($i, \"line $i\");"
+  done
+  echo '```'
+} >"$out/code-1mb.md"
+cap 1048576 "$out/code-1mb.md"
+
+for f in sharkdp__bat sharkdp__fd junegunn__fzf jesseduffield__lazygit; do
+  cat "$corpus/$f/input.md"
+done >"$out/readme-200kb.md"
+cap 204800 "$out/readme-200kb.md"
+
+ls -l "$out"

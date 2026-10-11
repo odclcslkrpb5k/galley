@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+# Startup report (docs/plan.md §6). Runs on the host, which has the display.
+#
+#   scripts/bench-startup [-n RUNS] [-e NAME=VALUE]... -- [gbk-markdown args...]
+#
+# Spawns the release binary RUNS times with --t0 (spawn time) and --exit-after-first-frame, and
+# prints min / median / p90 of time to first frame submitted, plus the work counters of the
+# last run. The metric is "frame submitted": xfwm4 reports no presentation times.
+set -euo pipefail
+root=$(cd "$(dirname "$0")/.." && pwd)
+bin=${GBK_BIN:-$root/target/docker/release/gbk-markdown}
+runs=20
+envs=()
+while (($#)); do
+  case $1 in
+    -n) runs=$2; shift 2 ;;
+    -e) envs+=("$2"); shift 2 ;;
+    --) shift; break ;;
+    *) echo "usage: $0 [-n RUNS] [-e NAME=VALUE]... -- [args...]" >&2; exit 2 ;;
+  esac
+done
+
+times=()
+last=""
+for ((i = 0; i < runs; i++)); do
+  t0=$(date +%s%N)
+  last=$(env "${envs[@]}" "$bin" --t0="$t0" --exit-after-first-frame "$@")
+  us=$(grep -oE 'first_frame_us=[0-9]+' <<<"$last" | cut -d= -f2)
+  if [[ -z "$us" ]]; then
+    echo "bench-startup: no first_frame_us in: $last" >&2
+    exit 1
+  fi
+  times+=("$us")
+done
+
+sorted=$(printf '%s\n' "${times[@]}" | sort -n)
+pick() { sed -n "$1p" <<<"$sorted"; }
+median=$(pick $(((runs + 1) / 2)))
+p90=$(pick $(((runs * 9 + 9) / 10)))
+printf 'runs=%d min_ms=%.1f median_ms=%.1f p90_ms=%.1f | %s\n' "$runs" \
+  "$(bc <<<"scale=1; $(pick 1)/1000")" "$(bc <<<"scale=1; $median/1000")" "$(bc <<<"scale=1; $p90/1000")" \
+  "$(cut -d' ' -f3- <<<"$last")"

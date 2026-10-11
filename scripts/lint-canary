@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+# Proves every lint in [workspace.lints] still fires (docs/plan.md §7, gate step 4).
+#
+# 1. The canary markers in crates/lint-canary/src/lib.rs must name exactly the configured lints.
+# 2. Clippy on the canary crate must emit every marker's diagnostic code.
+# Runs inside the build container.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+src=crates/lint-canary/src/lib.rs
+
+configured=$(awk '
+  /^\[workspace\.lints\.rust\]/   { table = "rust"; next }
+  /^\[workspace\.lints\.clippy\]/ { table = "clippy"; next }
+  /^\[/                           { table = ""; next }
+  table != "" && /^[a-z0-9_]+ *=/ { sub(/ *=.*/, ""); print table ":" $0 }
+' Cargo.toml | sort)
+markers=$(grep -oE 'canary: [a-z]+:[a-z0-9_]+ -> [a-z0-9_:]+' "$src" | sed 's/^canary: //')
+marked=$(cut -d' ' -f1 <<<"$markers" | sort)
+
+if [[ -z "$configured" ]]; then
+  echo "lint canary: found no configured lints in Cargo.toml" >&2
+  exit 1
+fi
+if [[ "$configured" != "$marked" ]]; then
+  echo "lint canary: configured lints (<) and canary markers (>) differ:" >&2
+  diff <(echo "$configured") <(echo "$marked") >&2 || true
+  exit 1
+fi
+
+# A group needs a priority below its members, or a per-lint override of one of its members is
+# applied in an undefined order. Cargo's own check skips inherited workspace lints.
+groups='^(rust_2018_idioms|rust_2021_compatibility|rust_2024_compatibility|nonstandard_style|unused|future_incompatible|let_underscore|all|pedantic|nursery|restriction|style|complexity|perf|suspicious|correctness|cargo) *='
+unprioritised=$(grep -E "$groups" Cargo.toml | grep -vE 'priority *= *-[0-9]+' || true)
+if [[ -n "$unprioritised" ]]; then
+  echo "lint canary: lint groups need a negative priority:" >&2
+  echo "$unprioritised" >&2
+  exit 1
+fi
+
+# Clippy fails on the canary by design; what matters is which codes it emitted.
+out=$(cargo clippy -p gbk-markdown-lint-canary --locked --message-format=json -q 2>/dev/null) || true
+fired=$(jq -r 'select(.reason == "compiler-message") | .message.code.code // empty' <<<"$out" | sort -u)
+
+missing=0
+while read -r key _arrow code; do
+  if ! grep -qxF "$code" <<<"$fired"; then
+    echo "lint canary: $key did not fire (expected $code)" >&2
+    missing=1
+  fi
+done <<<"$markers"
+if ((missing)); then exit 1; fi
+echo "lint canary: $(wc -l <<<"$markers") lints fire"

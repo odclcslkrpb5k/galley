@@ -1,0 +1,70 @@
+[workspace]
+resolver = "3"
+members = ["crates/core", "crates/app", "crates/lint-canary"]
+# The lint canary fails to compile by design; only scripts/lint-canary builds it.
+default-members = ["crates/core", "crates/app"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.99"
+publish = false
+
+[workspace.dependencies]
+gbk-markdown-core = { path = "crates/core" }
+gtk = { package = "gtk4", version = "0.11.5", features = ["v4_22"] }
+thiserror = "2.0.21"
+
+# The paranoid Rust rules (docs/plan.md §7). Every member crate opts in with
+# `[lints] workspace = true`; crates/lint-canary proves each lint below still fires.
+# Exceptions are `#[expect(lint, reason = "...")]`, never `#[allow]`.
+[workspace.lints.rust]
+# Clippy appends `-D warnings` after these flags, which leaves an unknown lint a warning that
+# passes. Denying it here, first, makes a misspelled or renamed lint fail the build.
+unknown_lints = { level = "deny", priority = -100 }
+rust_2018_idioms = { level = "deny", priority = -1 }
+unsafe_code = "forbid"
+unused_must_use = "deny"
+missing_debug_implementations = "deny"
+unreachable_pub = "deny"
+
+[workspace.lints.clippy]
+pedantic = { level = "deny", priority = -1 }
+# Panics and placeholders.
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+todo = "deny"
+unimplemented = "deny"
+unreachable = "deny"
+panic_in_result_fn = "deny"
+unwrap_in_result = "deny"
+# Indexing and slicing that can panic; byte slicing of strings.
+indexing_slicing = "deny"
+string_slice = "deny"
+# Lossy conversions: only in the units module, under one module-level expect.
+as_conversions = "deny"
+# Matches and results that hide cases.
+wildcard_enum_match_arm = "deny"
+let_underscore_must_use = "deny"
+map_err_ignore = "deny"
+# Lint exceptions must be `#[expect]` with a reason.
+allow_attributes = "deny"
+allow_attributes_without_reason = "deny"
+# Debugging leftovers and stray output.
+dbg_macro = "deny"
+print_stdout = "deny"
+print_stderr = "deny"
+
+[profile.release]
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+overflow-checks = true
+strip = "symbols"
+
+# For sysprof: the release build with line tables and symbols.
+[profile.profiling]
+inherits = "release"
+debug = "line-tables-only"
+strip = "none"

@@ -49,6 +49,8 @@ contains `--no-verify` with `git`, or mentions `core.hooksPath` (except setting 
 the Edit tool. Never route around it; fix the gate.
 
 Open questions (awaiting user, see `docs/plan.md` §11):
+- Renderer: Cairo with GL disabled (60-100 ms faster first frame) vs GL; needs `unsafe` set_var
+  or a .desktop env. Proposed: decide after M2 scroll numbers.
 - Theme: GTK4 + light stylesheet (not yet confirmed).
 
 `docs/plan.md` is the authoritative plan; this file records decisions and state.
@@ -113,3 +115,16 @@ writes, credentials in URLs.
   `/license?ref=` returns NOASSERTION for files detected fine without a ref; uploaded-image URLs
   carry 5-minute JWTs (stripped at fetch). GitHub: `> [!NOTE] Title` is a plain quote,
   `[!note]` lower-case is an alert, front matter renders as a table.
+- 2026-10-11: M0 done. Workspace (core, app, lint-canary), Dockerfile (pinned by digest/sha256),
+  `scripts/in-docker`, gate `scripts/check` -> `scripts/gate-steps` (fmt, clippy, lint canary,
+  boundaries, push-guard test, nextest + test floor, cargo-deny, release build, Xvfb smoke),
+  `.githooks/pre-push` (tree-hash stamps in target/gate/). Measurements in docs/perf-baseline.md.
+  Learned: GTK floor here is ~190-250 ms (Cairo) / ~250-350 ms (GL), dominated by xfwm4 map
+  latency and GL init; plain gtk::init beats gtk::Application by 20-45 ms (now default);
+  fat LTO no startup effect. `clippy::unwrap_in_result` does not fire on `Ok(opt.unwrap())`
+  (1.99), only on the documented shape. `ScrollablePolicy` has no Default (impl by hand).
+  Workspace `default-members` excludes the lint canary so plain cargo commands skip it.
+  perf is unavailable (perf_event_paranoid=4); use strace -T for wait analysis.
+  M0 shortcuts to undo in M1/M2: spike paragraphs (app/src/spike.rs), Extent is O(n) with raw
+  f64 px (no LogicalPx newtype yet), decode notice ignored in load().
+

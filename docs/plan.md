@@ -1,6 +1,6 @@
 # gbk-markdown: implementation plan
 
-Status: draft 3, 2026-10-11. Draft 2 was revised after a three-way red-team (performance; GFM and
+Status: draft 3, 2026-10-11; M0 done (see §10 and docs/perf-baseline.md). Draft 2 was revised after a three-way red-team (performance; GFM and
 renderer design; build, rules and process); §13 lists those changes. Draft 3 applies the user's
 answers in §11.
 
@@ -472,6 +472,16 @@ Answered 2026-10-11:
 
 - GitHub corpus: approved; fetched.
 - Claude Code push-guard hook: approved; installed (§8).
+
+Open:
+
+1. **Renderer** (from M0, docs/perf-baseline.md). Cairo with GL disabled reaches the first frame
+   60-100 ms sooner than GL. Its scroll numbers are inconclusive until M2 takes layout work off
+   the scroll path. Using it means setting `GDK_DISABLE=gl,vulkan GSK_RENDERER=cairo` before GTK
+   starts: either `unsafe_code` becomes `deny` with one `#[expect]`ed `set_var` at the top of
+   `main` plus a gate check that it is the only `unsafe` (§4.4), or the `.desktop` file sets it
+   and terminal launches get GL. Proposal: decide after M2's scroll measurements, using `unsafe`
+   if Cairo holds up.
 
 ## 12. Known risks
 

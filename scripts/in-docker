@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+# Runs a command in the build container (docs/plan.md §8), building the image if needed.
+#
+#   scripts/in-docker cargo test -p gbk-markdown-core
+#
+# The repo is mounted at /work and the build runs as the host user. Cargo's registry, git and
+# advisory-database caches are named volumes; build output goes to target/docker.
+set -euo pipefail
+root=$(cd "$(dirname "$0")/.." && pwd)
+tag="gbk-markdown-build:$(cat "$root/Dockerfile" "$root/rust-toolchain.toml" | sha256sum | cut -c1-16)"
+
+if ! docker image inspect "$tag" >/dev/null 2>&1; then
+  echo "in-docker: building $tag" >&2
+  docker build -q -t "$tag" "$root" >&2
+fi
+
+tty=()
+if [[ -t 0 && -t 1 ]]; then tty=(-it); fi
+
+exec docker run --rm "${tty[@]}" \
+  --user "$(id -u):$(id -g)" \
+  -v "$root:/work" -w /work \
+  -v gbk-markdown-registry:/cargo/registry \
+  -v gbk-markdown-git:/cargo/git \
+  -v gbk-markdown-advisory-dbs:/cargo/advisory-dbs \
+  -e HOME=/tmp \
+  -e CARGO_TARGET_DIR=/work/target/docker \
+  -e CARGO_TERM_COLOR="${CARGO_TERM_COLOR:-auto}" \
+  -e INSTA_UPDATE=no \
+  "$tag" "$@"

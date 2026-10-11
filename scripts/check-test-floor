@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+# Fails if any test binary has fewer tests than its committed floor, or a test binary has no
+# floor (docs/plan.md §8). Raise a floor when tests are added; lowering one is a decision to
+# record in the commit message. Runs inside the build container.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+floor=scripts/test-floor.txt
+
+counts=$(cargo nextest list --locked --message-format json 2>/dev/null |
+  jq -r '."rust-suites" | to_entries[] | "\(.key) \(.value.testcases | length)"' | sort)
+if [[ -z "$counts" ]]; then
+  echo "test floor: nextest listed no test binaries" >&2
+  exit 1
+fi
+
+fail=0
+while read -r binary count; do
+  min=$(awk -v b="$binary" '$1 == b { print $2 }' "$floor")
+  if [[ -z "$min" ]]; then
+    echo "test floor: $binary has no floor in $floor (it has $count tests)" >&2
+    fail=1
+  elif ((count < min)); then
+    echo "test floor: $binary has $count tests, floor is $min" >&2
+    fail=1
+  fi
+done <<<"$counts"
+while read -r binary _min; do
+  if ! grep -q "^$binary " <<<"$counts"; then
+    echo "test floor: $binary is in $floor but was not listed" >&2
+    fail=1
+  fi
+done < <(grep -v '^#' "$floor")
+if ((fail)); then exit 1; fi
+echo "test floor: ok ($(awk '{ n += $2 } END { print n }' <<<"$counts") tests)"

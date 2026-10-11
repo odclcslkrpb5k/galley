@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+# Structural rules no compiler checks (docs/plan.md §3, §7). Runs inside the build container.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+fail=0
+
+# Every workspace member takes the workspace lints; one that does not is silently unlinted.
+for manifest in crates/*/Cargo.toml; do
+  if ! grep -qzE '\[lints\][[:space:]]+workspace = true' "$manifest"; then
+    echo "boundaries: $manifest lacks [lints] workspace = true" >&2
+    fail=1
+  fi
+done
+
+# comrak lives in one private module of core. cargo-deny refuses a direct dependency from any
+# other crate, but cannot see core re-exporting comrak types; this can.
+allowed=crates/core/src/parse.rs
+while read -r file; do
+  if [[ "$file" != "$allowed" ]]; then
+    echo "boundaries: $file mentions comrak; only $allowed may" >&2
+    fail=1
+  fi
+done < <(grep -rlw comrak crates/*/src || true)
+
+if ((fail)); then exit 1; fi
+echo "boundaries: ok"

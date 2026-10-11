@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+# Smoke run (docs/plan.md §8, gate step 8): opens every fixture in the release build under Xvfb,
+# checks it reaches a first frame and the work counters hold, and saves a screenshot of each to
+# target/docker/screens/ for before/after comparison. Runs inside the build container.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+if [[ -z "${DISPLAY:-}" ]]; then
+  exec xvfb-run -a -s "-screen 0 1280x1024x24" "$0" "$@"
+fi
+export NO_AT_BRIDGE=1 GTK_A11Y=none XDG_RUNTIME_DIR=/tmp/xdg-runtime
+mkdir -p -m 700 "$XDG_RUNTIME_DIR"
+
+bin=${CARGO_TARGET_DIR:-target}/release/gbk-markdown
+screens=${CARGO_TARGET_DIR:-target}/screens
+mkdir -p "$screens"
+
+fixtures=(crates/core/tests/data/corpus/*/input.md target/fixtures/readme-200kb.md target/fixtures/list-1mb.md)
+# Not yet: table-1mb.md and code-1mb.md are each one paragraph to the M0 spike and take 20-35 s
+# to lay out. The leaf model (M1/M2) chunks them; add them to the smoke run then.
+
+fail=0 n=0
+for fixture in "${fixtures[@]}"; do
+  name=$(basename "$(dirname "$fixture")")
+  [[ "$name" == fixtures ]] && name=$(basename "$fixture" .md)
+  if ! out=$(timeout 60 "$bin" --exit-after-first-frame --screenshot="$screens/$name.png" "$fixture" 2>&1); then
+    echo "smoke: $name: no first frame: $out" >&2
+    fail=1
+    continue
+  fi
+  report=$(grep -E '^first_frame_us=' <<<"$out" || true)
+  laid=$(grep -oE 'laid_out_before_first_frame=[0-9]+' <<<"$report" | cut -d= -f2)
+  screen=$(grep -oE 'first_screen_leaves=[0-9]+' <<<"$report" | cut -d= -f2)
+  if [[ -z "$laid" || -z "$screen" ]]; then
+    echo "smoke: $name: no probe report in: $out" >&2
+    fail=1
+  elif ((laid > screen)); then
+    echo "smoke: $name: laid out $laid leaves before the first frame; the first screen holds $screen" >&2
+    fail=1
+  elif [[ ! -s "$screens/$name.png" ]]; then
+    echo "smoke: $name: no screenshot" >&2
+    fail=1
+  fi
+  n=$((n + 1))
+done
+if ((n == 0)); then echo "smoke: no fixtures ran" >&2; exit 1; fi
+if ((fail)); then exit 1; fi
+echo "smoke: $n fixtures ok; screenshots in $screens"

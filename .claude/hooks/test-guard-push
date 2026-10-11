@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+# Table test for guard-push. Exit 1 on any mismatch, or if no cases ran.
+set -euo pipefail
+hook="$(dirname "$0")/guard-push"
+fail=0 n=0
+
+check() { # expected (deny|allow), command
+  local got out
+  out=$(jq -n --arg c "$2" '{tool_name: "Bash", tool_input: {command: $c}}' | "$hook")
+  if [[ "$(jq -r '.hookSpecificOutput.permissionDecision // empty' <<<"${out:-{\}}")" == deny ]]; then
+    got=deny
+  else
+    got=allow
+  fi
+  n=$((n + 1))
+  if [[ "$got" != "$1" ]]; then
+    echo "FAIL: expected $1, got $got: $2" >&2
+    fail=1
+  fi
+}
+
+check deny  'git push --no-verify'
+check deny  'git push origin main --no-verify'
+check deny  'cd /x && git push --no-verify -q'
+check deny  'git commit --no-verify -m x'
+check deny  'git -c core.hooksPath=/dev/null push'
+check deny  'git -c CORE.HOOKSPATH=/dev/null push'
+check deny  'git config --unset core.hooksPath'
+check deny  'git config core.hooksPath /tmp/empty'
+check deny  'GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.hooksPath GIT_CONFIG_VALUE_0=/dev/null git push'
+check allow 'git push'
+check allow 'git push -q origin main'
+check allow 'git config core.hooksPath .githooks'
+check allow 'git status --short'
+check allow 'cargo test --no-verify-ish-flag'
+check allow 'ls -la'
+
+if ((n == 0)); then echo "no cases ran" >&2; exit 1; fi
+if ((fail)); then exit 1; fi
+echo "guard-push: $n cases ok"

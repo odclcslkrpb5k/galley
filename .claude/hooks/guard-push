@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# Claude Code PreToolUse hook (Bash): refuse commands that bypass the git pre-push gate
+# (docs/plan.md §8, "Push"). It matches command text, so it stops a convenient bypass, not a
+# determined one. Cases are in .claude/hooks/test-guard-push.
+set -euo pipefail
+
+cmd=$(jq -r '.tool_input.command // ""')
+reason=""
+
+if grep -qw git <<<"$cmd" && grep -qE '(^|[^[:alnum:]_-])--no-verify([^[:alnum:]_-]|$)' <<<"$cmd"; then
+  reason="--no-verify skips the git hooks, including the pre-push gate."
+elif grep -qi 'core\.hookspath' <<<"$cmd" &&
+  ! grep -qxE '[[:space:]]*git config core\.hooksPath \.githooks[[:space:]]*' <<<"$cmd"; then
+  reason="Changing core.hooksPath bypasses the pre-push gate."
+fi
+
+if [[ -n "$reason" ]]; then
+  jq -n --arg r "$reason Fix what makes scripts/check fail instead (docs/plan.md §8)." \
+    '{hookSpecificOutput: {hookEventName: "PreToolUse", permissionDecision: "deny",
+      permissionDecisionReason: $r}}'
+fi

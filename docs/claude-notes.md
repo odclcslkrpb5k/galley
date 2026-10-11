@@ -43,8 +43,12 @@ Optimisation goals, in priority order as stated:
 | 2026-10-11 | Binary name `gbk-markdown` | User decision |
 | 2026-10-11 | Budgets split: GTK floor (measured) + our added cost; work counters gate, wall clock reports | Red-team: GTK startup may exceed a fixed TTFP budget |
 
+Push guard (installed 2026-10-11): `.claude/hooks/guard-push` refuses Bash commands whose text
+contains `--no-verify` with `git`, or mentions `core.hooksPath` (except setting it to
+`.githooks`). Text match, so a heredoc mentioning those strings is refused: edit such text with
+the Edit tool. Never route around it; fix the gate.
+
 Open questions (awaiting user, see `docs/plan.md` §11):
-- Claude Code PreToolUse hook denying `git push --no-verify` / hook-path overrides.
 - Theme: GTK4 + light stylesheet (not yet confirmed).
 
 `docs/plan.md` is the authoritative plan; this file records decisions and state.

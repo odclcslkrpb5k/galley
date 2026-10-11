@@ -361,7 +361,8 @@ every push, `anyhow` banned, comrak wrapped to core, duplicate versions warn.
    working tree).
 2. `cargo fmt --all --check`
 3. `cargo clippy --workspace --all-targets --locked -- -D warnings`
-4. Lint canary (§7) and the boundary grep (§3), plus the `unsafe` count check if §4.4 needs it.
+4. Lint canary (§7), the boundary grep (§3), `.claude/hooks/test-guard-push`, plus the `unsafe`
+   count check if §4.4 needs it.
 5. `cargo nextest run --workspace --locked` with `INSTA_UPDATE=no`. nextest fails when it finds
    no tests; a committed minimum test count per binary catches a test suite that shrinks
    silently.
@@ -380,9 +381,13 @@ every push, `anyhow` banned, comrak wrapped to core, duplicate versions warn.
   gets it after its first gate.
 - Claude runs the gate in the background (it can exceed the 10-minute tool timeout on first
   image build), then pushes.
-- Remaining bypasses: `--no-verify`, `-c core.hooksPath=...`. Proposed Engineer control: a Claude
-  Code `PreToolUse` hook in `.claude/settings.json` that denies `git push` with either. Needs the
-  user's approval (§11).
+- Bypasses (`--no-verify`, any change to `core.hooksPath`, including `-c` and `GIT_CONFIG_*`) are
+  refused for Claude by a Claude Code `PreToolUse` hook, `.claude/hooks/guard-push`, registered in
+  `.claude/settings.json` (Engineer; approved 2026-10-11). It fails closed (`onFailure: block`).
+  `.claude/hooks/test-guard-push` is its table test, mutation-checked, and runs in gate step 4.
+  It matches command text, so a shell command that merely mentions those strings (a heredoc
+  editing docs) is refused too; use the Edit tool for such text. It stops a convenient bypass,
+  not a determined one (a wrapper script, or deleting the hook file).
 
 ### Not in the gate
 
@@ -466,11 +471,7 @@ Answered 2026-10-11:
 - Binary name: `gbk-markdown`.
 
 - GitHub corpus: approved; fetched.
-
-Still open:
-
-1. **Claude Code hook** in `.claude/settings.json` denying `git push --no-verify` and hook-path
-   overrides: approve?
+- Claude Code push-guard hook: approved; installed (§8).
 
 ## 12. Known risks
 

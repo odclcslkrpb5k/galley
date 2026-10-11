@@ -11,6 +11,10 @@ section when a decision changes, record why, and date entries (YYYY-MM-DD).
 - The user is new to Rust and relies on Claude to research and apply best practices. Explain
   Rust-specific choices briefly when making them.
 - User's desktop: Xubuntu 26.04 (Xfce, GTK3-based desktop; GTK4 available).
+- Classify every proposed fix on the Hierarchy of Defect Controls (Eliminate > Substitute >
+  Engineer > Administer > Protect), name the rung, and justify any Administer/Protect choice by
+  saying which higher rung was considered. Applies to Claude's own repeated mistakes too
+  (plugin skill `hierarchy-of-defect-controls`; load it at session start).
 
 ## Product
 
@@ -33,7 +37,9 @@ Optimisation goals, in priority order as stated:
 
 Open questions:
 - GTK4 defaults to Adwaita, not the Xfce theme. Plan: GTK4 plus a light stylesheet. Not yet confirmed with the user.
-- `clippy::indexing_slicing` may be too noisy in layout code; user hasn't ruled on it.
+- `clippy::indexing_slicing` (Engineer) may be too noisy in layout code; user hasn't ruled on it.
+  Preferred resolution: keep it, and Eliminate most hits by iterating (`iter`, `zip`, `windows`,
+  `chunks`, `split_first`) instead of indexing; `#[expect]` with a reason for the remainder.
 - Syntax highlighting: `syntect`, loaded lazily so it stays off the startup path. Not yet started.
 
 ## Planned layout (not yet created)

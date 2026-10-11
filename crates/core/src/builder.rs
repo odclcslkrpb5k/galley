@@ -1,55 +1,77 @@
 //! Building a `Document` leaf by leaf (docs/plan.md §4.2, §5.1).
 //!
 //! No comrak here: `parse` walks comrak's tree and calls these methods, so everything about the
-//! model's shape (containers per leaf, chunking, styled runs, what HTML tags mean) is in one
-//! place that does not depend on the parser.
+//! model's shape (the context tree, chunking, styled runs, what HTML tags mean) is in one place
+//! that does not depend on the parser.
+//!
+//! Raw HTML has one tag stack for the whole document. Tags opened in HTML blocks stay open
+//! across Markdown until closed (`<div align="center">` ... Markdown ... `</div>`, or a link
+//! around a block of sponsors); tags opened inside a Markdown paragraph close with it. Each
+//! entry caches the cumulative state (alignment, style, link, details, hidden), so every query
+//! is O(1) however deep the stack, and a closing tag with no opener is rejected in O(1).
 
-use crate::html::{HtmlToken, tokenize};
+use std::collections::HashMap;
+
+use crate::html::{HtmlToken, tokens};
 use crate::link::classify;
 use crate::model::{
-    AlertKind, Align, Anchor, CODE_CHUNK_LINES, CodeBlock, Container, Document, Footnote,
-    HeadingLevel, Image, InlineObject, Inlines, Leaf, LeafKind, Link, Notice, Span, Style,
-    TABLE_CHUNK_ROWS, Table,
+    AlertKind, Align, Anchor, CODE_CHUNK_LINES, CodeBlock, Container, Context, Document, Footnote,
+    HeadingLevel, Image, InlineObject, Inlines, LEAF_TEXT_BYTES, Leaf, LeafKind, Link, LinkTarget,
+    Notice, Span, Style, TABLE_CHUNK_ROWS, Table,
 };
 use crate::units::{
-    AnchorId, ByteOffset, CodeBlockId, DetailsId, FootnoteId, ImageId, LeafId, LineNo, LinkId,
-    RowNo, TableId,
+    AnchorId, ByteOffset, CodeBlockId, ContextId, DetailsId, FootnoteId, ImageId, LeafId, LineNo,
+    LinkId, RowNo, TableId,
 };
 
 /// Turns heading text into a GitHub anchor slug, unique within the document.
 pub(crate) type Slugger = Box<dyn FnMut(&str) -> String>;
 
+/// HTML tags followed deeper than this are ignored (with a notice): the stack is per document
+/// and a generated file could otherwise open tags without end.
+const MAX_HTML_DEPTH: usize = 256;
+
+/// Tags GitHub's tag filter shows as literal text instead of interpreting.
+fn is_filtered(name: &str) -> bool {
+    matches!(
+        name,
+        "title"
+            | "textarea"
+            | "style"
+            | "xmp"
+            | "iframe"
+            | "noembed"
+            | "noframes"
+            | "script"
+            | "plaintext"
+    )
+}
+
+/// An open container, to be closed with `Builder::end_container`.
+#[must_use = "a container must be closed with end_container"]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct ContainerToken(usize);
+
 pub(crate) struct Builder {
     doc: Document,
-    containers: Vec<Container>,
-    /// HTML tags with block effects still open, possibly across several HTML blocks:
-    /// `<div align="center">` ... Markdown ... `</div>` is common in READMEs.
-    html_open: Vec<HtmlOpen>,
+    /// Open containers, innermost last.
+    open: Vec<ContextId>,
+    /// Open containers from `started..` have no leaf yet; the next leaf is their first.
+    started: usize,
+    /// Raw HTML containers closed while Markdown containers opened inside them are still open:
+    /// each closes as soon as those do, so `</details>` inside a list item does not tear the
+    /// item down from inside.
+    deferred: Vec<ContainerToken>,
+    html: HtmlStack,
     /// Text from HTML blocks not yet made into a leaf.
     pending: Option<Pending>,
     /// Text of an open raw `<pre>`, kept verbatim.
     pre: Option<String>,
+    /// An open `<summary>`: everything until `</summary>` (HTML text, Markdown paragraphs,
+    /// headings) is its one line.
+    summary: Option<(DetailsId, InlineBuilder)>,
     next_details: usize,
     slugger: Slugger,
-}
-
-struct HtmlOpen {
-    name: String,
-    effect: BlockEffect,
-    /// `containers.len()` when the tag opened; closing a Markdown container below this closes it.
-    depth: usize,
-}
-
-#[derive(Clone, Copy)]
-enum BlockEffect {
-    Align(Align),
-    Details(DetailsId),
-    /// A raw `<blockquote>`: the quote container it pushed, at this index of `containers`.
-    Quote(usize),
-    /// `<script>` and `<style>`: their content is never shown.
-    Skip,
-    /// A block tag with no effect beyond ending the text before it.
-    None,
 }
 
 struct Pending {
@@ -57,97 +79,131 @@ struct Pending {
     kind: PendingKind,
 }
 
-#[derive(Clone, Copy)]
 enum PendingKind {
     Paragraph,
-    Heading(HeadingLevel),
-    Summary(DetailsId),
+    /// An HTML heading, with its text as written (GitHub slugs that, not the collapsed text).
+    Heading {
+        level: HeadingLevel,
+        slug: String,
+    },
+}
+
+/// Where an inline builder's HTML state comes from.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+struct HtmlState {
+    style: Style,
+    link: Option<LinkId>,
+    hidden: bool,
 }
 
 impl Builder {
     pub(crate) fn new(slugger: Slugger) -> Self {
         Self {
             doc: Document::default(),
-            containers: Vec::new(),
-            html_open: Vec::new(),
+            open: Vec::new(),
+            started: 0,
+            deferred: Vec::new(),
+            html: HtmlStack::default(),
             pending: None,
             pre: None,
+            summary: None,
             next_details: 0,
             slugger,
         }
     }
 
     pub(crate) fn notice(&mut self, notice: Notice) {
-        self.doc.notices.push(notice);
+        if !self.doc.notices.contains(&notice) {
+            self.doc.notices.push(notice);
+        }
     }
 
     pub(crate) fn finish(mut self) -> Document {
         self.flush_pre();
         self.flush_pending();
+        self.flush_summary();
         self.doc
+    }
+
+    /// A builder for inline content, carrying the HTML styles and link open at this point.
+    pub(crate) fn inline_builder(&self) -> InlineBuilder {
+        InlineBuilder {
+            html: self.html.state(),
+            ..InlineBuilder::default()
+        }
     }
 
     // Containers.
 
-    pub(crate) fn begin_container(&mut self, container: Container) {
+    pub(crate) fn begin_container(&mut self, container: Container) -> ContainerToken {
         self.flush_pending();
-        self.containers.push(container);
+        let token = ContainerToken(self.open.len());
+        let id = ContextId::new(self.doc.contexts.len());
+        self.doc.contexts.push(Context {
+            container,
+            parent: self.open.last().copied(),
+            first_leaf: None,
+        });
+        self.open.push(id);
+        token
     }
 
-    pub(crate) fn end_container(&mut self) {
+    /// Closes a container, and anything opened inside it that is still open (an unclosed
+    /// `<details>` in a list item ends with the item).
+    pub(crate) fn end_container(&mut self, token: ContainerToken) {
         self.flush_pending();
-        self.containers.pop();
-        // HTML effects opened inside the closed container end with it.
-        let depth = self.containers.len();
-        self.html_open.retain(|open| open.depth <= depth);
+        self.close_containers_from(token.0);
     }
 
-    pub(crate) fn begin_alert(&mut self, kind: AlertKind) {
-        self.begin_container(Container::Alert(kind));
+    /// Gives a container its first leaf if it has none, so its marker still shows: a list item
+    /// whose only content was an HTML comment, or nothing.
+    pub(crate) fn ensure_started(&mut self, token: ContainerToken) {
+        self.flush_pending();
+        if self.open.len() > token.0 && self.started <= token.0 {
+            self.push_leaf(LeafKind::Paragraph(Inlines::default()));
+        }
+    }
+
+    pub(crate) fn begin_alert(&mut self, kind: AlertKind) -> ContainerToken {
+        let token = self.begin_container(Container::Alert(kind));
         self.push_leaf(LeafKind::AlertTitle(kind));
+        token
     }
 
-    pub(crate) fn begin_footnote(&mut self, label: &str, number: u32) -> FootnoteId {
-        self.flush_pending();
+    pub(crate) fn add_footnote(&mut self, label: &str, number: usize) -> FootnoteId {
         let id = FootnoteId::new(self.doc.footnotes.len());
-        let first = self.next_leaf();
         self.doc.footnotes.push(Footnote {
             label: label.to_owned(),
             number,
-            leaves: first..first,
-        });
-        self.containers.push(Container::Footnote {
-            footnote: id,
-            show_number: true,
         });
         id
     }
 
-    pub(crate) fn end_footnote(&mut self, id: FootnoteId) {
-        self.end_container();
-        let end = self.next_leaf();
-        if let Some(footnote) = self.doc.footnotes.get_mut(id.index()) {
-            footnote.leaves.end = end;
-        }
-    }
-
     // Leaves.
 
-    /// A paragraph. An empty one is kept only when it is the first leaf of a list item or
-    /// footnote, which needs a leaf to carry its marker.
+    /// A paragraph. Inside an open `<summary>` it becomes part of the summary. An empty one is
+    /// dropped (a list item or footnote gets its marker leaf from `ensure_started`).
     pub(crate) fn paragraph(&mut self, inlines: InlineBuilder) {
         self.flush_pending();
-        let inlines = inlines.finish();
-        if inlines.text.is_empty() && !self.marker_pending() {
+        let inlines = self.finish_inlines(inlines);
+        if let Some((_details, summary)) = self.summary.as_mut() {
+            summary.append(&inlines);
             return;
         }
-        self.push_leaf(LeafKind::Paragraph(inlines));
+        if !inlines.text.is_empty() {
+            self.push_paragraph(inlines);
+        }
     }
 
     /// A heading; `slug_text` is the text GitHub derives its anchor from.
     pub(crate) fn heading(&mut self, level: HeadingLevel, inlines: InlineBuilder, slug_text: &str) {
         self.flush_pending();
-        self.push_heading(level, inlines.finish(), slug_text);
+        let inlines = self.finish_inlines(inlines);
+        if let Some((_details, summary)) = self.summary.as_mut() {
+            summary.append(&inlines);
+            return;
+        }
+        self.push_heading(level, inlines, slug_text);
     }
 
     pub(crate) fn thematic_break(&mut self) {
@@ -155,26 +211,28 @@ impl Builder {
         self.push_leaf(LeafKind::ThematicBreak);
     }
 
-    /// A code block, split into leaves of at most `CODE_CHUNK_LINES` lines.
+    /// A code block, split into leaves of at most `CODE_CHUNK_LINES` lines and (unless one line
+    /// is longer) `LEAF_TEXT_BYTES` bytes. `text` is the block's literal: each line ends in a
+    /// newline, so "" has no lines and "\n" has one empty line.
     pub(crate) fn code_block(&mut self, info: &str, text: &str) {
         self.flush_pending();
-        let mut line_starts = vec![ByteOffset::new(0)];
         let body = text.strip_suffix('\n').unwrap_or(text);
-        line_starts.extend(
-            body.match_indices('\n')
-                .map(|(at, _newline)| ByteOffset::new(at + 1)),
-        );
-        if body.is_empty() {
-            line_starts.clear();
+        let mut line_starts = Vec::new();
+        if !text.is_empty() {
+            line_starts.push(ByteOffset::new(0));
+            line_starts.extend(
+                body.match_indices('\n')
+                    .map(|(at, _newline)| ByteOffset::new(at + 1)),
+            );
         }
-        let lines = line_starts.len();
         let block = CodeBlockId::new(self.doc.code_blocks.len());
+        let chunks = code_chunks(&line_starts, body.len());
         self.doc.code_blocks.push(CodeBlock {
             info: info.to_owned(),
             text: body.to_owned(),
             line_starts,
         });
-        for (start, end) in chunks(lines, CODE_CHUNK_LINES) {
+        for (start, end) in chunks {
             self.push_leaf(LeafKind::Code {
                 block,
                 lines: LineNo::new(start)..LineNo::new(end),
@@ -189,13 +247,23 @@ impl Builder {
         let rows = table.rows.len();
         let id = TableId::new(self.doc.tables.len());
         self.doc.tables.push(table);
-        for (index, (start, end)) in chunks(rows, TABLE_CHUNK_ROWS).enumerate() {
+        let count = rows.div_ceil(TABLE_CHUNK_ROWS).max(1);
+        for chunk in 0..count {
+            let start = chunk * TABLE_CHUNK_ROWS;
             self.push_leaf(LeafKind::TableRows {
                 table: id,
-                rows: RowNo::new(start)..RowNo::new(end),
-                with_header: index == 0,
+                rows: RowNo::new(start)..RowNo::new((start + TABLE_CHUNK_ROWS).min(rows)),
+                with_header: chunk == 0,
             });
         }
+    }
+
+    /// Ends inline content: closes HTML tags opened inside it and returns the text.
+    pub(crate) fn finish_inlines(&mut self, inlines: InlineBuilder) -> Inlines {
+        self.html.close_inline_scope();
+        let mut inlines = inlines.finish();
+        trim_end(&mut inlines);
+        inlines
     }
 
     // Links and images.
@@ -212,15 +280,9 @@ impl Builder {
     pub(crate) fn add_footnote_link(&mut self, footnote: FootnoteId) -> LinkId {
         let id = LinkId::new(self.doc.links.len());
         self.doc.links.push(Link {
-            target: crate::model::LinkTarget::Footnote(footnote),
+            target: LinkTarget::Footnote(footnote),
             title: None,
         });
-        id
-    }
-
-    pub(crate) fn add_image(&mut self, image: Image) -> ImageId {
-        let id = ImageId::new(self.doc.images.len());
-        self.doc.images.push(image);
         id
     }
 
@@ -239,46 +301,234 @@ impl Builder {
         })
     }
 
+    fn add_image(&mut self, image: Image) -> ImageId {
+        let id = ImageId::new(self.doc.images.len());
+        self.doc.images.push(image);
+        id
+    }
+
     // HTML.
 
-    /// Raw HTML inside a paragraph or heading: one tag per comrak node, paired up by the
-    /// inline builder's own stack.
+    /// Raw HTML inside a paragraph, heading or cell: one tag per comrak node. Tags opened here
+    /// close with the paragraph; closing tags close whatever they match, including a `</div>`
+    /// or `</details>` opened by an earlier HTML block.
     pub(crate) fn html_inline(&mut self, inlines: &mut InlineBuilder, html: &str) {
-        for token in tokenize(html) {
-            self.inline_token(inlines, &token);
+        for token in tokens(html) {
+            match &token {
+                HtmlToken::Text(text) => inlines.text(text),
+                HtmlToken::Start {
+                    name,
+                    self_closing,
+                    source,
+                    ..
+                } => {
+                    if is_filtered(name) {
+                        inlines.text(&collapse_whitespace(source));
+                    } else if let Some(void) = self.void_element(name, &token) {
+                        match void {
+                            Void::Break => inlines.text("\n"),
+                            Void::Object(object) => inlines.object(object),
+                        }
+                    } else if name == "summary" {
+                        // A summary opened inside a paragraph collects what follows.
+                        self.open_summary();
+                    } else if !self_closing && let Some(effect) = self.inline_effect(name, &token) {
+                        self.push_html(name, effect, Scope::Inline);
+                    }
+                }
+                HtmlToken::End { name, source } => {
+                    if is_filtered(name) {
+                        inlines.text(&collapse_whitespace(source));
+                    } else if name == "summary" {
+                        self.flush_summary();
+                    } else {
+                        self.close_html(name);
+                    }
+                }
+            }
+            inlines.html = self.html.state();
         }
     }
 
-    /// A raw HTML block: tags become leaves, styles, links, images, alignment and `<details>`.
+    /// A raw HTML block: tags become leaves, styles, links, images, alignment, quotes and
+    /// `<details>`.
     pub(crate) fn html_block(&mut self, html: &str) {
-        for token in tokenize(html) {
+        for token in tokens(html) {
             if self.pre.is_some() {
                 self.pre_token(&token);
-                continue;
-            }
-            if self.skipping() && !matches!(&token, HtmlToken::End { name } if is_skipped(name)) {
                 continue;
             }
             match &token {
                 HtmlToken::Text(text) => self.html_text(text),
                 HtmlToken::Start {
-                    name, self_closing, ..
-                } => self.html_start(name, &token, *self_closing),
-                HtmlToken::End { name } => self.html_end(name),
+                    name,
+                    self_closing,
+                    source,
+                    ..
+                } => {
+                    if is_filtered(name) {
+                        self.pending_inlines().text(&collapse_whitespace(source));
+                    } else {
+                        self.html_start(name, &token, *self_closing);
+                    }
+                }
+                HtmlToken::End { name, source } => {
+                    if is_filtered(name) {
+                        self.pending_inlines().text(&collapse_whitespace(source));
+                    } else {
+                        self.html_end(name);
+                    }
+                }
             }
         }
+        // A <pre> left open ends with its block, so content after it stays after it.
+        self.flush_pre();
         self.flush_pending();
     }
 
+    fn html_start(&mut self, name: &str, token: &HtmlToken<'_>, self_closing: bool) {
+        if name == "hr" {
+            self.thematic_break();
+            return;
+        }
+        if let Some(void) = self.void_element(name, token) {
+            let inlines = self.pending_inlines();
+            match void {
+                Void::Break => inlines.text("\n"),
+                Void::Object(object) => inlines.object(object),
+            }
+            return;
+        }
+        if self_closing {
+            return;
+        }
+        match name {
+            "pre" => {
+                self.flush_pending();
+                self.pre = Some(String::new());
+            }
+            "h1" | "h2" | "h3" | "h4" | "h5" | "h6" => {
+                self.open_block(name, token);
+                // Inside a summary, a heading is just the summary's text.
+                if self.summary.is_none()
+                    && let Some(level) = heading_level(name)
+                {
+                    self.pending = Some(Pending {
+                        inlines: self.inline_builder(),
+                        kind: PendingKind::Heading {
+                            level,
+                            slug: String::new(),
+                        },
+                    });
+                }
+            }
+            "details" => {
+                self.flush_pending();
+                let id = DetailsId::new(self.next_details);
+                self.next_details += 1;
+                let open = token.has_attribute("open");
+                let container = self.begin_container(Container::Details { id, open });
+                self.push_html(name, Effect::Details { id, container }, Scope::Block);
+            }
+            "summary" => {
+                self.flush_pending();
+                self.open_summary();
+            }
+            "blockquote" => {
+                self.flush_pending();
+                let container = self.begin_container(Container::Quote);
+                self.push_html(name, Effect::Container(container), Scope::Block);
+            }
+            "td" | "th" => {
+                // Cells of a raw HTML table read as text separated by spaces (v1).
+                if let Some(pending) = self.pending.as_mut() {
+                    pending.inlines.text(" ");
+                }
+            }
+            "template" => self.push_html(name, Effect::Hidden, Scope::Block),
+            "video" | "audio" => {
+                // Not playable here: a link to the media takes its place.
+                let source = token.attribute("src").unwrap_or("");
+                let label = if name == "video" {
+                    "▶ video"
+                } else {
+                    "▶ audio"
+                };
+                let link = (!source.is_empty()).then(|| self.add_link(source, ""));
+                let inlines = self.pending_inlines();
+                let link_token = link.map(|link| inlines.begin_link(link));
+                inlines.text(label);
+                if let Some(link_token) = link_token {
+                    inlines.end_link(link_token);
+                }
+                self.push_html(name, Effect::Hidden, Scope::Block);
+                self.refresh_pending_state();
+            }
+            name if is_block(name) => self.open_block(name, token),
+            name => {
+                if let Some(effect) = self.inline_effect(name, token) {
+                    self.push_html(name, effect, Scope::Block);
+                    self.refresh_pending_state();
+                }
+            }
+        }
+    }
+
+    fn html_end(&mut self, name: &str) {
+        match name {
+            "summary" => self.flush_summary(),
+            "pre" => {}
+            name => {
+                let block = is_block(name) || heading_level(name).is_some() || name == "details";
+                if block {
+                    self.flush_pending();
+                }
+                self.close_html(name);
+                self.refresh_pending_state();
+            }
+        }
+    }
+
+    fn refresh_pending_state(&mut self) {
+        let state = self.html.state();
+        if let Some(pending) = self.pending.as_mut() {
+            pending.inlines.html = state;
+        }
+    }
+
+    fn html_text(&mut self, text: &str) {
+        if let Some(Pending {
+            kind: PendingKind::Heading { slug, .. },
+            ..
+        }) = self.pending.as_mut()
+        {
+            slug.push_str(text);
+        }
+        // HTML collapses whitespace; text that is only whitespace between block tags is nothing.
+        let collapsed = collapse_whitespace(text);
+        let at_start = self
+            .pending
+            .as_ref()
+            .is_none_or(|pending| pending.inlines.ends_with_space());
+        let collapsed = if at_start {
+            collapsed.trim_start()
+        } else {
+            collapsed.as_str()
+        };
+        if !collapsed.is_empty() {
+            self.pending_inlines().text(collapsed);
+        }
+    }
+
     /// Inside a raw `<pre>`: text is kept as written, tags inside are dropped, `</pre>` ends it.
-    fn pre_token(&mut self, token: &HtmlToken) {
+    fn pre_token(&mut self, token: &HtmlToken<'_>) {
         match token {
             HtmlToken::Text(text) => {
                 if let Some(pre) = self.pre.as_mut() {
                     pre.push_str(text);
                 }
             }
-            HtmlToken::End { name } if name == "pre" => self.flush_pre(),
+            HtmlToken::End { name, .. } if name == "pre" => self.flush_pre(),
             HtmlToken::Start { .. } | HtmlToken::End { .. } => {}
         }
     }
@@ -287,226 +537,120 @@ impl Builder {
     fn flush_pre(&mut self) {
         if let Some(text) = self.pre.take() {
             let text = text.strip_prefix('\n').unwrap_or(&text);
-            self.code_block("", text);
+            let mut literal = text.trim_end_matches('\n').to_owned();
+            if !literal.is_empty() {
+                literal.push('\n');
+            }
+            self.code_block("", &literal);
         }
     }
 
-    fn html_start(&mut self, name: &str, token: &HtmlToken, self_closing: bool) {
+    fn open_summary(&mut self) {
+        self.flush_summary();
+        if let Some(details) = self.html.details() {
+            self.summary = Some((details, self.inline_builder()));
+        }
+    }
+
+    fn flush_summary(&mut self) {
+        self.flush_pending();
+        if let Some((details, inlines)) = self.summary.take() {
+            let mut inlines = inlines.finish();
+            trim_end(&mut inlines);
+            self.push_leaf(LeafKind::DetailsSummary { details, inlines });
+        }
+    }
+
+    fn void_element(&mut self, name: &str, token: &HtmlToken<'_>) -> Option<Void> {
         match name {
-            "hr" => self.thematic_break(),
-            "pre" if !self_closing => {
-                self.flush_pending();
-                self.pre = Some(String::new());
-            }
-            "blockquote" if !self_closing => {
-                self.flush_pending();
-                let index = self.containers.len();
-                self.containers.push(Container::Quote);
-                self.html_open.push(HtmlOpen {
-                    name: name.to_owned(),
-                    effect: BlockEffect::Quote(index),
-                    depth: self.containers.len(),
-                });
-            }
-            "h1" | "h2" | "h3" | "h4" | "h5" | "h6" => {
-                self.flush_pending();
-                self.open_block(name, token, self_closing);
-                let level = name
-                    .strip_prefix('h')
-                    .and_then(|digit| digit.parse::<u8>().ok())
-                    .map_or(HeadingLevel::H1, HeadingLevel::clamped);
-                self.pending = Some(Pending {
-                    inlines: InlineBuilder::new(),
-                    kind: PendingKind::Heading(level),
-                });
-            }
-            "details" if !self_closing => {
-                self.flush_pending();
-                let id = DetailsId::new(self.next_details);
-                self.next_details += 1;
-                self.containers.push(Container::Details(id));
-                self.html_open.push(HtmlOpen {
-                    name: name.to_owned(),
-                    effect: BlockEffect::Details(id),
-                    depth: self.containers.len(),
-                });
-            }
-            "summary" => {
-                self.flush_pending();
-                if let Some(details) = self.innermost_details() {
-                    self.pending = Some(Pending {
-                        inlines: InlineBuilder::new(),
-                        kind: PendingKind::Summary(details),
-                    });
-                }
-            }
-            "td" | "th" => {
-                // Cells of a raw HTML table read as text separated by spaces.
-                if let Some(pending) = self.pending.as_mut() {
-                    pending.inlines.text(" ");
-                }
-            }
-            name if is_skipped(name) && !self_closing => self.html_open.push(HtmlOpen {
-                name: name.to_owned(),
-                effect: BlockEffect::Skip,
-                depth: self.containers.len(),
+            "br" => Some(Void::Break),
+            "img" => html_image(token).map(|image| {
+                let id = self.add_image(image);
+                Void::Object(InlineObject::Image(id))
             }),
-            name if is_block(name) => {
-                self.flush_pending();
-                self.open_block(name, token, self_closing);
-            }
-            _inline => {
-                let mut pending = self.take_pending_or_new();
-                self.inline_token(&mut pending.inlines, token);
-                self.pending = Some(pending);
-            }
+            _ => None,
         }
     }
 
-    fn html_end(&mut self, name: &str) {
-        let is_heading = matches!(name, "h1" | "h2" | "h3" | "h4" | "h5" | "h6");
-        if is_block(name) || is_heading || matches!(name, "summary" | "details") || is_skipped(name)
-        {
-            self.flush_pending();
-            self.close_block(name);
-        } else if let Some(mut pending) = self.pending.take() {
-            let token = HtmlToken::End {
-                name: name.to_owned(),
-            };
-            self.inline_token(&mut pending.inlines, &token);
-            self.pending = Some(pending);
+    fn inline_effect(&mut self, name: &str, token: &HtmlToken<'_>) -> Option<Effect> {
+        if name == "a" {
+            let link = token
+                .attribute("href")
+                .map(|href| self.add_link(href, token.attribute("title").unwrap_or("")));
+            return Some(Effect::Link(link));
         }
+        html_style(name).map(Effect::Style)
     }
 
-    fn html_text(&mut self, text: &str) {
-        // HTML collapses whitespace; text that is only whitespace between block tags is nothing.
-        let collapsed = collapse_whitespace(text);
-        let pending_empty = self
-            .pending
-            .as_ref()
-            .is_none_or(|pending| pending.inlines.ends_with_space());
-        let collapsed = if pending_empty {
-            collapsed.trim_start()
-        } else {
-            collapsed.as_str()
-        };
-        if collapsed.is_empty() {
-            return;
-        }
-        let mut pending = self.take_pending_or_new();
-        pending.inlines.text(collapsed);
-        self.pending = Some(pending);
-    }
-
-    /// Applies one HTML token to inline text: styles, links, images and line breaks.
-    fn inline_token(&mut self, inlines: &mut InlineBuilder, token: &HtmlToken) {
-        match token {
-            HtmlToken::Text(text) => inlines.text(text),
-            HtmlToken::Start {
-                name, self_closing, ..
-            } => match name.as_str() {
-                "br" => inlines.text("\n"),
-                "img" => {
-                    if let Some(image) = html_image(token) {
-                        let id = self.add_image(image);
-                        inlines.object(InlineObject::Image(id));
-                    }
-                }
-                "a" if !self_closing => {
-                    let link = token
-                        .attribute("href")
-                        .map(|href| self.add_link(href, token.attribute("title").unwrap_or("")));
-                    inlines.open_html(name, InlineEffect::Link(link));
-                }
-                name if !self_closing => {
-                    if let Some(style) = html_style(name) {
-                        inlines.open_html(name, InlineEffect::Style(style));
-                    }
-                }
-                _ => {}
-            },
-            HtmlToken::End { name } => inlines.close_html(name),
-        }
-    }
-
-    // Internals.
-
-    fn open_block(&mut self, name: &str, token: &HtmlToken, self_closing: bool) {
-        if self_closing {
-            return;
-        }
+    fn open_block(&mut self, name: &str, token: &HtmlToken<'_>) {
+        self.flush_pending();
         let align = match (name, token.attribute("align")) {
             ("center", _) => Some(Align::Center),
             (_, Some(value)) => parse_align(value),
             (_, None) => None,
         };
-        self.html_open.push(HtmlOpen {
-            name: name.to_owned(),
-            effect: align.map_or(BlockEffect::None, BlockEffect::Align),
-            depth: self.containers.len(),
-        });
+        self.push_html(
+            name,
+            align.map_or(Effect::None, Effect::Align),
+            Scope::Block,
+        );
     }
 
-    /// Closes the innermost open tag called `name`, and any opened after it.
-    fn close_block(&mut self, name: &str) {
-        let Some(position) = self.html_open.iter().rposition(|open| open.name == name) else {
-            return;
-        };
-        for open in self.html_open.drain(position..).rev() {
-            let index = match open.effect {
-                BlockEffect::Details(id) => self
-                    .containers
-                    .iter()
-                    .rposition(|container| *container == Container::Details(id)),
-                BlockEffect::Quote(index) => {
-                    (self.containers.get(index) == Some(&Container::Quote)).then_some(index)
-                }
-                BlockEffect::Align(_) | BlockEffect::Skip | BlockEffect::None => None,
-            };
-            if let Some(index) = index {
-                self.containers.truncate(index);
-            }
+    fn push_html(&mut self, name: &str, effect: Effect, scope: Scope) {
+        if !self.html.push(name, effect, scope, self.open.len()) {
+            self.notice(Notice::HtmlTooDeep);
         }
     }
 
-    fn skipping(&self) -> bool {
-        self.html_open
-            .iter()
-            .any(|open| matches!(open.effect, BlockEffect::Skip))
+    fn close_html(&mut self, name: &str) {
+        let closed = self.html.close(name);
+        if closed.details {
+            self.flush_summary();
+        }
+        // Innermost first: each closes now if nothing opened after it is still open, or else
+        // once the Markdown containers inside it close.
+        for token in closed.containers {
+            if self.open.len() == token.0 + 1 {
+                self.open.truncate(token.0);
+            } else if self.open.len() > token.0 {
+                self.deferred.push(token);
+            }
+        }
+        self.started = self.started.min(self.open.len());
     }
 
-    fn innermost_details(&self) -> Option<DetailsId> {
-        self.html_open
-            .iter()
-            .rev()
-            .find_map(|open| match open.effect {
-                BlockEffect::Details(id) => Some(id),
-                BlockEffect::Align(_)
-                | BlockEffect::Quote(_)
-                | BlockEffect::Skip
-                | BlockEffect::None => None,
+    fn close_containers_from(&mut self, index: usize) {
+        if self.summary.is_some() && self.html.details_from(index) {
+            self.flush_summary();
+        }
+        self.open.truncate(index);
+        self.html.drop_deeper_than(index);
+        // Deferred HTML closes whose inner Markdown containers have now all closed.
+        while let Some(&token) = self.deferred.last() {
+            if token.0 >= self.open.len() {
+                self.deferred.pop();
+            } else if token.0 + 1 == self.open.len() {
+                self.open.truncate(token.0);
+                self.deferred.pop();
+            } else {
+                break;
+            }
+        }
+        self.started = self.started.min(self.open.len());
+    }
+
+    fn pending_inlines(&mut self) -> &mut InlineBuilder {
+        let html = self.html.state();
+        &mut self
+            .pending
+            .get_or_insert_with(|| Pending {
+                inlines: InlineBuilder {
+                    html,
+                    ..InlineBuilder::default()
+                },
+                kind: PendingKind::Paragraph,
             })
-    }
-
-    fn align(&self) -> Align {
-        self.html_open
-            .iter()
-            .rev()
-            .find_map(|open| match open.effect {
-                BlockEffect::Align(align) => Some(align),
-                BlockEffect::Details(_)
-                | BlockEffect::Quote(_)
-                | BlockEffect::Skip
-                | BlockEffect::None => None,
-            })
-            .unwrap_or_default()
-    }
-
-    fn take_pending_or_new(&mut self) -> Pending {
-        self.pending.take().unwrap_or_else(|| Pending {
-            inlines: InlineBuilder::new(),
-            kind: PendingKind::Paragraph,
-        })
+            .inlines
     }
 
     fn flush_pending(&mut self) {
@@ -515,19 +659,17 @@ impl Builder {
         };
         let mut inlines = pending.inlines.finish();
         trim_end(&mut inlines);
+        if let Some((_details, summary)) = self.summary.as_mut() {
+            summary.append(&inlines);
+            return;
+        }
         match pending.kind {
             PendingKind::Paragraph => {
                 if !inlines.text.is_empty() {
-                    self.push_leaf(LeafKind::Paragraph(inlines));
+                    self.push_paragraph(inlines);
                 }
             }
-            PendingKind::Heading(level) => {
-                let slug_text = inlines.text.replace(Inlines::OBJECT, "");
-                self.push_heading(level, inlines, &slug_text);
-            }
-            PendingKind::Summary(details) => {
-                self.push_leaf(LeafKind::DetailsSummary { details, inlines });
-            }
+            PendingKind::Heading { level, slug } => self.push_heading(level, inlines, &slug),
         }
     }
 
@@ -542,55 +684,136 @@ impl Builder {
         self.doc.anchors.push(Anchor { slug, leaf });
     }
 
-    /// Whether the next leaf is the first of a list item or footnote (and so carries a marker).
-    fn marker_pending(&self) -> bool {
-        self.containers.iter().any(|container| match container {
-            Container::ListItem(item) => item.show_marker,
-            Container::Footnote { show_number, .. } => *show_number,
-            Container::Quote | Container::Alert(_) | Container::Details(_) => false,
-        })
-    }
-
-    fn next_leaf(&self) -> LeafId {
-        LeafId::new(self.doc.leaves.len())
+    /// A paragraph, as one leaf or, past `LEAF_TEXT_BYTES`, several.
+    fn push_paragraph(&mut self, inlines: Inlines) {
+        for part in split_inlines(inlines, LEAF_TEXT_BYTES) {
+            self.push_leaf(LeafKind::Paragraph(part));
+        }
     }
 
     fn push_leaf(&mut self, kind: LeafKind) -> LeafId {
-        let id = self.next_leaf();
-        let align = self.align();
-        self.doc.leaves.push(Leaf {
-            kind,
-            containers: self.containers.clone(),
-            align,
-        });
-        // Markers are drawn on a container's first leaf only.
-        for container in &mut self.containers {
-            match container {
-                Container::ListItem(item) => item.show_marker = false,
-                Container::Footnote { show_number, .. } => *show_number = false,
-                Container::Quote | Container::Alert(_) | Container::Details(_) => {}
+        let id = LeafId::new(self.doc.leaves.len());
+        for context in self.open.get(self.started..).unwrap_or_default() {
+            if let Some(context) = self.doc.contexts.get_mut(context.index()) {
+                context.first_leaf = Some(id);
             }
         }
+        self.started = self.open.len();
+        self.doc.leaves.push(Leaf {
+            kind,
+            context: self.open.last().copied(),
+            align: self.html.align(),
+        });
         id
     }
 }
 
-/// `(start, end)` index ranges of at most `size` covering `0..total`; one empty range if
-/// `total` is 0, so an empty code block or table still gets a leaf.
-fn chunks(total: usize, size: usize) -> impl Iterator<Item = (usize, usize)> {
-    let count = total.div_ceil(size).max(1);
-    (0..count).map(move |chunk| {
-        let start = chunk * size;
-        (start, (start + size).min(total))
-    })
+enum Void {
+    Break,
+    Object(InlineObject),
+}
+
+/// Line ranges for code chunks: at most `CODE_CHUNK_LINES` lines and, unless a single line is
+/// longer, `LEAF_TEXT_BYTES` bytes. One empty range for a block with no lines.
+fn code_chunks(line_starts: &[ByteOffset], text_len: usize) -> Vec<(usize, usize)> {
+    let lines = line_starts.len();
+    if lines == 0 {
+        return vec![(0, 0)];
+    }
+    let start_of = |line: usize| {
+        line_starts
+            .get(line)
+            .map_or(text_len, |offset| offset.index())
+    };
+    let mut chunks = Vec::new();
+    let mut start = 0;
+    while start < lines {
+        let mut end = start + 1;
+        while end < lines
+            && end - start < CODE_CHUNK_LINES
+            && start_of(end + 1) - start_of(start) <= LEAF_TEXT_BYTES
+        {
+            end += 1;
+        }
+        chunks.push((start, end));
+        start = end;
+    }
+    chunks
+}
+
+/// Splits inlines longer than `max` bytes into parts, each cut after a space or newline where
+/// one falls in the second half of the part, else at a character boundary.
+fn split_inlines(inlines: Inlines, max: usize) -> Vec<Inlines> {
+    if inlines.text.len() <= max {
+        return vec![inlines];
+    }
+    let mut cuts = Vec::new();
+    let mut start = 0;
+    while inlines.text.len() - start > max {
+        let limit = floor_char_boundary(&inlines.text, start + max);
+        let window = inlines.text.get(start..limit).unwrap_or_default();
+        let cut = window
+            .rfind([' ', '\n'])
+            .map(|at| start + at + 1)
+            .filter(|&cut| cut > start + max / 2)
+            .unwrap_or(limit);
+        cuts.push(cut);
+        start = cut;
+    }
+    let mut parts = Vec::with_capacity(cuts.len() + 1);
+    let mut from = 0;
+    for to in cuts.into_iter().chain([inlines.text.len()]) {
+        parts.push(slice_inlines(&inlines, from, to));
+        from = to;
+    }
+    parts
+}
+
+fn floor_char_boundary(text: &str, mut index: usize) -> usize {
+    while index > 0 && !text.is_char_boundary(index) {
+        index -= 1;
+    }
+    index
+}
+
+/// The part of `inlines` in `from..to`, offsets rebased to 0.
+fn slice_inlines(inlines: &Inlines, from: usize, to: usize) -> Inlines {
+    let rebase = |at: usize| ByteOffset::new(at.clamp(from, to) - from);
+    Inlines {
+        text: inlines.text.get(from..to).unwrap_or_default().to_owned(),
+        spans: inlines
+            .spans
+            .iter()
+            .filter(|span| span.range.start.index() < to && span.range.end.index() > from)
+            .map(|span| Span {
+                range: rebase(span.range.start.index())..rebase(span.range.end.index()),
+                style: span.style,
+                link: span.link,
+            })
+            .collect(),
+        objects: inlines
+            .objects
+            .iter()
+            .filter(|(at, _)| (from..to).contains(&at.index()))
+            .map(|(at, object)| (rebase(at.index()), *object))
+            .collect(),
+    }
 }
 
 fn non_empty(text: &str) -> Option<String> {
     (!text.is_empty()).then(|| text.to_owned())
 }
 
-fn is_skipped(name: &str) -> bool {
-    matches!(name, "script" | "style" | "template" | "textarea" | "title")
+fn heading_level(name: &str) -> Option<HeadingLevel> {
+    match name {
+        "h1" => Some(HeadingLevel::H1),
+        "h2" => Some(HeadingLevel::H2),
+        "h3" => Some(HeadingLevel::H3),
+        "h4" => Some(HeadingLevel::H4),
+        "h5" => Some(HeadingLevel::H5),
+        "h6" => Some(HeadingLevel::H6),
+        _ => None,
+    }
 }
 
 /// Tags that end the text before them and start new text after.
@@ -620,7 +843,6 @@ fn is_block(name: &str) -> bool {
             | "tbody"
             | "tfoot"
             | "tr"
-            | "pre"
             | "address"
             | "picture"
     )
@@ -650,7 +872,7 @@ fn parse_align(value: &str) -> Option<Align> {
     }
 }
 
-fn html_image(token: &HtmlToken) -> Option<Image> {
+fn html_image(token: &HtmlToken<'_>) -> Option<Image> {
     let source = token.attribute("src")?;
     let size = |name: &str| {
         token
@@ -683,10 +905,10 @@ fn collapse_whitespace(text: &str) -> String {
     out
 }
 
-/// Drops trailing spaces left by collapsed HTML whitespace, and any span that then ends past the
-/// text.
+/// Drops trailing spaces and newlines (collapsed HTML whitespace, a final `<br>`), and clamps
+/// spans to the shortened text.
 fn trim_end(inlines: &mut Inlines) {
-    let kept = inlines.text.trim_end_matches(' ').len();
+    let kept = inlines.text.trim_end_matches([' ', '\n']).len();
     inlines.text.truncate(kept);
     for span in &mut inlines.spans {
         if span.range.end.index() > kept {
@@ -698,115 +920,306 @@ fn trim_end(inlines: &mut Inlines) {
         .retain(|span| span.range.start < span.range.end);
 }
 
-/// What an open inline HTML tag did, to undo when it closes.
+// The HTML tag stack.
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Scope {
+    /// Opened in an HTML block: open until closed.
+    Block,
+    /// Opened in a Markdown paragraph: closes with it.
+    Inline,
+}
+
 #[derive(Debug, Clone, Copy)]
-pub(crate) enum InlineEffect {
+enum Effect {
+    None,
+    Align(Align),
     Style(Style),
     /// A link, or `None` for an `<a>` with no `href`, which still has to be closed.
     Link(Option<LinkId>),
+    Details {
+        id: DetailsId,
+        container: ContainerToken,
+    },
+    Container(ContainerToken),
+    /// Content never shown (`<template>`, the inside of `<video>`).
+    Hidden,
 }
 
+#[derive(Debug, Clone, Copy, Default)]
+struct Derived {
+    align: Align,
+    state: HtmlState,
+    details: Option<DetailsId>,
+}
+
+struct HtmlEntry {
+    name: String,
+    effect: Effect,
+    scope: Scope,
+    /// `Builder::open.len()` when the tag opened: closing Markdown containers below this ends it.
+    depth: usize,
+    /// The state with this tag and all below it applied.
+    derived: Derived,
+}
+
+#[derive(Default)]
+struct HtmlStack {
+    entries: Vec<HtmlEntry>,
+    /// Open entries per tag name, so a closing tag with no opener costs O(1).
+    open_by_name: HashMap<String, usize>,
+}
+
+#[derive(Default)]
+struct Closed {
+    /// A `<details>` was closed, so an open summary must end.
+    details: bool,
+    /// Containers the closed tags had opened, innermost first.
+    containers: Vec<ContainerToken>,
+}
+
+impl HtmlStack {
+    fn top(&self) -> Derived {
+        self.entries
+            .last()
+            .map(|entry| entry.derived)
+            .unwrap_or_default()
+    }
+
+    fn state(&self) -> HtmlState {
+        self.top().state
+    }
+
+    fn align(&self) -> Align {
+        self.top().align
+    }
+
+    fn details(&self) -> Option<DetailsId> {
+        self.top().details
+    }
+
+    /// Pushes a tag; false (and nothing pushed) past `MAX_HTML_DEPTH`.
+    fn push(&mut self, name: &str, effect: Effect, scope: Scope, depth: usize) -> bool {
+        if self.entries.len() >= MAX_HTML_DEPTH {
+            return false;
+        }
+        let mut derived = self.top();
+        match effect {
+            Effect::None | Effect::Container(_) => {}
+            Effect::Align(align) => derived.align = align,
+            Effect::Style(style) => derived.state.style = derived.state.style.union(style),
+            Effect::Link(link) => derived.state.link = link.or(derived.state.link),
+            Effect::Details { id, .. } => derived.details = Some(id),
+            Effect::Hidden => derived.state.hidden = true,
+        }
+        *self.open_by_name.entry(name.to_owned()).or_insert(0) += 1;
+        self.entries.push(HtmlEntry {
+            name: name.to_owned(),
+            effect,
+            scope,
+            depth,
+            derived,
+        });
+        true
+    }
+
+    /// Closes the innermost open tag called `name` and every tag opened after it.
+    fn close(&mut self, name: &str) -> Closed {
+        let mut closed = Closed::default();
+        if self.open_by_name.get(name).is_none_or(|&count| count == 0) {
+            return closed;
+        }
+        while let Some(entry) = self.entries.pop() {
+            self.forget(&entry.name);
+            match entry.effect {
+                Effect::Details { container, .. } => {
+                    closed.details = true;
+                    closed.containers.push(container);
+                }
+                Effect::Container(container) => closed.containers.push(container),
+                Effect::None
+                | Effect::Align(_)
+                | Effect::Style(_)
+                | Effect::Link(_)
+                | Effect::Hidden => {}
+            }
+            if entry.name == name {
+                break;
+            }
+        }
+        closed
+    }
+
+    /// Closes the tags a Markdown paragraph opened (they are on top; inline HTML opens no
+    /// containers).
+    fn close_inline_scope(&mut self) {
+        while self
+            .entries
+            .last()
+            .is_some_and(|entry| entry.scope == Scope::Inline)
+        {
+            if let Some(entry) = self.entries.pop() {
+                self.forget(&entry.name);
+            }
+        }
+    }
+
+    /// Drops tags opened inside Markdown containers that have just closed.
+    fn drop_deeper_than(&mut self, depth: usize) {
+        while self.entries.last().is_some_and(|entry| entry.depth > depth) {
+            if let Some(entry) = self.entries.pop() {
+                self.forget(&entry.name);
+            }
+        }
+    }
+
+    /// Whether a `<details>` whose container is at `index` or deeper is open.
+    fn details_from(&self, index: usize) -> bool {
+        self.entries.iter().rev().any(
+            |entry| matches!(entry.effect, Effect::Details { container, .. } if container.0 >= index),
+        )
+    }
+
+    fn forget(&mut self, name: &str) {
+        if let Some(count) = self.open_by_name.get_mut(name) {
+            *count = count.saturating_sub(1);
+        }
+    }
+}
+
+/// An open Markdown style, to be ended with `InlineBuilder::end_style`.
+#[must_use = "a style must be ended with end_style"]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct StyleToken(u32);
+
+/// An open Markdown link, to be ended with `InlineBuilder::end_link`.
+#[must_use = "a link must be ended with end_link"]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct LinkToken(u32);
+
 /// Builds one `Inlines`: text with styled runs.
+///
+/// Markdown styles and links are opened and closed by token, each closing exactly what it
+/// opened; HTML's are applied by the `Builder` through `html`. The two never close each other's,
+/// so `*a <b>b* c</b>` shows "c" bold, as a browser would.
 #[derive(Debug, Default)]
 pub(crate) struct InlineBuilder {
     text: String,
     spans: Vec<Span>,
     objects: Vec<(ByteOffset, InlineObject)>,
-    styles: Vec<Style>,
-    links: Vec<Option<LinkId>>,
-    html_open: Vec<(String, InlineEffect)>,
+    styles: Vec<(u32, Style)>,
+    links: Vec<(u32, LinkId)>,
+    next_token: u32,
+    /// The union of `styles`, kept current.
+    style: Style,
+    html: HtmlState,
 }
 
 impl InlineBuilder {
-    pub(crate) fn new() -> Self {
-        Self::default()
-    }
-
     pub(crate) fn text(&mut self, text: &str) {
-        if text.is_empty() {
+        if text.is_empty() || self.html.hidden {
             return;
         }
         let start = ByteOffset::end_of(&self.text);
         self.text.push_str(text);
         let end = ByteOffset::end_of(&self.text);
-        let style = self
-            .styles
-            .iter()
-            .fold(Style::PLAIN, |all, style| all.union(*style));
-        let link = self.links.last().copied().flatten();
+        let style = self.style.union(self.html.style);
+        let link = self
+            .links
+            .last()
+            .map(|&(_token, link)| link)
+            .or(self.html.link);
+        self.push_span(start..end, style, link);
+    }
+
+    fn push_span(
+        &mut self,
+        range: std::ops::Range<ByteOffset>,
+        style: Style,
+        link: Option<LinkId>,
+    ) {
         if style.is_plain() && link.is_none() {
             return;
         }
         if let Some(last) = self.spans.last_mut()
-            && last.range.end == start
+            && last.range.end == range.start
             && last.style == style
             && last.link == link
         {
-            last.range.end = end;
+            last.range.end = range.end;
             return;
         }
-        self.spans.push(Span {
-            range: start..end,
-            style,
-            link,
-        });
+        self.spans.push(Span { range, style, link });
     }
 
     pub(crate) fn object(&mut self, object: InlineObject) {
+        if self.html.hidden {
+            return;
+        }
         self.objects.push((ByteOffset::end_of(&self.text), object));
         let mut buffer = [0; 4];
         self.text(Inlines::OBJECT.encode_utf8(&mut buffer));
     }
 
-    pub(crate) fn begin_style(&mut self, style: Style) {
-        self.styles.push(style);
+    pub(crate) fn begin_style(&mut self, style: Style) -> StyleToken {
+        let token = self.next_token();
+        self.styles.push((token, style));
+        self.style = self.style.union(style);
+        StyleToken(token)
     }
 
-    pub(crate) fn end_style(&mut self) {
-        self.styles.pop();
+    pub(crate) fn end_style(&mut self, token: StyleToken) {
+        if let Some(at) = self.styles.iter().rposition(|&(id, _)| id == token.0) {
+            self.styles.remove(at);
+            self.style = self
+                .styles
+                .iter()
+                .fold(Style::PLAIN, |all, &(_id, style)| all.union(style));
+        }
     }
 
-    pub(crate) fn begin_link(&mut self, link: LinkId) {
-        self.links.push(Some(link));
+    pub(crate) fn begin_link(&mut self, link: LinkId) -> LinkToken {
+        let token = self.next_token();
+        self.links.push((token, link));
+        LinkToken(token)
     }
 
-    pub(crate) fn end_link(&mut self) {
-        self.links.pop();
+    pub(crate) fn end_link(&mut self, token: LinkToken) {
+        if let Some(at) = self.links.iter().rposition(|&(id, _)| id == token.0) {
+            self.links.remove(at);
+        }
+    }
+
+    fn next_token(&mut self) -> u32 {
+        self.next_token = self.next_token.wrapping_add(1);
+        self.next_token
+    }
+
+    /// Appends finished inlines (a paragraph joining a `<summary>`), separated by a space.
+    fn append(&mut self, other: &Inlines) {
+        if other.text.is_empty() {
+            return;
+        }
+        if !self.text.is_empty() && !self.ends_with_space() {
+            self.text.push(' ');
+        }
+        let base = self.text.len();
+        self.text.push_str(&other.text);
+        for span in &other.spans {
+            let range = ByteOffset::new(base + span.range.start.index())
+                ..ByteOffset::new(base + span.range.end.index());
+            self.push_span(range, span.style, span.link);
+        }
+        self.objects.extend(
+            other
+                .objects
+                .iter()
+                .map(|(at, object)| (ByteOffset::new(base + at.index()), *object)),
+        );
     }
 
     fn ends_with_space(&self) -> bool {
         self.text.is_empty() || self.text.ends_with([' ', '\n'])
-    }
-
-    fn open_html(&mut self, name: &str, effect: InlineEffect) {
-        match effect {
-            InlineEffect::Style(style) => self.styles.push(style),
-            InlineEffect::Link(link) => self.links.push(link),
-        }
-        self.html_open.push((name.to_owned(), effect));
-    }
-
-    /// Closes the innermost open tag called `name` and any opened after it; a closing tag with
-    /// nothing to close is ignored.
-    fn close_html(&mut self, name: &str) {
-        let Some(position) = self
-            .html_open
-            .iter()
-            .rposition(|(open, _effect)| open == name)
-        else {
-            return;
-        };
-        let closed: Vec<_> = self.html_open.drain(position..).collect();
-        for (_name, effect) in closed.into_iter().rev() {
-            match effect {
-                InlineEffect::Style(_) => {
-                    self.styles.pop();
-                }
-                InlineEffect::Link(_) => {
-                    self.links.pop();
-                }
-            }
-        }
     }
 
     pub(crate) fn finish(self) -> Inlines {
@@ -841,17 +1254,30 @@ mod tests {
             .collect()
     }
 
+    fn containers(doc: &Document, leaf: usize) -> Vec<Container> {
+        doc.leaves
+            .get(leaf)
+            .map(|leaf| doc.containers(leaf).map(|(_id, c)| c.container).collect())
+            .unwrap_or_default()
+    }
+
+    fn paragraph(builder: &mut Builder, text: &str) {
+        let mut inlines = builder.inline_builder();
+        inlines.text(text);
+        builder.paragraph(inlines);
+    }
+
     #[test]
     fn styled_runs_merge_and_stay_plain_where_plain() {
-        let mut inlines = InlineBuilder::new();
+        let mut inlines = InlineBuilder::default();
         inlines.text("a ");
-        inlines.begin_style(Style::STRONG);
+        let strong = inlines.begin_style(Style::STRONG);
         inlines.text("b");
         inlines.text("c");
-        inlines.begin_style(Style::EMPHASIS);
+        let emphasis = inlines.begin_style(Style::EMPHASIS);
         inlines.text("d");
-        inlines.end_style();
-        inlines.end_style();
+        inlines.end_style(emphasis);
+        inlines.end_style(strong);
         inlines.text(" e");
         let inlines = inlines.finish();
         assert_eq!(inlines.text, "a bcd e");
@@ -873,7 +1299,7 @@ mod tests {
     }
 
     #[test]
-    fn code_blocks_chunk_by_lines() {
+    fn code_blocks_chunk_by_lines_and_bytes() {
         let mut builder = builder();
         let text = (0..450)
             .map(|line| format!("line {line}\n"))
@@ -881,6 +1307,12 @@ mod tests {
             .concat();
         builder.code_block("rust", &text);
         builder.code_block("", "");
+        builder.code_block("", "\n");
+        let wide = (0..10)
+            .map(|_| format!("{}\n", "x".repeat(5000)))
+            .collect::<Vec<_>>()
+            .concat();
+        builder.code_block("", &wide);
         let doc = builder.finish();
         let ranges: Vec<_> = doc
             .leaves
@@ -893,41 +1325,80 @@ mod tests {
                 }
             })
             .collect();
-        assert_eq!(ranges, vec![(0, 200), (200, 400), (400, 450), (0, 0)]);
-        let block = doc.code_blocks.first().expect("block");
-        assert_eq!(block.line_starts.len(), 450);
-        assert!(!block.text.ends_with('\n'));
+        assert_eq!(
+            ranges,
+            vec![
+                (0, 200),
+                (200, 400),
+                (400, 450),
+                (0, 0),
+                (0, 1),
+                (0, 3),
+                (3, 6),
+                (6, 9),
+                (9, 10)
+            ]
+        );
+        assert_eq!(doc.code_blocks.get(1).map(CodeBlock::line_count), Some(0));
+        assert_eq!(doc.code_blocks.get(2).map(CodeBlock::line_count), Some(1));
+    }
+
+    #[test]
+    fn long_paragraphs_split_into_leaves_at_spaces() {
+        let mut builder = builder();
+        let mut inlines = builder.inline_builder();
+        let strong = inlines.begin_style(Style::STRONG);
+        inlines.text(&"word ".repeat(10_000));
+        inlines.end_style(strong);
+        builder.paragraph(inlines);
+        let doc = builder.finish();
+        assert!(doc.leaves.len() >= 3);
+        let mut total = 0;
+        for leaf in &doc.leaves {
+            let LeafKind::Paragraph(inlines) = &leaf.kind else {
+                panic!("paragraph expected");
+            };
+            assert!(inlines.text.len() <= LEAF_TEXT_BYTES);
+            assert_eq!(inlines.spans.len(), 1);
+            assert_eq!(
+                inlines.spans.first().map(|span| span.range.end.index()),
+                Some(inlines.text.len())
+            );
+            total += inlines.text.len();
+        }
+        assert_eq!(total, "word ".repeat(10_000).trim_end().len());
     }
 
     #[test]
     fn list_markers_go_on_the_first_leaf_only() {
-        use crate::model::{ListItem, Marker};
         let mut builder = builder();
-        builder.begin_container(Container::ListItem(ListItem {
-            marker: Marker::Bullet,
+        let item = builder.begin_container(Container::ListItem {
+            marker: crate::model::Marker::Bullet,
             tight: true,
-            show_marker: true,
-        }));
-        let mut one = InlineBuilder::new();
-        one.text("one");
-        builder.paragraph(one);
-        builder.paragraph(InlineBuilder::new()); // empty, not first: dropped
-        let mut two = InlineBuilder::new();
-        two.text("two");
-        builder.paragraph(two);
-        builder.end_container();
+        });
+        paragraph(&mut builder, "one");
+        paragraph(&mut builder, ""); // empty: dropped
+        paragraph(&mut builder, "two");
+        builder.end_container(item);
         let doc = builder.finish();
-        let shown: Vec<bool> = doc
-            .leaves
-            .iter()
-            .map(|leaf| {
-                matches!(
-                    leaf.containers.first(),
-                    Some(Container::ListItem(item)) if item.show_marker
-                )
-            })
-            .collect();
-        assert_eq!(shown, vec![true, false]);
+        let context = doc.contexts.first().expect("context");
+        assert!(context.starts_at(LeafId::new(0)));
+        assert!(!context.starts_at(LeafId::new(1)));
+        assert_eq!(texts(&doc), vec!["one", "two"]);
+    }
+
+    #[test]
+    fn an_item_with_no_content_still_gets_a_leaf() {
+        let mut builder = builder();
+        let item = builder.begin_container(Container::ListItem {
+            marker: crate::model::Marker::Bullet,
+            tight: true,
+        });
+        builder.html_block("<!-- only a comment -->");
+        builder.ensure_started(item);
+        builder.end_container(item);
+        let doc = builder.finish();
+        assert_eq!(texts(&doc), vec![""]);
     }
 
     #[test]
@@ -937,7 +1408,7 @@ mod tests {
             "<p align=\"center\">\n  <img src=\"logo.png\" alt=\"Logo\" width=\"120px\">\n</p>",
         );
         builder.html_block("<h1 align=\"center\">My <b>Tool</b></h1>");
-        builder.html_block("<!-- hidden -->\n<script>alert(1)</script>");
+        builder.html_block("<!-- hidden -->");
         let doc = builder.finish();
         assert_eq!(texts(&doc), vec!["\u{FFFC}", "My Tool"]);
         assert!(doc.leaves.iter().all(|leaf| leaf.align == Align::Center));
@@ -951,21 +1422,32 @@ mod tests {
     }
 
     #[test]
+    fn filtered_tags_show_as_text() {
+        let mut builder = builder();
+        builder.html_block("<script>alert(1)</script>");
+        let mut inlines = builder.inline_builder();
+        inlines.text("a ");
+        builder.html_inline(&mut inlines, "<style>");
+        inlines.text("p{}");
+        builder.html_inline(&mut inlines, "</style>");
+        builder.paragraph(inlines);
+        let doc = builder.finish();
+        assert_eq!(
+            texts(&doc),
+            vec!["<script>alert(1)</script>", "a <style>p{}</style>"]
+        );
+    }
+
+    #[test]
     fn alignment_and_details_span_html_blocks() {
         let mut builder = builder();
         builder.html_block("<div align=\"right\">");
-        let mut inside = InlineBuilder::new();
-        inside.text("markdown inside");
-        builder.paragraph(inside);
+        paragraph(&mut builder, "markdown inside");
         builder.html_block("</div>");
-        builder.html_block("<details>\n<summary>More</summary>");
-        let mut hidden = InlineBuilder::new();
-        hidden.text("hidden");
-        builder.paragraph(hidden);
+        builder.html_block("<details open>\n<summary>More</summary>");
+        paragraph(&mut builder, "hidden");
         builder.html_block("</details>");
-        let mut after = InlineBuilder::new();
-        after.text("after");
-        builder.paragraph(after);
+        paragraph(&mut builder, "after");
         let doc = builder.finish();
         assert_eq!(
             texts(&doc),
@@ -976,12 +1458,110 @@ mod tests {
             aligns,
             vec![Align::End, Align::Start, Align::Start, Align::Start]
         );
-        let in_details: Vec<bool> = doc
-            .leaves
-            .iter()
-            .map(|leaf| matches!(leaf.containers.last(), Some(Container::Details(_))))
+        let in_details: Vec<bool> = (0..4)
+            .map(|leaf| {
+                containers(&doc, leaf)
+                    .iter()
+                    .any(|c| matches!(c, Container::Details { open: true, .. }))
+            })
             .collect();
         assert_eq!(in_details, vec![false, true, true, false]);
+    }
+
+    #[test]
+    fn a_closing_tag_inside_a_paragraph_closes_block_html() {
+        let mut builder = builder();
+        builder.html_block("<details>\n<summary>More</summary>");
+        let mut inlines = builder.inline_builder();
+        inlines.text("hidden text");
+        builder.html_inline(&mut inlines, "</details>");
+        builder.paragraph(inlines);
+        paragraph(&mut builder, "after");
+        let doc = builder.finish();
+        assert_eq!(texts(&doc), vec!["More", "hidden text", "after"]);
+        assert_eq!(containers(&doc, 2), Vec::new());
+    }
+
+    #[test]
+    fn markdown_containers_close_html_opened_inside_them() {
+        let mut builder = builder();
+        let item = builder.begin_container(Container::ListItem {
+            marker: crate::model::Marker::Bullet,
+            tight: false,
+        });
+        paragraph(&mut builder, "a");
+        builder.html_block("<details>");
+        paragraph(&mut builder, "hidden");
+        builder.end_container(item);
+        paragraph(&mut builder, "after");
+        let doc = builder.finish();
+        assert_eq!(containers(&doc, 2), Vec::new());
+    }
+
+    #[test]
+    fn summaries_collect_until_closed() {
+        let mut builder = builder();
+        builder.html_block("<details>\n<summary>");
+        let mut inlines = builder.inline_builder();
+        let strong = inlines.begin_style(Style::STRONG);
+        inlines.text("Bold");
+        inlines.end_style(strong);
+        inlines.text(" title");
+        builder.paragraph(inlines);
+        builder.html_block("</summary>");
+        paragraph(&mut builder, "body");
+        builder.html_block("<details><summary><h2>Heading summary</h2></summary>");
+        let doc = builder.finish();
+        assert_eq!(texts(&doc), vec!["Bold title", "body", "Heading summary"]);
+    }
+
+    #[test]
+    fn a_link_around_html_blocks_covers_all_of_them() {
+        let mut builder = builder();
+        builder.html_block("<a href=\"https://warp.dev\">\n<div><img src=\"warp.png\"></div>");
+        builder.html_block("<b>Warp</b></a>");
+        paragraph(&mut builder, "after");
+        let doc = builder.finish();
+        let linked: Vec<bool> = doc
+            .leaves
+            .iter()
+            .map(|leaf| match &leaf.kind {
+                LeafKind::Paragraph(inlines) => inlines.spans.iter().any(|s| s.link.is_some()),
+                LeafKind::Heading { .. }
+                | LeafKind::Code { .. }
+                | LeafKind::TableRows { .. }
+                | LeafKind::ThematicBreak
+                | LeafKind::AlertTitle(_)
+                | LeafKind::DetailsSummary { .. } => false,
+            })
+            .collect();
+        assert_eq!(texts(&doc), vec!["\u{FFFC}", "Warp", "after"]);
+        assert_eq!(linked, vec![true, true, false]);
+    }
+
+    #[test]
+    fn markdown_and_html_styles_close_independently() {
+        let mut builder = builder();
+        let mut inlines = builder.inline_builder();
+        let emphasis = inlines.begin_style(Style::EMPHASIS);
+        inlines.text("a ");
+        builder.html_inline(&mut inlines, "<b>");
+        inlines.text("b");
+        inlines.end_style(emphasis);
+        inlines.text(" c");
+        builder.html_inline(&mut inlines, "</b>");
+        let inlines = builder.finish_inlines(inlines);
+        let style_at = |text: &str| {
+            let at = inlines.text.find(text).expect("present");
+            inlines
+                .spans
+                .iter()
+                .find(|s| s.range.start.index() <= at && at < s.range.end.index())
+                .map_or(Style::PLAIN, |s| s.style)
+        };
+        assert_eq!(style_at("a"), Style::EMPHASIS);
+        assert_eq!(style_at("b"), Style::EMPHASIS.union(Style::STRONG));
+        assert_eq!(style_at("c"), Style::STRONG);
     }
 
     #[test]
@@ -989,35 +1569,33 @@ mod tests {
         let mut builder = builder();
         builder.html_block("<pre>\n  ascii\n   art</pre>");
         builder.html_block("<blockquote>\nquoted\n</blockquote>");
+        builder.html_block("<div>\n<pre>\ncode\n");
+        paragraph(&mut builder, "more");
         let doc = builder.finish();
-        assert_eq!(texts(&doc), vec!["<code>", "quoted"]);
+        assert_eq!(texts(&doc), vec!["<code>", "quoted", "<code>", "more"]);
         assert_eq!(
             doc.code_blocks.first().map(|block| block.text.as_str()),
             Some("  ascii\n   art")
         );
-        let quoted = doc.leaves.get(1).expect("quoted leaf");
-        assert_eq!(quoted.containers, vec![Container::Quote]);
+        assert_eq!(containers(&doc, 1), vec![Container::Quote]);
     }
 
     #[test]
-    fn inline_html_pairs_tags_across_nodes() {
+    fn html_depth_is_capped() {
         let mut builder = builder();
-        let mut inlines = InlineBuilder::new();
-        builder.html_inline(&mut inlines, "<kbd>");
-        inlines.text("Ctrl");
-        builder.html_inline(&mut inlines, "</kbd>");
-        inlines.text("+");
-        builder.html_inline(&mut inlines, "</sup>"); // nothing to close: ignored
-        builder.html_inline(&mut inlines, "<a href=\"#x\">");
-        inlines.text("go");
-        builder.html_inline(&mut inlines, "</a>");
-        let inlines = inlines.finish();
-        assert_eq!(inlines.text, "Ctrl+go");
-        let styles: Vec<(Style, bool)> = inlines
-            .spans
-            .iter()
-            .map(|span| (span.style, span.link.is_some()))
-            .collect();
-        assert_eq!(styles, vec![(Style::KEYBOARD, false), (Style::PLAIN, true)]);
+        builder.html_block(&"<div>".repeat(1000));
+        paragraph(&mut builder, "deep");
+        builder.html_block(&"</span>".repeat(1000));
+        let doc = builder.finish();
+        assert_eq!(doc.notices, vec![Notice::HtmlTooDeep]);
+        assert_eq!(texts(&doc), vec!["deep"]);
+    }
+
+    #[test]
+    fn trailing_breaks_are_trimmed() {
+        let mut builder = builder();
+        builder.html_block("<p>Check out my app <br></p>");
+        let doc = builder.finish();
+        assert_eq!(texts(&doc), vec!["Check out my app"]);
     }
 }

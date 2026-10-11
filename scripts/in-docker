@@ -26,6 +26,5 @@ exec docker run --rm "${tty[@]}" \
   -e HOME=/tmp \
   -e CARGO_TARGET_DIR=/work/target/docker \
   -e CARGO_TERM_COLOR="${CARGO_TERM_COLOR:-auto}" \
-  -e INSTA_UPDATE=no \
   -e GATE_TREE="${GATE_TREE:-}" \
   "$tag" "$@"

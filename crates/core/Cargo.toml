@@ -9,7 +9,6 @@ publish.workspace = true
 [dependencies]
 comrak.workspace = true
 html5gum.workspace = true
-thiserror.workspace = true
 
 [dev-dependencies]
 proptest.workspace = true

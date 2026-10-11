@@ -30,7 +30,7 @@ fn main() {
         println!(
             "{path}: {} KiB, {} leaves, load min {:.1} ms median {:.1} ms",
             bytes.len() / 1024,
-            doc.leaves.len(),
+            doc.leaves().len(),
             min.as_secs_f64() * 1000.0,
             median.as_secs_f64() * 1000.0,
         );

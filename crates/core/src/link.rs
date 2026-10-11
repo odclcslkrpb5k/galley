@@ -7,6 +7,10 @@ pub(crate) fn classify(destination: &str) -> LinkTarget {
     if let Some(fragment) = destination.strip_prefix('#') {
         return LinkTarget::Fragment(percent_decode(fragment));
     }
+    if destination.starts_with("//") {
+        // Protocol-relative: GitHub pages are served over https.
+        return LinkTarget::Absolute(format!("https:{destination}"));
+    }
     if has_scheme(destination) {
         return LinkTarget::Absolute(destination.to_owned());
     }
@@ -114,6 +118,10 @@ mod tests {
             relative("/root.md", Some("plain=1"), Some("L5"))
         );
         assert_eq!(classify("img.png"), relative("img.png", None, None));
+        assert_eq!(
+            classify("//example.com/x"),
+            LinkTarget::Absolute("https://example.com/x".to_owned())
+        );
         // Not schemes: a digit first, or nothing before the colon.
         assert_eq!(classify("1x:y"), relative("1x:y", None, None));
         assert_eq!(classify(":y"), relative(":y", None, None));

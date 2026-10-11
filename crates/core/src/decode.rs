@@ -2,36 +2,29 @@
 
 use std::borrow::Cow;
 
-/// Text decoded from a file, and why it differs from the file's bytes, if it does.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Decoded<'a> {
-    pub text: Cow<'a, str>,
-    pub notice: Option<DecodeNotice>,
-}
+use crate::model::Notice;
 
-/// Why decoded text is not exactly the file's bytes.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum DecodeNotice {
-    /// The file was not valid UTF-8; invalid sequences were replaced with U+FFFD.
-    InvalidUtf8Replaced,
-}
-
-/// Decodes a file's bytes as UTF-8, dropping a leading byte-order mark.
+/// Decodes a file's bytes as UTF-8, dropping a leading byte-order mark and turning CRLF and
+/// lone CR line endings into LF (a CR left in text is a paragraph break to Pango).
 ///
-/// Valid UTF-8 is borrowed, not copied. Invalid UTF-8 is not refused: the viewer shows what it
-/// can, with replacement characters, and the notice says so.
-#[must_use]
-pub fn decode(bytes: &[u8]) -> Decoded<'_> {
+/// Valid UTF-8 with LF endings is borrowed, not copied. Invalid UTF-8 is not refused: the viewer
+/// shows what it can, with replacement characters, and returns a notice saying so.
+pub(crate) fn decode(bytes: &[u8]) -> (Cow<'_, str>, Option<Notice>) {
     let bytes = bytes.strip_prefix(b"\xEF\xBB\xBF").unwrap_or(bytes);
-    match std::str::from_utf8(bytes) {
-        Ok(text) => Decoded {
-            text: Cow::Borrowed(text),
-            notice: None,
-        },
-        Err(_invalid) => Decoded {
-            text: String::from_utf8_lossy(bytes),
-            notice: Some(DecodeNotice::InvalidUtf8Replaced),
-        },
+    let (text, notice) = match std::str::from_utf8(bytes) {
+        Ok(text) => (Cow::Borrowed(text), None),
+        Err(_invalid) => (
+            String::from_utf8_lossy(bytes),
+            Some(Notice::InvalidUtf8Replaced),
+        ),
+    };
+    if text.contains('\r') {
+        (
+            Cow::Owned(text.replace("\r\n", "\n").replace('\r', "\n")),
+            notice,
+        )
+    } else {
+        (text, notice)
     }
 }
 
@@ -41,37 +34,32 @@ mod tests {
 
     #[test]
     fn valid_utf8_is_borrowed_unchanged() {
-        let decoded = decode("# Héading\n".as_bytes());
-        assert_eq!(decoded.text, "# Héading\n");
-        assert!(matches!(decoded.text, Cow::Borrowed(_)));
-        assert_eq!(decoded.notice, None);
+        let (text, notice) = decode("# Héading\n".as_bytes());
+        assert_eq!(text, "# Héading\n");
+        assert!(matches!(text, Cow::Borrowed(_)));
+        assert_eq!(notice, None);
     }
 
     #[test]
     fn byte_order_mark_is_dropped() {
-        let decoded = decode(b"\xEF\xBB\xBFtext");
-        assert_eq!(decoded.text, "text");
-        assert_eq!(decoded.notice, None);
+        assert_eq!(decode(b"\xEF\xBB\xBFtext"), (Cow::Borrowed("text"), None));
     }
 
     #[test]
     fn invalid_utf8_is_replaced_with_a_notice() {
-        let decoded = decode(b"a\xFFb");
-        assert_eq!(decoded.text, "a\u{FFFD}b");
-        assert_eq!(decoded.notice, Some(DecodeNotice::InvalidUtf8Replaced));
+        let (text, notice) = decode(b"a\xFFb");
+        assert_eq!(text, "a\u{FFFD}b");
+        assert_eq!(notice, Some(Notice::InvalidUtf8Replaced));
     }
 
     #[test]
-    fn a_byte_order_mark_alone_is_empty_text() {
-        let decoded = decode(b"\xEF\xBB\xBF");
-        assert_eq!(decoded.text, "");
-        assert_eq!(decoded.notice, None);
+    fn line_endings_become_lf() {
+        assert_eq!(decode(b"a\r\nb\rc\n").0, "a\nb\nc\n");
     }
 
     #[test]
     fn empty_input_is_empty_text() {
-        let decoded = decode(b"");
-        assert_eq!(decoded.text, "");
-        assert_eq!(decoded.notice, None);
+        assert_eq!(decode(b""), (Cow::Borrowed(""), None));
+        assert_eq!(decode(b"\xEF\xBB\xBF"), (Cow::Borrowed(""), None));
     }
 }

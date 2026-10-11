@@ -3,79 +3,88 @@
 
 #[cfg(test)]
 mod properties {
-    use gbk_markdown_core::model::{Container, InlineObject, Inlines, LeafKind, LinkTarget};
+    use gbk_markdown_core::model::{
+        Container, InlineObject, Inlines, LEAF_TEXT_BYTES, LeafKind, LinkTarget,
+    };
     use gbk_markdown_core::{Document, load};
     use proptest::prelude::*;
 
     /// Checks every invariant; returns the first broken one.
     fn check(doc: &Document) -> Result<(), String> {
-        for (index, leaf) in doc.leaves.iter().enumerate() {
-            let at = |what: &str| format!("leaf {index}: {what}");
-            match &leaf.kind {
+        check_contexts(doc)?;
+        for (id, leaf) in doc.leaves_with_ids() {
+            let at = |what: &str| format!("leaf {}: {what}", id.index());
+            if let Some(context) = leaf.context() {
+                let context = doc.context(context).ok_or_else(|| at("context id"))?;
+                if context
+                    .parent()
+                    .is_some_and(|parent| doc.context(parent).is_none())
+                {
+                    return Err(at("parent context id"));
+                }
+            }
+            for (context_id, context) in doc.containers(leaf) {
+                // A leaf never comes before its containers' first leaf.
+                let started = doc
+                    .leaves_with_ids()
+                    .take(id.index() + 1)
+                    .any(|(leaf, _)| context.starts_at(leaf));
+                if !started {
+                    return Err(at(&format!(
+                        "container {} has no first leaf at or before it",
+                        context_id.index()
+                    )));
+                }
+            }
+            match leaf.kind() {
                 LeafKind::Paragraph(inlines) | LeafKind::DetailsSummary { inlines, .. } => {
                     check_inlines(doc, inlines).map_err(|e| at(&e))?;
+                    if matches!(leaf.kind(), LeafKind::Paragraph(_))
+                        && inlines.text().len() > LEAF_TEXT_BYTES
+                    {
+                        return Err(at("paragraph leaf over the size cap"));
+                    }
                 }
                 LeafKind::Heading {
                     inlines, anchor, ..
                 } => {
                     check_inlines(doc, inlines).map_err(|e| at(&e))?;
-                    let anchor = doc
-                        .anchors
-                        .get(anchor.index())
-                        .ok_or_else(|| at("anchor"))?;
-                    if anchor.leaf.index() != index {
+                    let anchor = doc.anchor(*anchor).ok_or_else(|| at("anchor"))?;
+                    if anchor.leaf() != id {
                         return Err(at("anchor points elsewhere"));
                     }
                 }
                 LeafKind::Code { block, lines } => {
-                    let code = doc
-                        .code_blocks
-                        .get(block.index())
-                        .ok_or_else(|| at("code"))?;
-                    if lines.start > lines.end || lines.end.index() > code.line_starts.len() {
+                    let code = doc.code_block(*block).ok_or_else(|| at("code"))?;
+                    if lines.start > lines.end || lines.end.index() > code.line_count() {
                         return Err(at("code lines out of range"));
                     }
-                    for start in &code.line_starts {
-                        if !code.text.is_char_boundary(start.index()) {
-                            return Err(at("line start off a char boundary"));
-                        }
+                    if lines.start < lines.end && code.lines(lines).is_none() {
+                        return Err(at("code lines do not slice the text"));
                     }
                 }
                 LeafKind::TableRows { table, rows, .. } => {
-                    let table = doc.tables.get(table.index()).ok_or_else(|| at("table"))?;
-                    if rows.start > rows.end || rows.end.index() > table.rows.len() {
-                        return Err(at("table rows out of range"));
-                    }
-                    for cell in table.header.iter().chain(table.rows.iter().flatten()) {
+                    let table = doc.table(*table).ok_or_else(|| at("table"))?;
+                    let rows = table.row_range(rows).ok_or_else(|| at("table rows"))?;
+                    for cell in table.header().iter().chain(rows.iter().flatten()) {
                         check_inlines(doc, cell).map_err(|e| at(&e))?;
                     }
                 }
                 LeafKind::ThematicBreak | LeafKind::AlertTitle(_) => {}
             }
-            for container in &leaf.containers {
-                if let Container::Footnote { footnote, .. } = container
-                    && doc.footnotes.get(footnote.index()).is_none()
-                {
-                    return Err(at("footnote container id"));
-                }
-            }
         }
-        for (index, anchor) in doc.anchors.iter().enumerate() {
-            match doc.leaves.get(anchor.leaf.index()).map(|leaf| &leaf.kind) {
+        for (index, anchor) in doc.anchors().iter().enumerate() {
+            match doc
+                .leaf(anchor.leaf())
+                .map(gbk_markdown_core::model::Leaf::kind)
+            {
                 Some(LeafKind::Heading { anchor: id, .. }) if id.index() == index => {}
                 _ => return Err(format!("anchor {index} is not its heading's")),
             }
         }
-        for (index, footnote) in doc.footnotes.iter().enumerate() {
-            if footnote.leaves.start > footnote.leaves.end
-                || footnote.leaves.end.index() > doc.leaves.len()
-            {
-                return Err(format!("footnote {index} leaves out of range"));
-            }
-        }
-        for link in &doc.links {
-            if let LinkTarget::Footnote(id) = link.target
-                && doc.footnotes.get(id.index()).is_none()
+        for link in doc.links() {
+            if let LinkTarget::Footnote(id) = link.target()
+                && doc.footnote(*id).is_none()
             {
                 return Err("footnote link id".to_owned());
             }
@@ -83,11 +92,35 @@ mod properties {
         Ok(())
     }
 
+    /// Contexts are created parent first, so a parent's id is always smaller: no cycles. Every
+    /// list item and footnote has a first leaf, to carry its marker.
+    fn check_contexts(doc: &Document) -> Result<(), String> {
+        for (id, context) in doc.contexts_with_ids() {
+            let index = id.index();
+            if context
+                .parent()
+                .is_some_and(|parent| parent.index() >= index)
+            {
+                return Err(format!("context {index}'s parent is not older"));
+            }
+            if matches!(
+                context.container(),
+                Container::ListItem { .. } | Container::Footnote(_)
+            ) && !doc
+                .leaves_with_ids()
+                .any(|(leaf, _)| context.starts_at(leaf))
+            {
+                return Err(format!("context {index} (item or footnote) has no leaf"));
+            }
+        }
+        Ok(())
+    }
+
     fn check_inlines(doc: &Document, inlines: &Inlines) -> Result<(), String> {
-        let text = &inlines.text;
+        let text = inlines.text();
         let mut previous_end = 0;
-        for span in &inlines.spans {
-            let (start, end) = (span.range.start.index(), span.range.end.index());
+        for span in inlines.spans() {
+            let (start, end) = (span.range().start.index(), span.range().end.index());
             if start >= end {
                 return Err(format!("empty or reversed span {start}..{end}"));
             }
@@ -99,30 +132,26 @@ mod properties {
                     "span {start}..{end} not on char boundaries of {text:?}"
                 ));
             }
-            if let Some(link) = span.link
-                && doc.links.get(link.index()).is_none()
+            if let Some(link) = span.link()
+                && doc.link(link).is_none()
             {
                 return Err("span link id".to_owned());
             }
             previous_end = end;
         }
-        for (offset, object) in &inlines.objects {
+        for (offset, object) in inlines.objects() {
             if !text
                 .get(offset.index()..)
                 .is_some_and(|rest| rest.starts_with(Inlines::OBJECT))
             {
                 return Err("object offset not at U+FFFC".to_owned());
             }
-            match object {
-                InlineObject::Image(id) => {
-                    if doc.images.get(id.index()).is_none() {
-                        return Err("image id".to_owned());
-                    }
-                }
+            let InlineObject::Image(id) = object;
+            if doc.image(*id).is_none() {
+                return Err("image id".to_owned());
             }
         }
-        let markers = text.matches(Inlines::OBJECT).count();
-        if markers < inlines.objects.len() {
+        if text.matches(Inlines::OBJECT).count() < inlines.objects().len() {
             return Err("fewer U+FFFC than objects".to_owned());
         }
         Ok(())
@@ -135,11 +164,15 @@ mod properties {
             Just("## ".to_owned()),
             Just("\n".to_owned()),
             Just("\n\n".to_owned()),
+            Just("\r\n".to_owned()),
             Just("- ".to_owned()),
+            Just("  - ".to_owned()),
             Just("1. ".to_owned()),
             Just("- [x] ".to_owned()),
             Just("> ".to_owned()),
             Just("> [!NOTE]\n".to_owned()),
+            Just(">[!tip]\n".to_owned()),
+            Just("> [!NOTE] Title\n".to_owned()),
             Just("```\n".to_owned()),
             Just("    ".to_owned()),
             Just("| a | b |\n|---|:-:|\n".to_owned()),
@@ -154,16 +187,25 @@ mod properties {
             Just("[^1]".to_owned()),
             Just("[^1]: note\n".to_owned()),
             Just("<details>".to_owned()),
+            Just("<details open>".to_owned()),
             Just("<summary>s</summary>".to_owned()),
+            Just("<summary>".to_owned()),
+            Just("</summary>".to_owned()),
             Just("</details>".to_owned()),
             Just("<div align=\"center\">".to_owned()),
             Just("</div>".to_owned()),
             Just("<pre>".to_owned()),
             Just("</pre>".to_owned()),
             Just("<blockquote>".to_owned()),
+            Just("</blockquote>".to_owned()),
+            Just("<a href=\"x\">".to_owned()),
+            Just("</a>".to_owned()),
             Just("<b>".to_owned()),
             Just("</b>".to_owned()),
+            Just("<script>".to_owned()),
+            Just("<video src=\"v.mp4\">".to_owned()),
             Just("<img src=\"x\">".to_owned()),
+            Just("<br>".to_owned()),
             Just("<!-- c -->".to_owned()),
             Just("---\n".to_owned()),
             Just("https://example.com ".to_owned()),
@@ -197,7 +239,11 @@ mod properties {
             let bytes = std::fs::read(&input).expect("input");
             let doc = load(&bytes);
             assert_eq!(check(&doc), Ok(()), "{}", input.display());
-            assert!(!doc.leaves.is_empty(), "{} has no leaves", input.display());
+            assert!(
+                !doc.leaves().is_empty(),
+                "{} has no leaves",
+                input.display()
+            );
             loaded += 1;
         }
         assert!(loaded >= 23, "found only {loaded} corpus inputs");

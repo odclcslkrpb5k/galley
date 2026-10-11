@@ -1,16 +1,16 @@
 //! The only place comrak is used (docs/plan.md §3): parse with GitHub's options, then walk
 //! comrak's tree into `Builder` calls. No comrak type leaves this module; the gate's boundary
-//! check refuses `comrak` anywhere else.
+//! check refuses comrak code anywhere else.
 
 use std::collections::HashMap;
 
 use comrak::nodes::{AlertType, AstNode, ListDelimType, ListType, NodeValue, TableAlignment};
 use comrak::{Anchorizer, Arena, Options, parse_document};
 
-use crate::builder::{Builder, InlineBuilder};
+use crate::builder::{Builder, ContainerToken, InlineBuilder};
 use crate::model::{
-    AlertKind, Align, Container, Delimiter, Document, HeadingLevel, InlineObject, ListItem, Marker,
-    Style, Table,
+    AlertKind, Align, Container, Delimiter, Document, HeadingLevel, InlineObject, Marker, Style,
+    Table,
 };
 use crate::units::FootnoteId;
 
@@ -60,13 +60,15 @@ pub(crate) fn gfm_options() -> Options<'static> {
 }
 
 /// Parses Markdown text into the model.
-pub(crate) fn parse(text: &str, builder: Builder) -> Document {
+pub(crate) fn parse(text: &str, mut builder: Builder) -> Document {
     let arena = Arena::new();
     let root = parse_document(&arena, text, &gfm_options());
+    let footnotes = register_footnotes(root, &mut builder);
     let mut walker = Walker {
         builder,
-        footnotes: footnote_numbers(root),
-        alert_prefix: None,
+        source: text,
+        footnotes,
+        lowered_footnotes: Vec::new(),
     };
     walker.block(root);
     walker.builder.finish()
@@ -79,37 +81,58 @@ pub(crate) fn github_slugger() -> crate::builder::Slugger {
     Box::new(move |text: &str| anchorizer.anchorize(text))
 }
 
-/// Footnote ids and numbers by label. comrak moves definitions to the end of the document in
-/// order of first reference, and drops unreferenced ones, so that order is GitHub's numbering;
-/// ids follow the same order because definitions are lowered in it.
-fn footnote_numbers<'a>(root: &'a AstNode<'a>) -> HashMap<String, (FootnoteId, u32)> {
-    let mut numbers = HashMap::new();
-    let mut next = 0;
+/// Registers the footnotes, numbered as GitHub shows them. comrak moves definitions to the end
+/// of the document in order of first reference and drops unreferenced ones; a label defined
+/// twice keeps its first definition.
+fn register_footnotes<'a>(
+    root: &'a AstNode<'a>,
+    builder: &mut Builder,
+) -> HashMap<String, (FootnoteId, usize)> {
+    let mut footnotes = HashMap::new();
     for child in root.children() {
-        if let NodeValue::FootnoteDefinition(definition) = &child.data().value {
-            next += 1;
-            numbers.insert(
-                definition.name.clone(),
-                (FootnoteId::new(numbers.len()), next),
-            );
+        if let NodeValue::FootnoteDefinition(definition) = &child.data().value
+            && !footnotes.contains_key(&definition.name)
+        {
+            let number = footnotes.len() + 1;
+            let id = builder.add_footnote(&definition.name, number);
+            footnotes.insert(definition.name.clone(), (id, number));
         }
     }
-    numbers
+    footnotes
 }
 
-struct Walker {
+struct Walker<'s> {
     builder: Builder,
-    footnotes: HashMap<String, (FootnoteId, u32)>,
-    /// For an alert with a custom title, which GitHub shows as a plain quote: the marker line,
-    /// to put in front of the quote's first paragraph.
-    alert_prefix: Option<String>,
+    /// The Markdown text, for what comrak's tree does not keep (a custom alert title as written).
+    source: &'s str,
+    footnotes: HashMap<String, (FootnoteId, usize)>,
+    lowered_footnotes: Vec<FootnoteId>,
 }
 
-impl Walker {
+impl Walker<'_> {
     fn children<'a>(&mut self, node: &'a AstNode<'a>) {
         for child in node.children() {
             self.block(child);
         }
+    }
+
+    /// Lowers `node`'s children inside `container`. A list item or footnote always gets a leaf,
+    /// to carry its marker.
+    fn container<'a>(&mut self, container: Container, node: &'a AstNode<'a>) {
+        let needs_leaf = matches!(
+            container,
+            Container::ListItem { .. } | Container::Footnote(_)
+        );
+        let token = self.builder.begin_container(container);
+        self.children(node);
+        self.close(token, needs_leaf);
+    }
+
+    fn close(&mut self, token: ContainerToken, needs_leaf: bool) {
+        if needs_leaf {
+            self.builder.ensure_started(token);
+        }
+        self.builder.end_container(token);
     }
 
     #[expect(
@@ -117,8 +140,8 @@ impl Walker {
         reason = "one arm per comrak block type, each short; splitting would scatter the mapping"
     )]
     fn block<'a>(&mut self, node: &'a AstNode<'a>) {
-        let value = node.data().value.clone();
-        match value {
+        let data = node.data();
+        match &data.value {
             NodeValue::Document
             | NodeValue::DescriptionList
             | NodeValue::DescriptionItem(_)
@@ -133,60 +156,56 @@ impl Walker {
                     .filter(|line| line.trim_end() != "---")
                     .collect();
                 let body = lines.join("\n");
-                self.builder.code_block("yaml", body.trim_end_matches('\n'));
+                let body = body.trim_end_matches('\n');
+                let literal = if body.is_empty() {
+                    String::new()
+                } else {
+                    format!("{body}\n")
+                };
+                self.builder.code_block("yaml", &literal);
             }
             NodeValue::BlockQuote | NodeValue::MultilineBlockQuote(_) => {
-                self.builder.begin_container(Container::Quote);
-                self.children(node);
-                self.builder.end_container();
+                if let Some(kind) = unspaced_alert(node) {
+                    self.unspaced_alert(kind, node);
+                } else {
+                    self.container(Container::Quote, node);
+                }
             }
             NodeValue::Alert(alert) => {
                 let kind = alert_kind(alert.alert_type);
-                if let Some(title) = alert.title {
+                if alert.title.is_some() {
                     // GitHub does not support custom alert titles: it shows a plain quote whose
-                    // first line is the marker as written.
-                    self.builder.begin_container(Container::Quote);
-                    self.alert_prefix = Some(format!("{} {}", kind.marker(), title.trim()));
-                    self.children(node);
-                    if let Some(prefix) = self.alert_prefix.take() {
-                        let mut inlines = InlineBuilder::new();
-                        inlines.text(&prefix);
-                        self.builder.paragraph(inlines);
-                    }
+                    // first line is the marker line as written.
+                    let line = data.sourcepos.start.line;
+                    self.titled_alert(line, node);
                 } else {
-                    self.builder.begin_alert(kind);
+                    let token = self.builder.begin_alert(kind);
                     self.children(node);
+                    self.close(token, false);
                 }
-                self.builder.end_container();
             }
             NodeValue::List(list) => {
-                let start = u64::try_from(list.start).unwrap_or(u64::MAX);
-                for (offset, item) in (0_u64..).zip(node.children()) {
+                for (offset, item) in node.children().enumerate() {
                     let marker = match (&item.data().value, list.list_type) {
                         (NodeValue::TaskItem(task), _) => Marker::Task {
                             checked: task.symbol.is_some(),
                         },
                         (_, ListType::Bullet) => Marker::Bullet,
                         (_, ListType::Ordered) => Marker::Ordered {
-                            number: start.saturating_add(offset),
+                            number: list.start.saturating_add(offset),
                             delimiter: match list.delimiter {
                                 ListDelimType::Period => Delimiter::Period,
                                 ListDelimType::Paren => Delimiter::Paren,
                             },
                         },
                     };
-                    self.builder.begin_container(Container::ListItem(ListItem {
-                        marker,
-                        tight: list.tight,
-                        show_marker: true,
-                    }));
-                    if item.first_child().is_none() {
-                        // An empty item still shows its marker.
-                        self.builder.paragraph(InlineBuilder::new());
-                    } else {
-                        self.children(item);
-                    }
-                    self.builder.end_container();
+                    self.container(
+                        Container::ListItem {
+                            marker,
+                            tight: list.tight,
+                        },
+                        item,
+                    );
                 }
             }
             NodeValue::Item(_) | NodeValue::TaskItem(_) => {
@@ -199,32 +218,30 @@ impl Walker {
             }
             NodeValue::HtmlBlock(html) => self.builder.html_block(&html.literal),
             NodeValue::Paragraph => {
-                let mut inlines = InlineBuilder::new();
-                if let Some(prefix) = self.alert_prefix.take() {
-                    inlines.text(&prefix);
-                    inlines.text(" ");
-                }
+                let mut inlines = self.builder.inline_builder();
                 self.inlines(node, &mut inlines);
                 self.builder.paragraph(inlines);
             }
             NodeValue::Heading(heading) => {
-                let mut inlines = InlineBuilder::new();
+                let mut inlines = self.builder.inline_builder();
                 self.inlines(node, &mut inlines);
-                self.builder.heading(
-                    HeadingLevel::clamped(heading.level),
-                    inlines,
-                    &node.collect_text(),
-                );
+                let mut slug = String::new();
+                github_text(node, &mut slug);
+                match HeadingLevel::from_number(heading.level) {
+                    Some(level) => self.builder.heading(level, inlines, &slug),
+                    // comrak's levels are 1-6; a level outside them would show as a paragraph.
+                    None => self.builder.paragraph(inlines),
+                }
             }
             NodeValue::ThematicBreak => self.builder.thematic_break(),
             NodeValue::FootnoteDefinition(definition) => {
-                let number = self
-                    .footnotes
-                    .get(&definition.name)
-                    .map_or(0, |&(_id, number)| number);
-                let id = self.builder.begin_footnote(&definition.name, number);
-                self.children(node);
-                self.builder.end_footnote(id);
+                // A label defined twice: GitHub keeps the first definition.
+                if let Some(&(id, _number)) = self.footnotes.get(&definition.name)
+                    && !self.lowered_footnotes.contains(&id)
+                {
+                    self.lowered_footnotes.push(id);
+                    self.container(Container::Footnote(id), node);
+                }
             }
             NodeValue::Table(table) => {
                 let mut header = Vec::new();
@@ -234,9 +251,9 @@ impl Walker {
                     let cells: Vec<_> = row
                         .children()
                         .map(|cell| {
-                            let mut inlines = InlineBuilder::new();
+                            let mut inlines = self.builder.inline_builder();
                             self.inlines(cell, &mut inlines);
-                            inlines.finish()
+                            self.builder.finish_inlines(inlines)
                         })
                         .collect();
                     if is_header {
@@ -276,11 +293,64 @@ impl Walker {
             | NodeValue::Subscript
             | NodeValue::SpoileredText
             | NodeValue::EscapedTag(_) => {
-                let mut inlines = InlineBuilder::new();
+                let mut inlines = self.builder.inline_builder();
                 self.inline(node, &mut inlines);
                 self.builder.paragraph(inlines);
             }
         }
+    }
+
+    /// `>[!TIP]` with no space after `>`: comrak reads a plain quote, GitHub an alert. The
+    /// marker text (and the line break after it) is not shown.
+    fn unspaced_alert<'a>(&mut self, kind: AlertKind, node: &'a AstNode<'a>) {
+        let token = self.builder.begin_alert(kind);
+        for (index, child) in node.children().enumerate() {
+            if index == 0 {
+                let mut inlines = self.builder.inline_builder();
+                for inline in child.children().skip(2) {
+                    self.inline(inline, &mut inlines);
+                }
+                self.builder.paragraph(inlines);
+            } else {
+                self.block(child);
+            }
+        }
+        self.close(token, false);
+    }
+
+    /// An alert with a custom title, which GitHub shows as a plain quote whose first line is the
+    /// marker line as written (case kept, inline Markdown parsed), joined to the first paragraph
+    /// by a soft break or standing alone before a non-paragraph.
+    fn titled_alert<'a>(&mut self, line: usize, node: &'a AstNode<'a>) {
+        let marker_line = line
+            .checked_sub(1)
+            .and_then(|index| self.source.lines().nth(index))
+            .map_or("", |text| {
+                let text = text.trim_start();
+                let text = text.strip_prefix('>').unwrap_or(text);
+                text.strip_prefix(' ').unwrap_or(text)
+            })
+            .trim_end();
+        let token = self.builder.begin_container(Container::Quote);
+        let mut prefix = self.builder.inline_builder();
+        let arena = Arena::new();
+        let parsed = parse_document(&arena, marker_line, &gfm_options());
+        for paragraph in parsed.children() {
+            self.inlines(paragraph, &mut prefix);
+        }
+        let mut children = node.children().peekable();
+        if let Some(first) = children.peek()
+            && matches!(first.data().value, NodeValue::Paragraph)
+        {
+            prefix.text(" ");
+            self.inlines(first, &mut prefix);
+            children.next();
+        }
+        self.builder.paragraph(prefix);
+        for child in children {
+            self.block(child);
+        }
+        self.close(token, false);
     }
 
     fn inlines<'a>(&mut self, node: &'a AstNode<'a>, inlines: &mut InlineBuilder) {
@@ -290,28 +360,41 @@ impl Walker {
     }
 
     fn styled<'a>(&mut self, node: &'a AstNode<'a>, inlines: &mut InlineBuilder, style: Style) {
-        inlines.begin_style(style);
+        let token = inlines.begin_style(style);
         self.inlines(node, inlines);
-        inlines.end_style();
+        inlines.end_style(token);
     }
 
     fn inline<'a>(&mut self, node: &'a AstNode<'a>, inlines: &mut InlineBuilder) {
-        let value = node.data().value.clone();
-        match value {
-            NodeValue::Text(text) => inlines.text(&text),
+        let data = node.data();
+        match &data.value {
+            NodeValue::Text(text) => {
+                // A newline in text (from `&#10;`) is whitespace, as in a browser; hard breaks
+                // are their own node.
+                if text.contains('\n') {
+                    inlines.text(&text.replace('\n', " "));
+                } else {
+                    inlines.text(text);
+                }
+            }
             NodeValue::SoftBreak => inlines.text(" "),
             NodeValue::LineBreak => inlines.text("\n"),
             NodeValue::Code(code) => {
-                inlines.begin_style(Style::CODE);
+                let token = inlines.begin_style(Style::CODE);
                 inlines.text(&code.literal);
-                inlines.end_style();
+                inlines.end_style(token);
             }
             NodeValue::Math(math) => {
-                inlines.begin_style(Style::MATH);
+                let style = if math.display_math {
+                    Style::DISPLAY_MATH
+                } else {
+                    Style::MATH
+                };
+                let token = inlines.begin_style(style);
                 inlines.text(&math.literal);
-                inlines.end_style();
+                inlines.end_style(token);
             }
-            NodeValue::HtmlInline(html) => self.builder.html_inline(inlines, &html),
+            NodeValue::HtmlInline(html) => self.builder.html_inline(inlines, html),
             NodeValue::Emph => self.styled(node, inlines, Style::EMPHASIS),
             NodeValue::Strong => self.styled(node, inlines, Style::STRONG),
             NodeValue::Strikethrough => self.styled(node, inlines, Style::STRIKETHROUGH),
@@ -323,9 +406,9 @@ impl Walker {
             NodeValue::Highlight => self.styled(node, inlines, Style::HIGHLIGHT),
             NodeValue::Link(link) => {
                 let id = self.builder.add_link(&link.url, &link.title);
-                inlines.begin_link(id);
+                let token = inlines.begin_link(id);
                 self.inlines(node, inlines);
-                inlines.end_link();
+                inlines.end_link(token);
             }
             NodeValue::Image(link) => {
                 let id = self
@@ -334,21 +417,23 @@ impl Walker {
                 inlines.object(InlineObject::Image(id));
             }
             NodeValue::FootnoteReference(reference) => {
+                // comrak only makes reference nodes for defined footnotes; were that ever not
+                // so, the reference shows as written rather than with a made-up number.
                 if let Some(&(footnote, number)) = self.footnotes.get(&reference.name) {
                     let link = self.builder.add_footnote_link(footnote);
-                    inlines.begin_link(link);
-                    inlines.begin_style(Style::FOOTNOTE_REFERENCE);
+                    let link_token = inlines.begin_link(link);
+                    let style_token = inlines.begin_style(Style::FOOTNOTE_REFERENCE);
                     inlines.text(&number.to_string());
-                    inlines.end_style();
-                    inlines.end_link();
+                    inlines.end_style(style_token);
+                    inlines.end_link(link_token);
                 } else {
                     inlines.text(&format!("[^{}]", reference.name));
                 }
             }
             NodeValue::EscapedTag(tag) => inlines.text(tag),
-            NodeValue::Raw(text) => inlines.text(&text),
-            // Containers of inline content; blocks never appear inside inline content, but if one
-            // did, its text is still kept.
+            NodeValue::Raw(text) => inlines.text(text),
+            // Containers of inline content; blocks never appear inside inline content, but if
+            // one did, its text is still kept.
             NodeValue::Escaped
             | NodeValue::WikiLink(_)
             | NodeValue::SpoileredText
@@ -377,6 +462,81 @@ impl Walker {
             | NodeValue::BlockDirective(_) => self.inlines(node, inlines),
         }
     }
+}
+
+/// The text GitHub slugs a heading from: its rendered text content. Images contribute nothing
+/// (alt text is an attribute), raw HTML tags nothing, and line breaks a newline, which the
+/// slugger drops.
+fn github_text<'a>(node: &'a AstNode<'a>, out: &mut String) {
+    for child in node.children() {
+        let data = child.data();
+        match &data.value {
+            NodeValue::Text(text) => out.push_str(text),
+            NodeValue::Code(code) => out.push_str(&code.literal),
+            NodeValue::Math(math) => out.push_str(&math.literal),
+            NodeValue::SoftBreak | NodeValue::LineBreak => out.push('\n'),
+            NodeValue::Image(_) | NodeValue::HtmlInline(_) | NodeValue::FootnoteReference(_) => {}
+            NodeValue::Document
+            | NodeValue::FrontMatter(_)
+            | NodeValue::BlockQuote
+            | NodeValue::List(_)
+            | NodeValue::Item(_)
+            | NodeValue::DescriptionList
+            | NodeValue::DescriptionItem(_)
+            | NodeValue::DescriptionTerm
+            | NodeValue::DescriptionDetails
+            | NodeValue::CodeBlock(_)
+            | NodeValue::HtmlBlock(_)
+            | NodeValue::Paragraph
+            | NodeValue::Heading(_)
+            | NodeValue::ThematicBreak
+            | NodeValue::FootnoteDefinition(_)
+            | NodeValue::Table(_)
+            | NodeValue::TableRow(_)
+            | NodeValue::TableCell
+            | NodeValue::TaskItem(_)
+            | NodeValue::Raw(_)
+            | NodeValue::Emph
+            | NodeValue::Strong
+            | NodeValue::Strikethrough
+            | NodeValue::Highlight
+            | NodeValue::Insert
+            | NodeValue::Superscript
+            | NodeValue::Link(_)
+            | NodeValue::MultilineBlockQuote(_)
+            | NodeValue::Escaped
+            | NodeValue::WikiLink(_)
+            | NodeValue::Underline
+            | NodeValue::Subscript
+            | NodeValue::SpoileredText
+            | NodeValue::EscapedTag(_)
+            | NodeValue::Alert(_)
+            | NodeValue::Subtext
+            | NodeValue::BlockDirective(_) => github_text(child, out),
+        }
+    }
+}
+
+/// A quote whose first paragraph is exactly `[!KIND]` and a line break (or nothing): written
+/// `>[!TIP]`, which comrak's alert parser misses and GitHub accepts.
+fn unspaced_alert<'a>(node: &'a AstNode<'a>) -> Option<AlertKind> {
+    let paragraph = node.first_child()?;
+    if !matches!(paragraph.data().value, NodeValue::Paragraph) {
+        return None;
+    }
+    let marker = paragraph.first_child()?;
+    let NodeValue::Text(text) = &marker.data().value else {
+        return None;
+    };
+    let name = text.trim().strip_prefix("[!")?.strip_suffix(']')?;
+    let kind = AlertKind::from_marker(name)?;
+    let next_is_break = marker.next_sibling().is_none_or(|next| {
+        matches!(
+            next.data().value,
+            NodeValue::SoftBreak | NodeValue::LineBreak
+        )
+    });
+    next_is_break.then_some(kind)
 }
 
 fn alert_kind(alert: AlertType) -> AlertKind {

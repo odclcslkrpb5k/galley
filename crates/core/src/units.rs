@@ -41,6 +41,10 @@ index_type!(
     LeafId
 );
 index_type!(
+    /// A container (quote, list item, ...) in the document's context tree.
+    ContextId
+);
+index_type!(
     /// A link in `Document::links`.
     LinkId
 );

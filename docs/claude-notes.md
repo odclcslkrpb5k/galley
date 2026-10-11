@@ -139,4 +139,18 @@ Not repeated here, so there is one source each (an earlier copy here drifted fro
   whitespace hid dropped soft breaks, so it now keeps word gaps.
   Open for M2: table-1mb loads in 75 ms (profile comrak vs lowering); renderer still uses
   spike paragraphs.
+- 2026-10-11: M1 review follow-up (three reviews: correctness/fidelity 17 findings, performance
+  8, coherence 11). Rebuilt raw-HTML handling around one document-wide tag stack (scopes,
+  cached derived state, O(1) closers, depth cap 256, deferred closes when Markdown containers
+  are open inside an HTML container); Markdown styles/links by #[must_use] tokens; context tree
+  instead of per-leaf container stacks; private model fields + accessors; 16 KiB leaf cap;
+  GitHub tag filter (shown as text, verified against github.com); heading slugs from GitHub's
+  text content (checked against all 600 corpus ids); `>[!tip]` alerts; titled alerts from the
+  source line; footnote first-definition-wins; CRLF normalised; protocol-relative links;
+  `<details open>`; video/audio as links; summaries collect until `</summary>`. Oracles now
+  compare link targets, list numbers, checkboxes, code info, alert kinds, images, hard breaks.
+  App spike now renders core::load's leaves as plain text.
+  Process lesson: `cargo fmt` (run inside in-docker) rewrites files, which makes the next
+  whole-file Write fail as "modified since read" - three times this milestone. Fix used: read
+  one line of a file before rewriting it whole.
 

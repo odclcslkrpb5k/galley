@@ -239,7 +239,6 @@ dependencies = [
  "comrak",
  "html5gum",
  "proptest",
- "thiserror",
 ]
 
 [[package]]

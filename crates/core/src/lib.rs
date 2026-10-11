@@ -11,20 +11,16 @@ pub mod model;
 mod parse;
 pub mod units;
 
-pub use decode::{DecodeNotice, Decoded, decode};
 pub use model::Document;
 
 /// Loads a Markdown file's bytes into a document. Never fails: invalid UTF-8 is replaced and
 /// noted in `Document::notices`.
 #[must_use]
 pub fn load(bytes: &[u8]) -> Document {
-    let Decoded { text, notice } = decode(bytes);
+    let (text, notice) = decode::decode(bytes);
     let mut builder = builder::Builder::new(parse::github_slugger());
-    match notice {
-        Some(DecodeNotice::InvalidUtf8Replaced) => {
-            builder.notice(model::Notice::InvalidUtf8Replaced);
-        }
-        None => {}
+    if let Some(notice) = notice {
+        builder.notice(notice);
     }
     parse::parse(&text, builder)
 }

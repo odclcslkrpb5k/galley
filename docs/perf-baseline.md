@@ -151,3 +151,26 @@ stay off the critical path except possibly table-1mb. Where table-1mb's time goe
 parsing or our lowering) is for M2 to find. The flat model removes M0's 20-35 s layout of the
 1 MB table and code fixtures: both are now chunked into leaves of ≤ 50 rows / 200 lines.
 
+
+### M1 review follow-up (2026-10-11): `load` time after the fixes
+
+Same method; machine load 3.6 (noisy, compare within the table only):
+
+| Input | Leaves | Median before | Median after |
+|---|---|---|---|
+| ripgrep README | 148 | 0.6 ms | 0.5 ms |
+| readme-200kb | 1829 | 5.6 ms | 5.2 ms |
+| awesome-rust | 2355 | 6.4 ms | 7.4 ms |
+| list-1mb | 6132 | 26.6 ms | 19.9 ms |
+| code-1mb | 106 | 2.9 ms | 1.8 ms |
+| table-1mb | 237 | 75.2 ms | 82.5 ms (min 66.0) |
+
+The walker borrows comrak's nodes instead of cloning them (the review measured 25-35% fewer
+allocations). table-1mb is ~80% comrak's own table parsing (review profile: 57-60 ms of
+72-88 ms); our share is ~13-15 ms. It runs on the loader thread during the window map; M2's
+`loader_wait_us` shows whether it ever reaches the critical path.
+
+Pathological inputs that took 0.5-19 s before (unclosed tags across blocks, stray closing
+tags) are now linear: the HTML stack caches its state per entry, rejects unmatched closers in
+O(1) and is capped at 256 deep. `crates/core/tests/scaling.rs` gates this (4× input must take
+< 8× time; a planted quadratic bug measured 15-16×).

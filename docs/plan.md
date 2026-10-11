@@ -89,58 +89,57 @@ idle / worker: measure remaining leaf heights ─► Fenwick tree ─► exact s
 `core::load`: decode (UTF-8; otherwise lossy with a `Notice`), parse (comrak with `gfm_options()`),
 lower (AST → `Document`; comrak types end here).
 
-### 4.2 Document model: a flat list of leaves
+### 4.2 Document model: a flat list of leaves in a context tree
 
-Virtualising per top-level block failed for exactly the documents the 1 MB budget exists for:
-an awesome-list is a few huge `List` blocks, a log is one 10 000-line code fence, a generated table
-has thousands of rows. Both reviewers flagged this as the blocker. So the model is **flat**:
+As built in M1 (`crates/core/src/model.rs`; read-only outside `core`: private fields with
+accessors, `load` the only constructor, so the invariants below cannot be broken by hand).
 
-```rust
-struct Document { leaves: Vec<Leaf>, links: Vec<Link>, footnotes: Vec<Footnote>,
-                  anchors: Vec<(Anchor, LeafId)>, notices: Vec<Notice> }
-
-struct Leaf { kind: LeafKind, ctx: Context }
-
-// Container context, drawn per leaf: quote bars, alert colour, list indent and marker.
-struct Context { quote_depth: u8, alert: Option<AlertKind>, list: SmallVec<[ListLevel; 4]>,
-                 first_in_item: Option<ItemMarker>, align: Align, details: Option<DetailsId> }
-
-enum LeafKind {
-    Heading { level: u8, inlines: Inlines, anchor: AnchorId },
-    Paragraph { inlines: Inlines },
-    CodeChunk { block: CodeBlockId, lines: Range<LineNo> },   // ≤ 200 lines per chunk
-    TableRows { table: TableId, rows: Range<RowIdx> },        // ≤ 50 rows per chunk
-    Math { literal: String, display: bool },
-    ThematicBreak,
-    DetailsSummary { details: DetailsId, inlines: Inlines },
-    FootnoteDefStart { footnote: FootnoteId },
-    Notice(NoticeKind),            // e.g. "raw HTML omitted", "invalid UTF-8 replaced"
-}
-
-enum ItemMarker { Bullet, Ordered(u64), Task { checked: bool } }   // + nested task items
-```
-
-- Tables keep one `Table { aligns, header: Row, rows: Vec<Row> }` referenced by chunks. Column
-  widths start from the header and the first 50 rows, then are refined in idle work (§4.3).
-- Code blocks keep one `CodeBlock { info, text, line_starts }` referenced by chunks.
-- Footnotes are stored once (`Footnote { label, ix, leaves: Range<LeafId> }`); definitions render
-  at the end, as on GitHub.
+- **Leaves.** A `Document` is a flat `Vec<Leaf>`. A leaf is one unit of layout:
+  `Paragraph(Inlines)`, `Heading { level, inlines, anchor }`, `Code { block, lines }` (≤ 200
+  lines and ≤ 16 KiB), `TableRows { table, rows, with_header }` (≤ 50 rows), `ThematicBreak`,
+  `AlertTitle(kind)`, `DetailsSummary { details, inlines }`. Paragraphs over 16 KiB
+  (`LEAF_TEXT_BYTES`) are split at a space into several leaves, so no leaf can stall layout.
+- **Contexts.** Containers form a tree: `Context { container, parent, first_leaf }`, and each
+  leaf points at its innermost context (`Leaf::context`). `Container` is `Quote`,
+  `Alert(kind)`, `ListItem { marker, tight }`, `Footnote(id)`, `Details { id, open }`. A list
+  marker or footnote number is drawn on its context's first leaf (`Context::starts_at`).
+  `Document::containers(leaf)` walks innermost first.
+- **Side tables.** `links`, `images`, `footnotes` (label, number), `tables` (alignments, header,
+  rows of `Inlines`), `code_blocks` (info, text, line starts), `anchors` (slug, heading leaf),
+  `notices` (invalid UTF-8, HTML nested too deep). Ids are index newtypes (`units.rs`).
+- **Markers.** `Marker::Bullet`, `Ordered { number, delimiter }`, `Task { checked }`.
+- **Positions** are (leaf, `ByteOffset`); `Inlines::offset` turns a Pango byte index into one,
+  refusing non-boundaries.
+- **Exhaustive enums**, deliberately not `#[non_exhaustive]`: across crates that would force
+  wildcard arms, which `wildcard_enum_match_arm` refuses, and an exhaustive `match` in the
+  renderer is what turns a new variant into a compile error.
 
 ### 4.3 Inlines
 
-```rust
-struct Inlines { text: String, spans: Vec<Span>, objects: Vec<(ByteOffset, InlineObject)> }
-struct Span { range: Range<ByteOffset>, flags: StyleFlags, link: Option<LinkId> }
-enum InlineObject { Image(ImageId), Checkbox(bool) }
-```
+`Inlines { text, spans, objects }`: one `String`; sorted, non-overlapping `Span { range, style,
+link }` only where not plain; `objects` are images standing at U+FFFC. `Style` is a bitset:
+emphasis, strong, strikethrough, code, keyboard, sub/superscript, inline and display math,
+footnote reference, underline (`<u>`, `<ins>`), highlight (`<mark>`). Soft breaks are spaces,
+hard breaks `\n`; a newline from a character reference is a space, as in a browser. Footnote
+references are their number in the text. Image alt text is flattened to plain text.
 
-- Spans are coalesced and non-overlapping; `StyleFlags` is a bitset (emph, strong, strike, code,
-  kbd, sub, sup).
-- Inline objects are U+FFFC in `text` plus a `pango::AttrShape`, drawn at positions from
-  `LayoutIter`. A badge image inside a link is covered by the link span.
-- Image alt text is flattened to plain text. Footnote references are their number in the text
-  (selectable, findable). Hard break → `\n`; soft break → space.
-- Hit-testing: `Layout::xy_to_index`, then a binary search over spans.
+The builder opens Markdown styles and links with `#[must_use]` tokens that close exactly what
+they opened, separate from HTML's, so interleaved Markdown and HTML (`*a <b>b* c</b>`) style as
+a browser would.
+
+### Changed from the plan in M1, and why
+
+- `Context` per leaf became a context tree with `first_leaf`: a stack copied into every leaf
+  made memory quadratic in nesting depth (M1 performance review) and needed a `show_marker`
+  flag kept in step by hand.
+- `ItemMarker` became `Marker` with a `Delimiter`; `Notice` leaves became document notices
+  (the viewer has nothing per-leaf to say yet); `Math { display }` leaves became the `MATH` /
+  `DISPLAY_MATH` styles inside a paragraph, which is where comrak puts math.
+- `InlineObject::Checkbox` was dropped: the checkbox is the list item's `Marker::Task`.
+- Added `AlertTitle`, `TableRows.with_header`, `Footnote.number`, `Details.open`, and the 16 KiB
+  leaf cap.
+- `anchors` is `Vec<Anchor { slug, leaf }>`; `Document::anchor_leaf` resolves a fragment
+  (with or without `user-content-`).
 
 ### 4.4 Startup path
 
@@ -227,16 +226,16 @@ asserting its effect (Engineer).
 | Headings, paragraphs, breaks, emphasis, strong, code spans, strikethrough | native | M2 |
 | Code blocks | chunked monospace; horizontal scroll | M2 |
 | Quotes, lists (nested, tight/loose), thematic break | leaf context | M2 |
-| Task lists | `ItemMarker::Task`; comrak's separate `TaskItem` node | M3 |
+| Task lists | `Marker::Task`; comrak's separate `TaskItem` node | M3 |
 | Tables, alignment | chunked rows; widths from the first rows, refined | M3 |
 | Links, autolinks | clickable; fragment → anchor (`#x` and `#user-content-x`); relative `.md` opens in viewer; others via `gtk::UriLauncher` | M3 |
 | Relative paths | `{path, query, fragment}`, percent-decoded; `/x` resolves from the repo root (walk up to `.git`); images resolve from the document's directory | M3 |
 | Footnotes | number in text; definitions at end; click to jump | M3 |
-| Alerts | coloured bar + title. comrak accepts `> [!NOTE] Custom title`; GitHub renders it as a plain quote (verified in the corpus), so an alert with a title is demoted to a quote. Lower-case `[!note]` is an alert on GitHub | M3 |
-| Heading anchors | `comrak::Anchorizer` per document during lowering (`header_ids` no longer exists; ids are not in the AST) | M3 |
+| Alerts | coloured bar + title. comrak accepts `> [!NOTE] Custom title`; GitHub renders it as a plain quote (verified in the corpus), so it is a quote starting with the marker line as written. `>[!TIP]` without a space is an alert on GitHub (corpus: bat) though comrak misses it; the walker recognises it. Lower-case `[!note]` is an alert. Alerts nested in lists: comrak makes them alerts; whether GitHub does is unverified | M3 |
+| Heading anchors | `comrak::Anchorizer` per document, over GitHub's text content (image alt left out, line breaks dropped); checked against every heading id in the corpus. Raw `<a id>` anchors are not yet link targets (M3) | M1 |
 | **Raw HTML** | lowered into the model, not shown as source (§5.1) | M3 |
 | Front matter | GitHub renders a key/value table (verified in the corpus); v1 renders a code block, recorded as a known deviation | M3 |
-| Math | parsed so `$a_b$` is not mangled; shown monospace | M3 |
+| Math | parsed so `$a_b$` is not mangled; `MATH` / `DISPLAY_MATH` styles, shown monospace | M3 |
 | Emoji shortcodes | comrak `shortcodes` → Unicode; measure binary size. GitHub renders `:octocat:` as an image; we leave it as text. Unknown shortcodes stay literal | M3 |
 | Images | §4.6 | M4 |
 | Mermaid | code block | — |
@@ -244,21 +243,31 @@ asserting its effect (Engineer).
 
 ### 5.1 Raw HTML
 
-GitHub sanitises HTML then renders it; READMEs depend on it (`<p align="center"><img>`, badge
-rows, `<details>`, `<picture>`, `<!-- comments -->`). Showing source would put tag soup on the
-first screen. comrak 0.56 removed `tagfilter`, so filtering is ours. Lowering in `core`:
+GitHub sanitises HTML, then renders it; READMEs depend on it (`<p align="center"><img>`, badge
+rows, `<details>`, `<picture>`). Showing source would put tag soup on the first screen. As
+built in M1 (`builder.rs`, tokens from `html5gum` via `html.rs`):
 
-- `img` → image object; `a` → link; `br` → hard break; `hr` → thematic break.
-- `p`, `div`, `h1`-`h6` with `align` → `Context.align`.
-- `details`/`summary` → `DetailsSummary` leaf plus `Context.details` on the following leaves.
-  comrak emits these as separate `HtmlBlock`s around the Markdown body, so lowering keeps a stack
-  across sibling blocks.
-- `picture` → its `img` fallback.
-- `kbd`, `sub`, `sup`, `b`, `strong`, `i`, `em`, `code`, `del`, `s` → style flags. Inline HTML arrives
-  one tag per node; lowering pairs them with a stack.
-- Comments, `script`, `style` → dropped. Unknown tags → stripped, text kept.
-- An HTML tokeniser is needed. Candidate: `html5gum` or `tl` (to evaluate; size and licence via
-  cargo-deny).
+- **One tag stack per document.** Tags opened in an HTML block stay open across Markdown until
+  closed (`<div align="center">` ... `</div>`, a link around a block of sponsor images); tags
+  opened inside a Markdown paragraph close with it; a closing tag anywhere closes what it
+  matches. Each entry caches the cumulative state, so every query is O(1); unmatched closers
+  are rejected in O(1); depth is capped at 256 (`Notice::HtmlTooDeep`). Closing a Markdown
+  container closes HTML opened inside it; an HTML container closed while Markdown containers
+  inside it are open closes as soon as they do.
+- `img` → image object (alt, size from `width`/`height`); `a href` → link; `br` → hard break;
+  `hr` → thematic break; `picture` → its `img` fallback.
+- `p`, `div`, `center`, `h1`-`h6` and other block tags end the text before them; `align` →
+  `Leaf::align`. `h1`-`h6` → heading leaves with GitHub slugs (from the text as written).
+- `details` → `Container::Details { open }`; `summary` → a `DetailsSummary` leaf collecting
+  everything until `</summary>` (HTML text, Markdown paragraphs, headings).
+- `blockquote` → `Container::Quote`; `pre` → a code block, text verbatim.
+- `b`, `strong`, `i`, `em`, `code`, `kbd`, `sub`, `sup`, `del`, `s`, `u`, `ins`, `mark` → styles.
+- **Tag filter**, as GitHub: `script`, `style`, `title`, `textarea`, `xmp`, `iframe`, `noembed`,
+  `noframes`, `plaintext` are shown as literal text (checked against github.com's rendering).
+- `video`/`audio` → a "▶ video" link to the media; `template` → hidden; comments dropped;
+  unknown tags stripped, text kept.
+- Raw HTML tables read as text, cells separated by spaces (v1; listed deviation, revisit in
+  M3).
 
 ## 6. Measurement
 
@@ -311,7 +320,9 @@ during steady scroll = 0; render nodes built per frame is counted once nodes are
   `unwrap_used`, `expect_used`, `panic`, `todo`, `unimplemented`, `unreachable`,
   `panic_in_result_fn`, `unwrap_in_result`, `indexing_slicing`, `string_slice`, `as_conversions`,
   `wildcard_enum_match_arm`, `let_underscore_must_use`, `map_err_ignore`, `allow_attributes`,
-  `allow_attributes_without_reason`, `dbg_macro`, `print_stdout`, `print_stderr`.
+  `allow_attributes_without_reason`, `dbg_macro`, `print_stdout`, `print_stderr`,
+  `disallowed_methods` (with `clippy.toml`: stdout/stderr only through `app/src/output.rs`, Pango
+  layouts only through one counted constructor).
 - `-D warnings` on clippy makes all warnings fatal.
 - **Lint canary** (Engineer): `crates/lint-canary` holds one violating line per configured lint;
   the gate runs clippy on it and fails if any expected lint does not fire. This catches a
@@ -342,7 +353,7 @@ exemption). So tests return `()` and use `.expect("what")` and `assert_eq!`. Sha
 ### cargo-deny (0.20 syntax)
 
 Licence allow-list (MIT, Apache-2.0, BSD-2/3, Zlib, Unicode-3.0, MPL-2.0; a new one fails the gate
-until reviewed), advisories with the current syntax (the removed `vulnerability = "deny"` key
+until reviewed; Unicode-DFS-2016 is allowed for `finl_unicode` alone, as a per-crate exception), advisories with the current syntax (the removed `vulnerability = "deny"` key
 errors) and `unmaintained = "workspace"` so an unmaintained transitive GTK crate does not block
 every push, `anyhow` banned, comrak wrapped to core, duplicate versions warn.
 
@@ -372,7 +383,7 @@ every push, `anyhow` banned, comrak wrapped to core, duplicate versions warn.
 4. Lint canary (§7), the boundary grep (§3), `.claude/hooks/test-guard-push`, plus the `unsafe`
    count check if §4.4 needs it.
 5. `cargo nextest run --locked` over the default members (the canary is excluded via
-   `default-members`), with `INSTA_UPDATE=no` set by `scripts/in-docker`. nextest fails when it finds
+   `default-members`). nextest fails when it finds
    no tests; a committed minimum test count per binary catches a test suite that shrinks
    silently.
 6. `cargo deny check`
@@ -380,7 +391,7 @@ every push, `anyhow` banned, comrak wrapped to core, duplicate versions warn.
 8. Xvfb smoke: `--exit-after-first-frame` on every fixture; asserts exit 0 and the work counters
    (§6); saves a screenshot per fixture to `target/docker/screens/` for before/after comparison
    at each milestone.
-9. Assert the tree is still clean (insta and proptest write files into the repo).
+9. Assert the tree is still clean (proptest writes regression files into the repo on failure).
 10. Write a stamp `target/gate/<tree-hash>` where tree-hash = `git rev-parse HEAD^{tree}`.
 
 ### Push

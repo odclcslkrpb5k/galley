@@ -3,25 +3,29 @@
 //! The tokens are our own plain types, so html5gum stays an implementation detail of this file.
 //! What the tags mean (styles, links, alignment, details) is decided in `builder`.
 
-use html5gum::{Token, Tokenizer};
+use html5gum::{DefaultEmitter, Token, Tokenizer};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum HtmlToken {
+pub(crate) enum HtmlToken<'a> {
     Start {
-        /// Lower case.
+        /// Lower case (html5gum lowercases names).
         name: String,
         attributes: Vec<(String, String)>,
         self_closing: bool,
+        /// The tag as written, for tags GitHub shows as text.
+        source: &'a str,
     },
     End {
         /// Lower case.
         name: String,
+        /// The tag as written.
+        source: &'a str,
     },
     /// Text, with character references already decoded.
     Text(String),
 }
 
-impl HtmlToken {
+impl HtmlToken<'_> {
     /// An attribute of a start tag, by lower-case name.
     pub(crate) fn attribute(&self, wanted: &str) -> Option<&str> {
         match self {
@@ -32,40 +36,42 @@ impl HtmlToken {
             Self::End { .. } | Self::Text(_) => None,
         }
     }
-}
 
-/// Splits HTML into tags and text. Comments, doctypes and tokenizer errors are dropped: none of
-/// them is ever shown.
-pub(crate) fn tokenize(html: &str) -> Vec<HtmlToken> {
-    let mut tokens = Vec::new();
-    for token in Tokenizer::new(html) {
-        let Ok(token) = token;
-        match token {
-            Token::StartTag(tag) => tokens.push(HtmlToken::Start {
-                name: lossy(&tag.name).to_ascii_lowercase(),
-                attributes: tag
-                    .attributes
-                    .iter()
-                    .map(|(name, value)| (lossy(name).to_ascii_lowercase(), lossy(value)))
-                    .collect(),
-                self_closing: tag.self_closing,
-            }),
-            Token::EndTag(tag) => tokens.push(HtmlToken::End {
-                name: lossy(&tag.name).to_ascii_lowercase(),
-            }),
-            Token::String(text) => {
-                let text = lossy(&text);
-                // The tokenizer may split text; join adjacent pieces.
-                if let Some(HtmlToken::Text(previous)) = tokens.last_mut() {
-                    previous.push_str(&text);
-                } else {
-                    tokens.push(HtmlToken::Text(text));
-                }
-            }
-            Token::Comment(_) | Token::Doctype(_) | Token::Error(_) => {}
+    pub(crate) fn has_attribute(&self, wanted: &str) -> bool {
+        match self {
+            Self::Start { attributes, .. } => attributes.iter().any(|(name, _)| name == wanted),
+            Self::End { .. } | Self::Text(_) => false,
         }
     }
-    tokens
+}
+
+/// Splits HTML into tags and text, streaming. Comments, doctypes and tokenizer errors are
+/// dropped: none of them is ever shown.
+pub(crate) fn tokens(html: &str) -> impl Iterator<Item = HtmlToken<'_>> {
+    Tokenizer::new_with_emitter(html, DefaultEmitter::<usize>::new_with_span()).filter_map(
+        move |token| {
+            let Ok(token) = token;
+            let source = |start: usize, end: usize| html.get(start..end).unwrap_or("");
+            match token {
+                Token::StartTag(tag) => Some(HtmlToken::Start {
+                    name: lossy(&tag.name),
+                    attributes: tag
+                        .attributes
+                        .iter()
+                        .map(|(name, value)| (lossy(name), lossy(value)))
+                        .collect(),
+                    self_closing: tag.self_closing,
+                    source: source(tag.span.start, tag.span.end),
+                }),
+                Token::EndTag(tag) => Some(HtmlToken::End {
+                    name: lossy(&tag.name),
+                    source: source(tag.span.start, tag.span.end),
+                }),
+                Token::String(text) => Some(HtmlToken::Text(lossy(&text))),
+                Token::Comment(_) | Token::Doctype(_) | Token::Error(_) => None,
+            }
+        },
+    )
 }
 
 fn lossy(bytes: &[u8]) -> String {
@@ -76,47 +82,48 @@ fn lossy(bytes: &[u8]) -> String {
 mod tests {
     use super::*;
 
-    fn start(name: &str, attributes: &[(&str, &str)]) -> HtmlToken {
-        HtmlToken::Start {
-            name: name.to_owned(),
-            attributes: attributes
-                .iter()
-                .map(|(name, value)| ((*name).to_owned(), (*value).to_owned()))
-                .collect(),
-            self_closing: false,
-        }
+    fn collect(html: &str) -> Vec<HtmlToken<'_>> {
+        tokens(html).collect()
     }
 
     #[test]
     fn tags_text_and_entities() {
+        let tokens = collect(r#"<P Align="center">a &amp; b</p>"#);
+        assert_eq!(tokens.len(), 3);
+        assert!(matches!(
+            tokens.first(),
+            Some(HtmlToken::Start { name, source, .. }) if name == "p" && *source == r#"<P Align="center">"#
+        ));
         assert_eq!(
-            tokenize(r#"<P Align="center">a &amp; b</p>"#),
-            vec![
-                start("p", &[("align", "center")]),
-                HtmlToken::Text("a & b".to_owned()),
-                HtmlToken::End {
-                    name: "p".to_owned()
-                },
-            ]
+            tokens.first().and_then(|t| t.attribute("align")),
+            Some("center")
         );
+        assert_eq!(tokens.get(1), Some(&HtmlToken::Text("a & b".to_owned())));
+        assert!(matches!(
+            tokens.get(2),
+            Some(HtmlToken::End { name, source }) if name == "p" && *source == "</p>"
+        ));
     }
 
     #[test]
     fn comments_are_dropped() {
-        assert_eq!(
-            tokenize("a<!-- hidden -->b"),
-            vec![HtmlToken::Text("ab".to_owned())]
-        );
+        let texts: String = tokens("a<!-- hidden -->b")
+            .map(|token| match token {
+                HtmlToken::Text(text) => text,
+                HtmlToken::Start { .. } | HtmlToken::End { .. } => "<tag>".to_owned(),
+            })
+            .collect();
+        assert_eq!(texts, "ab");
     }
 
     #[test]
     fn self_closing_and_attributes() {
-        let tokens = tokenize(r#"<img src="x.png" alt="X"/>"#);
-        assert_eq!(tokens.len(), 1);
+        let tokens = collect(r#"<img src="x.png" alt="X" hidden/>"#);
         let img = tokens.first().expect("one token");
         assert_eq!(img.attribute("src"), Some("x.png"));
         assert_eq!(img.attribute("alt"), Some("X"));
         assert_eq!(img.attribute("width"), None);
+        assert!(img.has_attribute("hidden"));
         assert!(matches!(
             img,
             HtmlToken::Start {

@@ -20,14 +20,14 @@ spec:130 raw HTML table shown as text
 spec:159 raw HTML table shown as text
 spec:160 raw HTML table shown as text
 
-# A raw inline tag (here <del>) open across Markdown blocks: inline styles from raw HTML end at
-# the end of their HTML block.
-spec:137 inline HTML style open across Markdown blocks is not carried into them
-
-# Tag filter: GitHub shows <title>, <style>, <xmp>, <textarea> and similar as literal text; the
-# viewer hides them and their content.
-spec:652 tag filter: filtered tags are hidden, not shown as text
-ext:22 tag filter: filtered tags are hidden, not shown as text
+# Tag filter (on, as on GitHub): <script>, <style>, <title>, <textarea>, <xmp> and similar are
+# shown as literal text, as github.com shows them (checked against its rendering of the
+# synthetic corpus file); the core CommonMark examples expect them passed through as HTML.
+spec:140 tag filter shows <script> as text, as GitHub does
+spec:141 tag filter shows <style> as text, as GitHub does
+spec:142 tag filter shows <style> as text, as GitHub does
+spec:145 tag filter shows <style> as text, as GitHub does
+spec:147 tag filter shows <script> as text, as GitHub does
 
 # comrak and cmark-gfm (GitHub) differ: comrak does not autolink a URL right after an
 # apostrophe ('http://google.com'). An upstream difference.

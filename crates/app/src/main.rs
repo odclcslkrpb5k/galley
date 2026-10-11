@@ -20,7 +20,6 @@ use gtk::{gio, glib};
 
 use args::{Args, Spike, Startup};
 use document_view::DocumentView;
-use gbk_markdown_core::Decoded;
 use output::report_error;
 use probe::Probe;
 
@@ -65,13 +64,8 @@ fn main() -> ExitCode {
 
 fn load(path: &Path) -> Result<Vec<String>, LoadError> {
     let bytes = std::fs::read(path).map_err(|error| LoadError::Read(error.kind()))?;
-    // M0 shortcut: the notice is dropped until M1 shows it. Destructured so a new field of
-    // Decoded fails to compile here rather than being dropped unseen.
-    let Decoded {
-        text,
-        notice: _until_m1,
-    } = gbk_markdown_core::decode(&bytes);
-    Ok(spike::paragraphs(&text))
+    // M1: the real model, shown as plain text per leaf until M2's renderer.
+    Ok(spike::leaf_texts(&gbk_markdown_core::load(&bytes)))
 }
 
 fn run_application(args: &Args, loader: Option<Loader>, probe: Rc<Probe>) -> ExitCode {

@@ -14,6 +14,10 @@ publish = false
 gbk-markdown-core = { path = "crates/core" }
 gtk = { package = "gtk4", version = "0.11.5", features = ["v4_22"] }
 thiserror = "2.0.21"
+# Exact: core calls comrak::Anchorizer, which is #[doc(hidden)] and so outside semver (plan §2).
+comrak = { version = "=0.56.0", default-features = false }
+html5gum = "0.8.4"
+proptest = "1.11.0"
 
 # The paranoid Rust rules (docs/plan.md §7). Every member crate opts in with
 # `[lints] workspace = true`; crates/lint-canary proves each lint below still fires.

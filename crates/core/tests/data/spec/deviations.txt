@@ -1,0 +1,34 @@
+# Known, intended differences between the model and the expected HTML (crates/core/tests/spec.rs).
+# One per line: <id> <reason>. Ids are spec:<n> (spec.txt) and ext:<n> (extensions.txt), counted from 1.
+
+# Front matter is on, as in GitHub's file view: a document starting with a `---` block is front
+# matter there too.
+spec:66 front matter: a leading `---` ... `---` block is YAML front matter (GitHub's file view agrees)
+
+# GitHub's autolink extension (on) links bare URLs and addresses that core CommonMark examples
+# leave as text; github.com links them too.
+spec:610 autolink extension links the URL inside an invalid <...> autolink
+spec:616 autolink extension links the URL inside an invalid <...> autolink
+spec:619 autolink extension links a bare URL
+spec:620 autolink extension links a bare email address
+
+# Raw HTML tables are shown as text, cells separated by spaces (v1; plan §5.1). Revisit in M3:
+# READMEs use them for sponsor and contributor grids.
+spec:118 raw HTML table shown as text
+spec:119 raw HTML table shown as text
+spec:130 raw HTML table shown as text
+spec:159 raw HTML table shown as text
+spec:160 raw HTML table shown as text
+
+# A raw inline tag (here <del>) open across Markdown blocks: inline styles from raw HTML end at
+# the end of their HTML block.
+spec:137 inline HTML style open across Markdown blocks is not carried into them
+
+# Tag filter: GitHub shows <title>, <style>, <xmp>, <textarea> and similar as literal text; the
+# viewer hides them and their content.
+spec:652 tag filter: filtered tags are hidden, not shown as text
+ext:22 tag filter: filtered tags are hidden, not shown as text
+
+# comrak and cmark-gfm (GitHub) differ: comrak does not autolink a URL right after an
+# apostrophe ('http://google.com'). An upstream difference.
+ext:19 comrak does not autolink a URL after an apostrophe; cmark-gfm does

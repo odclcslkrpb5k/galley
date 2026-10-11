@@ -61,7 +61,7 @@ crates/app/             gbk-markdown: binary; GTK adapter layer
 crates/lint-canary/     one line per configured lint; the gate checks each one fires (§7)
 crates/core/tests/data/ spec.txt + extensions.txt (from M1) (cmark-gfm, CC-BY-SA 4.0, with LICENSE and
                         attribution), README corpus + GitHub-rendered HTML (§9)
-fuzz/                   cargo-fuzz targets (nightly; outside the workspace), from M1
+fuzz/                   cargo-fuzz targets (nightly; outside the workspace), later
 docs/                   plan.md, claude-notes.md, perf-baseline.md
 ```
 
@@ -409,12 +409,19 @@ every push, `anyhow` banned, comrak wrapped to core, duplicate versions warn.
 "No panic plus a well-formed model" only re-tests comrak's robustness. Lowering errors (dropped
 nodes, lost tightness, wrong link targets) need oracles:
 
-1. **Spec HTML.** A test-only `Document → HTML` serialiser; output compared with the expected HTML
-   of every example in `spec.txt` (v0.29, 672 examples) and `extensions.txt` (tables,
-   strikethrough, autolinks, tag filter, footnotes, task lists), after cmark-style normalisation.
-   Known, intended deviations are listed in a checked-in file, each with a reason.
-2. **Text content.** The visible text of our model equals the spec HTML's text content (tags
-   stripped, entities decoded, whitespace collapsed).
+1. **Blocks and 2. styled characters** (M1; `crates/core/tests/spec.rs`, `tests/common/`).
+   Both the expected HTML of every example in `spec.txt` (v0.29, 672 examples) and
+   `extensions.txt` (30) and our model are reduced to the same two views: the sequence of blocks
+   with their containers (quote, list and item, alert, footnote) and kind (paragraph, tight
+   paragraph, heading level, code, rule, table with row count, alert title); and every visible
+   character with its style (emphasis, strong, strikethrough, code, footnote reference) and
+   whether it is in a link, whitespace collapsed to word gaps. Known, intended deviations are in
+   `crates/core/tests/data/spec/deviations.txt`, each with a reason; the list is exact both ways.
+   This replaces draft 3's "test-only HTML serialiser": rebuilding nested HTML from flat leaves
+   would test the serialiser as much as the model, while the two views compare exactly what the
+   renderer draws. Mutation-checked: planted bugs in tightness, emphasis, links, soft and hard
+   breaks, code spans, quotes, footnotes, heading levels, table headers, raw `<pre>` and span
+   merging are all caught.
 3. **GitHub corpus** (fetched 2026-10-11 by `scripts/fetch-corpus`, in
    `crates/core/tests/data/corpus/`). 21 READMEs under MIT, Apache-2.0, BSD-3, Unlicense or CC0,
    each pinned to a commit with its licence and GitHub's own repo-view HTML; plus two synthetic
@@ -423,13 +430,17 @@ nodes, lost tightness, wrong link targets) need oracles:
    skips alerts, math and emoji and renders front matter as a heading. Signed image-URL tokens are
    stripped at fetch.
 - A count floor on each oracle: finding fewer examples than expected fails.
-- `insta` snapshots for regression on top, not as the oracle.
+- Per-option checks (`tests/gfm.rs`): one input per comrak option showing it on or off as on
+  GitHub; heading anchors compared with the ids GitHub gave the synthetic corpus file.
+- `insta` snapshots: not adopted; the oracles above and the per-option checks cover what they
+  would.
 
 ### Robustness
 
 - `proptest`: arbitrary bytes and Markdown-shaped strings → `core::load` never panics; invariants:
   offsets on char boundaries, spans in bounds and non-overlapping, every id resolves.
-- `cargo-fuzz` (dated nightly pinned in a separate image stage): the same targets, plus comrak's
+- `proptest` is in place from M1 (`tests/properties.rs`, 512 cases each, plus every corpus input).
+- `cargo-fuzz` (later; dated nightly pinned in a separate image stage): the same targets, plus comrak's
   `arbitrary` feature for structured input. The `fuzz/` crate carries its own copy of the lint
   table, checked by the canary.
 
@@ -460,7 +471,11 @@ replaces review.)
   **Decided the startup path (plain `gtk::init`) and the first-screen `prepare`; the renderer
   is decided after M2 (§11).**
 - **M1 core model.** Decode, `gfm_options`, lowering to leaves, inlines, newtypes, HTML lowering
-  skeleton; oracles 1 and 2; proptest.
+  skeleton; oracles 1 and 2; proptest. *Done 2026-10-11:* 688 of 702 spec/extension examples
+  match, 14 listed deviations (front matter, autolink extension, raw HTML tables as text,
+  inline HTML across blocks, tag filter, one comrak/cmark-gfm autolink difference). Raw HTML
+  in M1 already covers `<pre>` (code block), `<blockquote>` (quote), `<details>`, alignment,
+  images, links and inline styles. The renderer still shows M0's spike paragraphs until M2.
 - **M2 renderer v1.** Fenwick tree, first-viewport layout, worker heights, anchoring, caches;
   M2 features; scroll scenarios; counters within budget.
 - **M3 GFM completeness.** Tables, tasks, links, footnotes, alerts, anchors, HTML lowering in

@@ -132,3 +132,22 @@ then 21), and "control-words" is not a zero-work control, since each one-word pa
 out as it scrolls in (2931 layouts). The ~11 ms median busy time even for the control suggests
 before-paint → after-paint includes waiting (for example on the X server), not only our work;
 to be checked before the metric is trusted. Renderer decision stays with M2 (plan §11).
+
+## M1 (2026-10-11): `core::load` time
+
+`cargo run --release -p gbk-markdown-core --example load_time`, in the build container, 15 runs:
+
+| Input | Size | Leaves | Median |
+|---|---|---|---|
+| ripgrep README | 21 KiB | 148 | 0.6 ms |
+| readme-200kb | 200 KiB | 1834 | 5.6 ms |
+| awesome-rust | 390 KiB | 2355 | 6.4 ms |
+| list-1mb | 1 MiB | 6132 | 26.6 ms |
+| code-1mb | 1 MiB | 106 | 2.9 ms |
+| table-1mb | 1 MiB | 237 | 75.2 ms |
+
+`load` runs on the loader thread while GTK starts and the window maps (60-150 ms here), so these
+stay off the critical path except possibly table-1mb. Where table-1mb's time goes (comrak's table
+parsing or our lowering) is for M2 to find. The flat model removes M0's 20-35 s layout of the
+1 MB table and code fixtures: both are now chunked into leaves of ≤ 50 rows / 200 lines.
+

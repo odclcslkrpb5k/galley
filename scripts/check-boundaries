@@ -14,18 +14,22 @@ done
 
 # comrak lives in one private module of core. cargo-deny refuses a direct dependency from any
 # other crate, but cannot see core re-exporting comrak types; this can.
-allowed=crates/core/src/parse.rs
+allowed=crates/core/src/parse/
+# grep exits 1 for no match, which is the passing case; 2 is an error and must fail.
+status=0
+matches=$(grep -rnw comrak crates/*/src) || status=$?
+if ((status > 1)); then
+  echo "boundaries: grep failed ($status)" >&2
+  exit 1
+fi
+# Code only: a comment may name comrak (for example "no comrak here").
+code_matches=$(grep -vE '^[^:]+:[0-9]+:[[:space:]]*//' <<<"$matches" || true)
 while read -r file; do
-  if [[ "$file" != "$allowed" ]]; then
-    echo "boundaries: $file mentions comrak; only $allowed may" >&2
+  if [[ -n "$file" && "$file" != "$allowed"* ]]; then
+    echo "boundaries: $file uses comrak; only $allowed may" >&2
     fail=1
   fi
-done < <(
-  # grep exits 1 for no match, which is the passing case; 2 is an error and must fail.
-  status=0
-  grep -rlw comrak crates/*/src || status=$?
-  if ((status > 1)); then echo "boundaries: grep failed ($status)" >&2; echo "<grep failed>"; fi
-)
+done < <(cut -d: -f1 <<<"$code_matches" | sort -u)
 
 if ((fail)); then exit 1; fi
 echo "boundaries: ok"

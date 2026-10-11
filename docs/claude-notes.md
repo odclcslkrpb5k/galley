@@ -125,4 +125,18 @@ Not repeated here, so there is one source each (an earlier copy here drifted fro
   those files: 33 caught, 0 missed. `scripts/mutants` now also refuses any run whose logs show
   tests run from the shared target dir (the first run's failure, checked directly), and checks
   the percentile control on unfiltered runs.
+- 2026-10-11: M1 core model built. Layout: `units` (index newtypes), `model` (flat leaves with
+  container stacks), `builder` (comrak-free: leaves, chunking, inline runs, raw HTML meaning),
+  `html` (html5gum tokens to our own), `link` (classify, percent-decode), `parse/` (the only
+  comrak code: `gfm_options`, tree walk), `load()` in lib. Tests: `tests/spec.rs` +
+  `tests/common` (block + styled-character oracles over spec.txt/extensions.txt, exact
+  deviations list), `tests/gfm.rs` (per-option, heading ids vs GitHub), `tests/properties.rs`.
+  Learned: comrak features off by default-features=false remove shortcodes/HEEx/attributes
+  types entirely; TaskItem replaces Item in the tree; spec example openers carry labels
+  ("example table") and `<IGNORE>` means crash-only; the oracle needed its own fixes several
+  times (tight items, raw-HTML text, cells, empty paragraphs) and each was checked against
+  rendering semantics, not just made to pass; mutation-checking it found that ignoring
+  whitespace hid dropped soft breaks, so it now keeps word gaps.
+  Open for M2: table-1mb loads in 75 ms (profile comrak vs lowering); renderer still uses
+  spike paragraphs.
 

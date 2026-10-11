@@ -1,4 +1,6 @@
-repo = "(synthetic; written for this project)"
+repo = "odclcslkrpb5k/gbk-markdown (synthetic; written for this project)"
+commit = "8bb6cef8a5ab3ae0da057a1e35cf0a6e5f6a79e0"
+path = "crates/core/tests/data/corpus/_synthetic-features/input.md"
 licence = "same as this repository"
-rendered_by = "POST /markdown, mode=markdown"
+rendered_by = "GET /repos/odclcslkrpb5k/gbk-markdown/contents/crates/core/tests/data/corpus/_synthetic-features/input.md?ref=8bb6cef8a5ab3ae0da057a1e35cf0a6e5f6a79e0 (Accept: application/vnd.github.html+json)"
 fetched = "2026-10-11"

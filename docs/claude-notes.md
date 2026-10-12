@@ -236,3 +236,9 @@ Not repeated here, so there is one source each (an earlier copy here drifted fro
     `probe_run VAR ...` assigns with `printf -v`. And a bash `((a > b))` on a non-number is an
     error a condition reads as false, so smoke now requires each counter to match ^[0-9]+$
     (a layout budget passed vacuously once before this).
+  Closed 2026-10-12 (pushed fa01c97): three reviews (correctness 14 findings, performance 11,
+  coherence 15) addressed or recorded as deviations in plan §5; mutation testing of the new pure
+  code: 725 mutants (53 missed) -> tests or Eliminate rewrites for every non-equivalent one;
+  the rest are equivalent and named in commit 7f69d89. Perf: first frames as M2 within noise,
+  table-1mb scroll drops 1-3 (M2 11-18); docs/perf-baseline.md "M3".
+  Next: M4 (images), awaiting the user's go-ahead.

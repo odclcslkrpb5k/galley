@@ -333,6 +333,9 @@ asserting its effect (Engineer).
 
 Known deviations from GitHub, as built in M3 (besides oracle 3's list, §9):
 
+- A table wider than the view (many columns at their 3 em minimum) is cut at the right edge:
+  there is no sideways scrolling, and cells past the edge are not laid out. GitHub scrolls the
+  table sideways.
 - Table cells over 2 KiB are cut with "…"; `rowspan` is ignored (`colspan` keeps columns in
   place); `<th>` in body rows is not bold, and a column takes the first `align` given in it.
 - A list in front matter shows as "a, b"; GitHub shows a nested table.

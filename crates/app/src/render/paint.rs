@@ -520,10 +520,10 @@ fn cuts(text: &str) -> Vec<(usize, usize)> {
             return cuts;
         }
         let near = rest
-            .get(..floor_char_boundary(rest, SPLIT_AT_LINE_BYTES))
+            .get(..rest.floor_char_boundary(SPLIT_AT_LINE_BYTES))
             .unwrap_or_default();
         let far = rest
-            .get(..floor_char_boundary(rest, LEAF_TEXT_BYTES))
+            .get(..rest.floor_char_boundary(LEAF_TEXT_BYTES))
             .unwrap_or_default();
         let cut = if let Some(newline) = near.rfind('\n') {
             (start + newline, start + newline + 1)
@@ -533,11 +533,8 @@ fn cuts(text: &str) -> Vec<(usize, usize)> {
         } else if let Some(newline) = far.find('\n') {
             (start + newline, start + newline + 1)
         } else if rest.len() > LEAF_TEXT_BYTES {
-            let at = far
-                .rfind(' ')
-                .map(|space| space + 1)
-                .filter(|&at| at > LEAF_TEXT_BYTES / 2)
-                .unwrap_or(far.len());
+            // No unbreakable run in `far`, so it has a space in its last 2 KiB.
+            let at = far.rfind(' ').map_or(far.len(), |space| space + 1);
             (start + at, start + at)
         } else {
             return cuts;
@@ -557,16 +554,6 @@ fn unbreakable(text: &str) -> Option<usize> {
         start = index + 1;
     }
     None
-}
-
-fn floor_char_boundary(text: &str, mut index: usize) -> usize {
-    if index >= text.len() {
-        return text.len();
-    }
-    while index > 0 && !text.is_char_boundary(index) {
-        index -= 1;
-    }
-    index
 }
 
 #[cfg(test)]
@@ -882,8 +869,6 @@ mod tests {
                 .iter()
                 .all(|&(end, next)| end == next && text.is_char_boundary(end))
         );
-        assert_eq!(floor_char_boundary("é", 1), 0);
-        assert_eq!(floor_char_boundary("é", 9), 2);
         assert_eq!(unbreakable("a b"), None);
         assert_eq!(unbreakable(&format!("a\n{}", "x".repeat(2049))), Some(2));
         assert_eq!(unbreakable(&"x".repeat(2048)), None);
@@ -894,5 +879,88 @@ mod tests {
         let paints = paints("one\n\ntwo\n\nthree\n");
         let sources: Vec<usize> = paints.iter().map(|paint| paint.source).collect();
         assert_eq!(sources, vec![0, 1, 2]);
+    }
+
+    #[test]
+    fn tables_are_rows_of_cells_with_a_bold_header() {
+        let short = paints("| A | B |\n|---|---|\n| 1 | 2 |\n| 3 | 4 |\n");
+        let table = short.first().expect("table");
+        assert_eq!(table.text, "A  │  B\n1  │  2\n3  │  4");
+        assert!(table.attrs.contains(&TextAttr {
+            start: 0,
+            end: "A  │  B".len(),
+            kind: AttrKind::Bold
+        }));
+        assert!((table.gap_below_em - PARAGRAPH_GAP).abs() < f64::EPSILON);
+        let rows = (0..60)
+            .map(|i| format!("| {i} |\n"))
+            .collect::<Vec<_>>()
+            .concat();
+        let long = paints(&format!("| N |\n|---|\n{rows}"));
+        let gaps: Vec<f64> = long.iter().map(|paint| paint.gap_below_em).collect();
+        assert_eq!(gaps, vec![0.0, PARAGRAPH_GAP]);
+    }
+
+    #[test]
+    fn details_alerts_and_footnotes_indent_their_content() {
+        let paints = paints(
+            "<details><summary>More</summary>\n\nbody\n\n</details>\n\n> [!TIP]\n> tip\n\nx[^n]\n\n[^n]: note\n",
+        );
+        let summary = paints.first().expect("summary");
+        assert_eq!(summary.text, "More");
+        assert_eq!(
+            markers(summary),
+            vec![(DETAILS_INDENT - MARKER_GAP, "▾".to_owned())]
+        );
+        assert!((summary.gap_below_em - PARAGRAPH_GAP / 2.0).abs() < f64::EPSILON);
+        assert!((summary.indent_em - DETAILS_INDENT).abs() < f64::EPSILON);
+        let body = paints.get(1).expect("details body");
+        assert_eq!(body.text, "body");
+        assert!((body.indent_em - DETAILS_INDENT).abs() < f64::EPSILON);
+        let tip = paints.get(3).expect("alert body");
+        assert_eq!(tip.text, "tip");
+        assert!((tip.indent_em - QUOTE_INDENT).abs() < f64::EPSILON);
+        let note = paints.last().expect("footnote");
+        assert_eq!(note.text, "note");
+        assert!((note.indent_em - LIST_INDENT).abs() < f64::EPSILON);
+        assert_eq!(
+            markers(note),
+            vec![(LIST_INDENT - MARKER_GAP, "1.".to_owned())]
+        );
+    }
+
+    #[test]
+    fn attributes_ending_or_starting_at_a_cut_stay_on_their_own_side() {
+        let text = format!("{}\n{}", "a".repeat(2000), "b".repeat(2000));
+        let attrs = vec![
+            TextAttr {
+                start: 0,
+                end: 2001,
+                kind: AttrKind::Italic,
+            },
+            TextAttr {
+                start: 2000,
+                end: 4001,
+                kind: AttrKind::Bold,
+            },
+        ];
+        let pieces = split(LeafPaint::plain(&text, FontRole::Body, attrs));
+        let kinds: Vec<Vec<(usize, usize, AttrKind)>> = pieces
+            .iter()
+            .map(|paint| {
+                paint
+                    .attrs
+                    .iter()
+                    .map(|attr| (attr.start, attr.end, attr.kind))
+                    .collect()
+            })
+            .collect();
+        assert_eq!(
+            kinds,
+            vec![
+                vec![(0, 2000, AttrKind::Italic)],
+                vec![(0, 2000, AttrKind::Bold)]
+            ]
+        );
     }
 }

@@ -174,7 +174,7 @@ impl Metrics {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::render::paint::paint_document;
+    use crate::render::paint::{FontRole, paint_document};
 
     fn paints(markdown: &str) -> Vec<LeafPaint> {
         paint_document(&gbk_markdown_core::load(markdown.as_bytes()))
@@ -288,5 +288,31 @@ mod tests {
                 Shade::HeadingRule
             )]
         );
+    }
+
+    #[test]
+    fn estimates_count_lines_at_an_average_character_width() {
+        // Body: 22 px lines (1.4 em), 8 px characters, so 75 to a 600 px line.
+        let prose = LeafPaint::plain(&"a".repeat(150), FontRole::Body, Vec::new());
+        assert_eq!(METRICS.estimate(&prose, 600), 2 * 22);
+        let short = LeafPaint::plain("a", FontRole::Body, Vec::new());
+        assert_eq!(METRICS.estimate(&short, 600), 22);
+        // Code: 0.85 em, so 19 px lines and 6.8 px characters; 85 to a 580 px line inside the
+        // padding, so 160 characters take 2 lines.
+        let paints = paints(&format!("```\n{}\n```\n", "c".repeat(160)));
+        let code = paints.first().expect("code");
+        assert_eq!(METRICS.estimate(code, 600), 10 + 2 * 19 + 10 + 12);
+    }
+
+    #[test]
+    fn indented_leaves_wrap_and_fill_within_their_indent() {
+        let paints = paints("- item\n\n  ```\n  code\n  ```\n");
+        let item = paints.first().expect("item");
+        assert_eq!(METRICS.text_width(item, 600), 600 - 28);
+        let code = paints.get(1).expect("code");
+        assert_eq!(METRICS.text_width(code, 600), 600 - 28 - 20);
+        let fills = METRICS.geometry(code, 20, 600).fills;
+        let background = fills.first().expect("background").0;
+        assert_eq!((background.x, background.width), (28, 600 - 28));
     }
 }

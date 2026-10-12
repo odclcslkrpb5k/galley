@@ -200,3 +200,10 @@ Not repeated here, so there is one source each (an earlier copy here drifted fro
   Deferred, recorded in plan §4.5: paint-to-source offset map (M3 links), estimates on the
   loader thread, per-leaf textures for scroll, list marker baseline on `- # heading`.
 
+- 2026-10-11: M2 mutation testing (app pure modules: fenwick, paint, geometry, positions,
+  indicator, units): 421 mutants, 34 missed -> 0 after tests for exact estimates, indented
+  widths, table text and gaps, details/alert/footnote indents, attrs at a cut, thumb end; and
+  three Eliminate/Substitute fixes for dead code the survivors exposed (`cuts`' space filter
+  was unreachable, `centred_on`'s value override unread, own `floor_char_boundary` replaced by
+  std's `str::floor_char_boundary`). Timeouts (17) are infinite loops, i.e. caught. GTK glue
+  (widget, text, heights worker) stays covered by the smoke run, per the M0 policy.

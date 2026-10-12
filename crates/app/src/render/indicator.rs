@@ -70,8 +70,7 @@ impl Scroll {
         let Some(thumb) = self.thumb() else {
             return self.value;
         };
-        let start = Self { value: 0.0, ..self };
-        start.dragged(0.0, y - INSET - thumb.length / 2.0)
+        self.dragged(0.0, y - INSET - thumb.length / 2.0)
     }
 
     /// Whether `y` falls on the thumb.
@@ -139,6 +138,8 @@ mod tests {
         let thumb = Scroll { value, ..SCROLL }.thumb().expect("scrollable");
         assert!(close(thumb.top + thumb.length / 2.0, 502.0));
         assert!(SCROLL.on_thumb(50.0));
+        assert!(SCROLL.on_thumb(102.0));
+        assert!(!SCROLL.on_thumb(150.0));
         assert!(!SCROLL.on_thumb(500.0));
     }
 }

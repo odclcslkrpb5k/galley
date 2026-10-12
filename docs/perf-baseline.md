@@ -322,3 +322,42 @@ on the same day, matches them, so the machine has slowed and M4 has not:
 table-1mb drops slightly but consistently more on M4 (2.5 against 1 per ~3000 frames, every M4
 run at or above every M3 run) with the same median busy time: a tail effect, not a per-frame
 cost. Watch item for M5: its p99 busy time, interleaved against this M4 binary.
+
+## M5 (2026-10-12): syntax highlighting
+
+Highlighting starts after the first frame, so first-frame screenshots are unchanged from M4 (all
+32 identical); code is coloured about 60 ms later. Release binary 4.3 -> 7.2 MB (bat's 213
+grammars through two-face).
+
+### First frame, `bench-startup -n 5`, four rounds alternating M4 and M5 binaries (median of medians, ms)
+
+| Fixture | M4 | M5 |
+|---|---|---|
+| one-line | 143.2 | 143.1 |
+| ripgrep README | 166.4 | 162.2 |
+| code-1mb | 149.4 | 151.8 |
+| code.md | 149.6 | 145.4 |
+
+Unchanged: every difference is within the rounds' spread, in both directions. The loader
+copies the named code (0.5 ms for 1 MB, off the main thread).
+
+### Scroll, `--bench-scroll`, three rounds alternating M4 and M5
+
+| Fixture | M4 dropped | M5 dropped | M4 p50 / p99 busy | M5 p50 / p99 busy |
+|---|---|---|---|---|
+| code-1mb (final) | 0, 0, 0 | 0, 0, 1 | 8.4-8.6 / 14.6-14.8 ms | 6.9-7.0 / 17.6-18.0 ms |
+| code.md (final) | 0, 0, 0 | 0, 0, 3 | 8.6-8.7 / 13.5-14.3 ms | 6.2-8.1 / 14.7-15.4 ms |
+| readme-200kb | 0, 0, 1 | 1, 0, 1 | 7.9-8.7 / 12.4-14.4 ms | 8.0-8.3 / 13.7-14.0 ms |
+| list-1mb | 0, 3, 2 | 2, 3, 1 | 7.7-8.3 / 13.6-15.8 ms | 7.5-8.2 / 14.0-15.7 ms |
+| table-1mb | 10, 13, 0 | 6, 5, 2 | 6.0-7.0 / 18.3-22.1 ms | 5.8-7.0 / 18.5-21.1 ms |
+
+`layouts_in_scroll_frames=0` in every run. Before the final read-ahead rule (ask again at half
+the read-ahead), code-1mb recoloured 70 paints and dropped 2, 26 and 2 frames: the edge paint
+was laid out before its colours arrived once every 16 KiB. Now 7 recolours, 580 layouts
+during the scroll (M4: 573). code.md's 10 recolours are its first screen, coloured ~60 ms after
+the first frame, while the benchmark is already scrolling.
+
+Watch item: highlighted code's p99 busy time is about 3 ms above M4's (p50 is lower). Coloured
+text is drawn as many more glyph runs than plain, so the heaviest frames cost more. Per-leaf
+textures (§4.5) remain the lever. table-1mb (M4's watch item): M5 drops no more than M4 in the
+same rounds, with the same p99.

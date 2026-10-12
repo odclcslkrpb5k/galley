@@ -263,3 +263,26 @@ Not repeated here, so there is one source each (an earlier copy here drifted fro
   run looked 1-2 ms worse: always A/B against the previous binary, never against old tables);
   table-1mb drops ~1.5 more frames per 3000 (watch item for M5).
   Next: M5 (syntax highlighting), awaiting the user's go-ahead.
+- 2026-10-12: M5 (syntax highlighting) built, reviewed and pushed. syntect + two-face on a
+  thread started after the first frame; only named code (aliases as a const table; console
+  sessions colour commands only); GitHub's colours, colour only, so heights cannot change
+  (worker measures uncoloured; check-heights with highlighting: 0 mismatches incl. code-1mb).
+  A paint asks for its code plus 16 KiB; least-left-first steps of 100 lines or 15 ms; a block
+  stops at a 4 KiB line, a failing grammar, or 500 ms + 10 ms/KiB; stale cache entries are
+  redrawn by prefetch, never in a frame. Reviews: correctness (no high findings; all 21 739
+  grammar patterns compile, so syntect's expect cannot abort us), performance (double layout
+  while scrolling: 1148 vs 573 layouts, fixed by read-ahead -> 643; seconds-long steps;
+  attribute count), coherence (12: state enum, stale in the cache entry, vacuous gates).
+  Learned:
+  - syntect's newline grammars need every line to end in "\n"; core strips a block's last.
+  - Measure a binary-size change against the previous binary, not a spike's baseline: the
+    spike said +0.6 MB (two-face vs syntect's grammars), the real change was 4.3 -> 7.2 MB.
+  - A real-clock time limit made tests flaky in a debug build under mutation load, and the
+    flake hid 13 surviving mutants as "caught" (Engineer: limits are parameters, tests use a
+    fake clock or an unhurried budget). A mutation run with 0 missed deserves a second look
+    when the code has time-dependent paths.
+  - Don't `grep -l | xargs sed` across the tree: it touched only code by luck (corpus files
+    matched the word); name the files.
+  Known gap, not M5's: 9 surviving mutants in text.rs measure_table (M3/M4: the stale-widths
+  check `measured < arrived`, cell wrap width, `left` advance), found by M5's filtered run.
+  Next: M6 (viewer features), awaiting the user's go-ahead.

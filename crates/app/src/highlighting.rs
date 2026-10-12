@@ -28,7 +28,10 @@ use crate::render::paint::LeafPaint;
 
 /// Code asked for beyond the end of a paint being laid out: about 400 lines, several screens.
 /// Asking only for what prefetch lays out had every scrolled-to code paint laid out twice,
-/// plain and then coloured (M5 review: 1148 layouts in a code-1mb scroll against 573).
+/// plain and then coloured (M5 review: 1148 layouts in a code-1mb scroll against 573). More is
+/// asked for once a paint comes within half of it of the end of what was asked, so steady
+/// scrolling finds its colours already there (asking only at the end still recoloured one paint
+/// per 16 KiB, and dropped frames in code-1mb that M4 did not).
 const READ_AHEAD: usize = 16 * 1024;
 /// Lines read, at most, before the thread looks for newer requests and sends what it found...
 const CHUNK_LINES: usize = 100;
@@ -225,8 +228,8 @@ impl Highlighting {
         &self.table
     }
 
-    /// Asks for a paint's code, and `READ_AHEAD` beyond, unless already asked for (sent at the
-    /// next `dispatch`).
+    /// Asks for a paint's code, and `READ_AHEAD` beyond, unless at least half that is already
+    /// asked for (sent at the next `dispatch`).
     pub(crate) fn want(&mut self, paint: &LeafPaint) {
         let Some(code) = paint.code else {
             return;
@@ -235,7 +238,11 @@ impl Highlighting {
             return;
         };
         let end = code.start + paint.text.len();
-        if !self.enabled || block.state != State::Reading || end <= block.asked {
+        if !self.enabled
+            || block.state != State::Reading
+            || block.asked >= block.len
+            || end + READ_AHEAD / 2 <= block.asked
+        {
             return;
         }
         block.asked = (end + READ_AHEAD).min(block.len);
@@ -1135,17 +1142,28 @@ mod tests {
                 until: asked
             }]
         );
-        // Paints within what was asked ask for nothing more; the first past it does.
+        // A paint with half the read-ahead still asked for beyond it asks for nothing; a paint
+        // with less asks for its end and the whole read-ahead again.
+        let len = code.trim_end().len();
         for paint in &paints {
+            let asked = highlighting
+                .wanted
+                .last()
+                .map_or(0, |request| request.until);
+            let count = highlighting.wanted.len();
             highlighting.want(paint);
-            let code = paint.code.expect("a span");
-            if code.start + paint.text.len() <= asked {
-                assert_eq!(highlighting.wanted.len(), 1);
+            let end = paint.code.expect("a span").start + paint.text.len();
+            if end + READ_AHEAD / 2 <= asked || asked == len {
+                assert_eq!(highlighting.wanted.len(), count);
+            } else {
+                assert_eq!(
+                    highlighting.wanted.last().map(|request| request.until),
+                    Some((end + READ_AHEAD).min(len))
+                );
             }
         }
         assert!(highlighting.wanted.len() > 1);
         // Never past the block's end.
-        let len = code.trim_end().len();
         assert!(
             highlighting
                 .wanted

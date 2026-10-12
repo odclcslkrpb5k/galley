@@ -45,6 +45,9 @@ for fixture in "${fixtures[@]}"; do
   if [[ -z "$bytes" || -z "$time_us" ]]; then
     echo "smoke: $name: no probe report in: $out" >&2
     fail=1
+  elif ! grep -q 'renderer=GskCairoRenderer' <<<"$report"; then
+    echo "smoke: $name: the default renderer is not Cairo: $report" >&2
+    fail=1
   elif ((time_us > first_frame_time_budget_us)); then
     echo "smoke: $name: first frame after ${time_us} us; budget $first_frame_time_budget_us" >&2
     fail=1
@@ -72,6 +75,21 @@ for fixture in "${scrolled[@]}"; do
   fi
   n=$((n + 1))
 done
+
+# The GL fallback (--renderer=gl): it must really be GL, reach a first frame and scroll without
+# layout in frames.
+gl_fixture=target/fixtures/readme-200kb.md
+out=$(timeout 60 "$bin" --renderer=gl --exit-after-first-frame "$gl_fixture" 2>&1 || true)
+if ! grep -q 'renderer=GskGLRenderer' <<<"$out"; then
+  echo "smoke: --renderer=gl did not render with GL: $out" >&2
+  fail=1
+fi
+out=$(timeout 300 "$bin" --renderer=gl --bench-scroll "$gl_fixture" 2>&1 || true)
+if ! grep -q 'layouts_in_scroll_frames=0' <<<"$out"; then
+  echo "smoke: --renderer=gl scroll laid out leaves inside frames: $out" >&2
+  fail=1
+fi
+n=$((n + 2))
 
 for fixture in "${checked[@]}"; do
   out=$(timeout 300 "$bin" --check-heights "$fixture" 2>&1 || true)

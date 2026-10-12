@@ -218,7 +218,7 @@ impl Probe {
             return;
         }
         // Measure first: the screenshot and report are not part of startup.
-        let report = self.startup_report();
+        let report = self.startup_report(window);
         let screenshot_ok = self
             .args
             .screenshot
@@ -233,7 +233,7 @@ impl Probe {
         });
     }
 
-    fn startup_report(&self) -> String {
+    fn startup_report(&self, window: &gtk::Window) -> String {
         let since_t0 = self.args.t0.map_or_else(
             || "unknown".to_owned(),
             |t0| match SystemTime::now()
@@ -248,7 +248,8 @@ impl Probe {
         format!(
             "first_frame_us={since_t0} since_main_us={} gtk_ready_us={} presented_us={} \
              loader_wait_us={} layouts_created={} laid_out_before_first_frame={} \
-             bytes_laid_out_before_first_frame={} width_resets_before_first_frame={} leaves={}",
+             bytes_laid_out_before_first_frame={} width_resets_before_first_frame={} leaves={} \
+             renderer={}",
             micros(self.main_started.elapsed()),
             optional_micros(self.gtk_ready.get()),
             optional_micros(self.presented.get()),
@@ -258,6 +259,7 @@ impl Probe {
             self.bytes_laid_out_before_first_frame.get(),
             self.width_resets_before_first_frame.get(),
             self.leaves.get(),
+            renderer_name(window),
         )
     }
 
@@ -403,6 +405,15 @@ fn save_screenshot(window: &gtk::Window, path: &Path) -> bool {
         return false;
     }
     true
+}
+
+/// The renderer GTK actually uses for the window (it falls back to Cairo if GL fails), as its
+/// type name: `GskCairoRenderer`, `GskGLRenderer`.
+fn renderer_name(window: &gtk::Window) -> String {
+    window.renderer().map_or_else(
+        || "none".to_owned(),
+        |renderer| renderer.type_().name().to_owned(),
+    )
 }
 
 #[cfg(test)]

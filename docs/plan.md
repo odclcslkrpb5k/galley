@@ -150,12 +150,16 @@ a browser would.
   libLLVM. The candidate saving is `GDK_DISABLE=gl,vulkan GSK_RENDERER=cairo`, at the price of
   CPU-repainting the window each scroll frame. M0 measured both TTFP and scroll for GL and that
   configuration.
-  - If cairo wins, the env must be set before GTK starts, from inside the binary (a `.desktop`
-    `Exec=env` misses terminal launches). `std::env::set_var` is `unsafe` in edition 2024, so
-    `unsafe_code` would become `deny` (not `forbid`) with exactly one
-    `#[expect(unsafe_code, reason = ...)]` as the first statement of `main`, before any thread
-    exists, and a gate check that it is the only `unsafe` in the tree (Engineer). Decided after M2's scroll
-    measurements (§11): M0 could not separate renderer cost from the spike's layout-during-scroll.
+  - **Decided 2026-10-12 (§11): Cairo by default, `--renderer=cairo|gl` to choose.** The
+    environment is set from inside the binary (a `.desktop` `Exec=env` misses terminal
+    launches): `renderer::env_changes` (pure, tested) decides the changes, and `main`'s
+    `set_environment`, called before the loader thread or GTK exists, applies them.
+    `std::env::set_var` is `unsafe` in edition 2024, so `unsafe_code` is `deny` (not `forbid`)
+    with exactly one `#[expect(unsafe_code, reason = ...)]`; `scripts/check-boundaries` fails if
+    there is any other `unsafe_code` exception or `unsafe` block outside `main.rs` (Engineer).
+    The flag overrides `GSK_RENDERER`; without it a renderer set in `GSK_RENDERER` is kept;
+    with neither, Cairo. The probe reports the renderer GTK actually used, and the smoke asserts
+    Cairo by default and GL with `--renderer=gl`.
 - `gtk::Application` versus plain `gtk::init` + window + main loop: the latter skips the session-bus
   connection (`NON_UNIQUE` still connects synchronously). Measure in M0; take it if it is not
   noise.
@@ -362,7 +366,7 @@ not by bench runs.
 
 - rust: `unknown_lints = { level = "deny", priority = -100 }` (clippy appends `-D warnings` after
   Cargo's lint flags, so `-D warnings` alone does **not** make unknown lints fatal; verified),
-  `unsafe_code = "forbid"` (see §4.4 for the one possible exception), `unused_must_use = "deny"`,
+  `unsafe_code = "deny"` (one exception, §4.4, enforced by `scripts/check-boundaries`), `unused_must_use = "deny"`,
   `missing_debug_implementations`, `unreachable_pub`, `rust_2018_idioms = { level, priority = -1 }`.
 - clippy: `pedantic = { level = "deny", priority = -1 }`, then the restriction lints:
   `unwrap_used`, `expect_used`, `panic`, `todo`, `unimplemented`, `unreachable`,
@@ -562,15 +566,15 @@ Answered 2026-10-11:
 - GitHub corpus: approved; fetched.
 - Claude Code push-guard hook: approved; installed (§8).
 
-Open:
+Answered 2026-10-12:
 
-1. **Renderer** (from M0, docs/perf-baseline.md). Cairo with GL disabled reaches the first frame
-   60-100 ms sooner than GL. Its scroll numbers are inconclusive until M2 takes layout work off
-   the scroll path. Using it means setting `GDK_DISABLE=gl,vulkan GSK_RENDERER=cairo` before GTK
-   starts: either `unsafe_code` becomes `deny` with one `#[expect]`ed `set_var` at the top of
-   `main` plus a gate check that it is the only `unsafe` (§4.4), or the `.desktop` file sets it
-   and terminal launches get GL. Proposal: decide after M2's scroll measurements, using `unsafe`
-   if Cairo holds up.
+- Renderer: Cairo by default (70-90 ms faster first frame; scrolling about even after the M2
+  review fixes), `--renderer=gl|cairo` to choose, overriding `GSK_RENDERER`; the one `unsafe`
+  exception accepted as worth its cost (§4.4). GL's possible advantages, not yet measured: large
+  (maximised, HiDPI) windows, where Cairo's per-frame CPU cost grows with area, and GPU
+  textures for M4 images and per-leaf caching.
+
+Open: none.
 
 ## 12. Known risks
 

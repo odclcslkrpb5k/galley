@@ -5,6 +5,7 @@ mod document_view;
 mod output;
 mod probe;
 mod render;
+mod renderer;
 mod units;
 
 use std::cell::{Cell, RefCell};
@@ -21,6 +22,7 @@ use args::{Args, Mode, Startup};
 use document_view::DocumentView;
 use output::report_error;
 use probe::Probe;
+use renderer::EnvChange;
 
 const APP_ID: &str = "io.github.odclcslkrpb5k.GbkMarkdown";
 /// The window's default size, in logical pixels.
@@ -48,6 +50,12 @@ fn main() -> ExitCode {
             return ExitCode::from(2);
         }
     };
+    // Before any other thread exists: see `set_environment`.
+    set_environment(renderer::env_changes(
+        args.renderer,
+        std::env::var("GSK_RENDERER").ok().as_deref(),
+        std::env::var("GDK_DISABLE").ok().as_deref(),
+    ));
     // Read and parse the file on a worker while GTK starts and the window is mapped
     // (docs/plan.md §4.4).
     let loader: Option<Loader> = match (args.mode, args.file.clone()) {
@@ -58,6 +66,28 @@ fn main() -> ExitCode {
     match args.startup {
         Startup::Application => run_application(&args, loader, probe),
         Startup::PlainInit => run_plain(&args, loader, &probe),
+    }
+}
+
+/// Sets GTK's renderer through the environment, which GTK reads when it starts.
+///
+/// The program's one `unsafe` (a gate check keeps it the only one, docs/plan.md §4.4): changing
+/// the environment is unsound while another thread may read it. Called first in `main`, before
+/// the loader thread is spawned and before GTK (which starts threads of its own) is initialised,
+/// so only this thread exists.
+#[expect(
+    unsafe_code,
+    reason = "set_var is unsafe in edition 2024; GTK reads its renderer only from the environment"
+)]
+fn set_environment(changes: Vec<EnvChange>) {
+    for change in changes {
+        match change {
+            // SAFETY: only this thread exists (see above), so nothing reads the environment
+            // concurrently.
+            EnvChange::Set(name, value) => unsafe { std::env::set_var(name, value) },
+            // SAFETY: as above.
+            EnvChange::Remove(name) => unsafe { std::env::remove_var(name) },
+        }
     }
 }
 

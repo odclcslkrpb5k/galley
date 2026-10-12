@@ -28,7 +28,9 @@ proptest = "1.11.0"
 # passes. Denying it here, first, makes a misspelled or renamed lint fail the build.
 unknown_lints = { level = "deny", priority = -100 }
 rust_2018_idioms = { level = "deny", priority = -1 }
-unsafe_code = "forbid"
+# deny, not forbid: main.rs sets GTK's renderer through the environment in the one #[expect]ed
+# exception, and scripts/check-boundaries fails if any other `unsafe` appears.
+unsafe_code = "deny"
 unused_must_use = "deny"
 missing_debug_implementations = "deny"
 unreachable_pub = "deny"

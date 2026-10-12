@@ -31,5 +31,24 @@ while read -r file; do
   fi
 done < <(cut -d: -f1 <<<"$code_matches" | sort -u)
 
+# One `unsafe` exception in the program: main.rs sets GTK's renderer through the environment
+# (docs/plan.md §4.4). `unsafe_code` is deny, so any other unsafe needs its own lint exception;
+# there must be exactly one, and every unsafe block must be in main.rs. (The lint canary is
+# excluded: it holds a deliberate violation.)
+code_lines() { grep -rnE "$1" crates/*/src crates/*/tests crates/*/examples 2>/dev/null |
+  grep -v '^crates/lint-canary/' | grep -vE '^[^:]+:[0-9]+:[[:space:]]*//' || true; }
+exceptions=$(code_lines '\bunsafe_code\b')
+if [[ $(grep -c . <<<"$exceptions") != 1 || "$exceptions" != crates/app/src/main.rs:* ]]; then
+  echo "boundaries: expected exactly one unsafe_code exception, in crates/app/src/main.rs; found:" >&2
+  echo "${exceptions:-none}" >&2
+  fail=1
+fi
+outside=$(code_lines '\bunsafe[[:space:]]*(\{|fn|impl|trait|extern)' | grep -v '^crates/app/src/main.rs:' || true)
+if [[ -n "$outside" ]]; then
+  echo "boundaries: unsafe outside crates/app/src/main.rs:" >&2
+  echo "$outside" >&2
+  fail=1
+fi
+
 if ((fail)); then exit 1; fi
 echo "boundaries: ok"

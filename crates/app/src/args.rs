@@ -4,10 +4,14 @@ use std::ffi::OsString;
 use std::path::PathBuf;
 use std::time::Duration;
 
+use crate::renderer::Renderer;
+
 pub(crate) const USAGE: &str = "\
 usage: gbk-markdown [OPTIONS] FILE
 
 options:
+  --renderer=cairo|gl       GTK's renderer (default cairo, faster to first frame); overrides
+                            GSK_RENDERER
   --exit-after-first-frame  print the probe report after the first frame and exit
   --bench-scroll            after the first frame, scroll to the end, report frame times, exit
   --t0=NS                   spawn time in CLOCK_REALTIME nanoseconds, for the startup report
@@ -22,6 +26,8 @@ options:
 pub(crate) struct Args {
     pub(crate) file: Option<PathBuf>,
     pub(crate) mode: Mode,
+    /// `None`: not given (see `renderer::env_changes`).
+    pub(crate) renderer: Option<Renderer>,
     pub(crate) startup: Startup,
     pub(crate) probe: ProbeArgs,
 }
@@ -62,6 +68,8 @@ pub(crate) enum UsageError {
     OptionNotUtf8,
     #[error("--t0 needs a whole number of nanoseconds")]
     BadT0,
+    #[error("--renderer must be cairo or gl")]
+    BadRenderer,
     #[error("no FILE given")]
     MissingFile,
     #[error("more than one FILE given")]
@@ -72,6 +80,7 @@ pub(crate) enum UsageError {
 pub(crate) fn parse(args: impl IntoIterator<Item = OsString>) -> Result<Args, UsageError> {
     let mut file = None;
     let mut mode = Mode::Document;
+    let mut renderer = None;
     // Plain gtk::init is the default: it skips GApplication's session-bus connection, measured
     // 20-45 ms faster to first frame in M0 (docs/perf-baseline.md).
     let mut startup = Startup::PlainInit;
@@ -105,6 +114,9 @@ pub(crate) fn parse(args: impl IntoIterator<Item = OsString>) -> Result<Args, Us
             }
             ("--screenshot", Some(path)) => probe.screenshot = Some(PathBuf::from(path)),
             ("--empty-window", None) => mode = Mode::EmptyWindow,
+            ("--renderer", Some("cairo")) => renderer = Some(Renderer::Cairo),
+            ("--renderer", Some("gl")) => renderer = Some(Renderer::Gl),
+            ("--renderer", Some(_)) => return Err(UsageError::BadRenderer),
             _ => return Err(UsageError::UnknownOption(name.to_owned())),
         }
     }
@@ -115,6 +127,7 @@ pub(crate) fn parse(args: impl IntoIterator<Item = OsString>) -> Result<Args, Us
     Ok(Args {
         file,
         mode,
+        renderer,
         startup,
         probe,
     })
@@ -133,6 +146,7 @@ mod tests {
         let args = parse_strs(&["README.md"]).expect("valid");
         assert_eq!(args.file, Some(PathBuf::from("README.md")));
         assert_eq!(args.mode, Mode::Document);
+        assert_eq!(args.renderer, None);
         assert_eq!(args.startup, Startup::PlainInit);
         assert_eq!(args.probe, ProbeArgs::default());
     }
@@ -157,6 +171,22 @@ mod tests {
         assert!(args.probe.exit_after_first_frame);
         assert_eq!(args.probe.screenshot, Some(PathBuf::from("/tmp/a.png")));
         assert_eq!(args.startup, Startup::Application);
+    }
+
+    #[test]
+    fn the_renderer_can_be_chosen_and_the_last_choice_wins() {
+        let args = parse_strs(&["--renderer=gl", "a.md"]).expect("valid");
+        assert_eq!(args.renderer, Some(Renderer::Gl));
+        let args = parse_strs(&["--renderer=gl", "--renderer=cairo", "a.md"]).expect("valid");
+        assert_eq!(args.renderer, Some(Renderer::Cairo));
+        assert_eq!(
+            parse_strs(&["--renderer=vulkan", "a.md"]),
+            Err(UsageError::BadRenderer)
+        );
+        assert_eq!(
+            parse_strs(&["--renderer", "a.md"]),
+            Err(UsageError::UnknownOption("--renderer".to_owned()))
+        );
     }
 
     #[test]

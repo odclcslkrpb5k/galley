@@ -42,6 +42,7 @@ Optimisation goals, in priority order as stated:
 | 2026-10-11 | Remote images: placeholder first, fetch async once placeholder is visible | User decision |
 | 2026-10-11 | Binary name `gbk-markdown` | User decision |
 | 2026-10-11 | Budgets split: GTK floor (measured) + our added cost; work counters gate, wall clock reports | Red-team: GTK startup may exceed a fixed TTFP budget |
+| 2026-10-12 | Cairo renderer by default, `--renderer=cairo\|gl` overrides GSK_RENDERER; `unsafe_code` deny with one exception (set_var in main) | User decision: 70-90 ms faster first frame, scrolling even; check-boundaries keeps it the only unsafe |
 
 Push guard (installed 2026-10-11): `.claude/hooks/guard-push` refuses Bash commands whose text
 contains `--no-verify` with `git`, or mentions `core.hooksPath` (except setting it to
@@ -49,10 +50,9 @@ contains `--no-verify` with `git`, or mentions `core.hooksPath` (except setting 
 the Edit tool. Never route around it; fix the gate.
 
 Open questions (awaiting user, see `docs/plan.md` §11):
-- Renderer: Cairo with GL disabled (70-90 ms faster first frame) vs GL (scrolling now about
-  even after the M2 review fixes; perf-baseline "M2 review follow-up"). Cairo needs `unsafe`
-  set_var or a .desktop env. Presented to the user after M2.
 - Theme: GTK4 + light stylesheet (not yet confirmed).
+- Benchmarks: the default is now Cairo, so a GL comparison needs `-c gl:--renderer=gl` in
+  bench-startup (an empty configuration is Cairo).
 
 `docs/plan.md` is the authoritative plan; this file records decisions and state.
 

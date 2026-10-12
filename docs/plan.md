@@ -349,8 +349,9 @@ added later without changing the model.
   after the first frame (never inside a frame: the probe counts sends inside frames and the
   smoke requires none). Grammars load in 1.5 ms there; a language's first line costs 20-40 ms
   (pattern compilation). A grammar reads a block from its start, so a paint asks for its
-  block up to its end plus 16 KiB (read ahead: asking only for what prefetch lays out had each
-  scrolled-to code paint laid out twice); the thread reads the request with least left first,
+  block up to its end plus 16 KiB, and again once within 8 KiB of what it asked (read ahead:
+  asking only for what prefetch lays out had each scrolled-to code paint laid out twice, and
+  asking again only at the end still recoloured one paint per 16 KiB); the thread reads the request with least left first,
   a step at a time (100 lines or 15 ms), so no request waits behind a whole long block. It is
   not nearest-the-viewport first: deep in one long block, its start must be read anyway. A
   block stops being highlighted (plain from there) at a line over 4 KiB, at a line the grammar

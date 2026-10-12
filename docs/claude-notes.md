@@ -267,7 +267,7 @@ Not repeated here, so there is one source each (an earlier copy here drifted fro
   thread started after the first frame; only named code (aliases as a const table; console
   sessions colour commands only); GitHub's colours, colour only, so heights cannot change
   (worker measures uncoloured; check-heights with highlighting: 0 mismatches incl. code-1mb).
-  A paint asks for its code plus 16 KiB; least-left-first steps of 100 lines or 15 ms; a block
+  A paint asks for its code plus 16 KiB (again at half of it); least-left-first steps of 100 lines or 15 ms; a block
   stops at a 4 KiB line, a failing grammar, or 500 ms + 10 ms/KiB; stale cache entries are
   redrawn by prefetch, never in a frame. Reviews: correctness (no high findings; all 21 739
   grammar patterns compile, so syntect's expect cannot abort us), performance (double layout

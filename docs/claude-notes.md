@@ -49,8 +49,9 @@ contains `--no-verify` with `git`, or mentions `core.hooksPath` (except setting 
 the Edit tool. Never route around it; fix the gate.
 
 Open questions (awaiting user, see `docs/plan.md` §11):
-- Renderer: Cairo with GL disabled (60-100 ms faster first frame) vs GL; needs `unsafe` set_var
-  or a .desktop env. Proposed: decide after M2 scroll numbers.
+- Renderer: Cairo with GL disabled (70-90 ms faster first frame) vs GL (fewer dropped scroll
+  frames on prose/lists, even on code/tables; perf-baseline M2). Cairo needs `unsafe` set_var
+  or a .desktop env. Presented to the user after M2.
 - Theme: GTK4 + light stylesheet (not yet confirmed).
 
 `docs/plan.md` is the authoritative plan; this file records decisions and state.
@@ -65,7 +66,7 @@ Not repeated here, so there is one source each (an earlier copy here drifted fro
 - Test style: tests return `()` and use `.expect("what")` (`panic_in_result_fn` fires on
   `Result`-returning tests that assert).
 - Output: only `crates/app/src/output.rs` writes stdout/stderr; Pango layouts only through the
-  counted constructor in `document_view/imp.rs` (both enforced by `disallowed-methods`).
+  counted constructor `new_layout` in `render/text.rs` (both enforced by `disallowed-methods`).
 - Not applicable here (service-specific parts of the paranoid standard): shadow-mode production
   reads, retry/refusal policy, unknown-outcome writes, credentials in URLs.
 
@@ -171,4 +172,11 @@ Not repeated here, so there is one source each (an earlier copy here drifted fro
   - `split_inlines` `cut > start + max/2` vs `>=`: a space exactly at the midpoint may or may
     not be a cut; both are valid.
   - `Footnote::number` -> 1 survived only before the first-reference ordering test was added.
-
+- 2026-10-11: M2 renderer built (`crates/app/src/render/`: fenwick, paint, text, heights; widget
+  in `document_view/imp.rs`). Spike and Extent removed. Smoke asserts 0 worker/main height
+  mismatches and 0 layouts in scroll frames. Learned: pangocairo cannot read back a context's
+  font options (derive from gtk::Settings); the widget's colour is wrong until styled (sync the
+  palette in snapshot); idle-only prefetch loses to fast scrolling (after-frame slice + 2-screen
+  window fixed it); scroll benches must be interleaved, as a non-interleaved set at load 4
+  reversed the GL/Cairo result. Never pass `--workspace` to clippy/test by hand: it pulls in
+  the lint canary (which must fail); the gate excludes it.

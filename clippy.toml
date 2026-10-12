@@ -5,7 +5,7 @@ allow-panic-in-tests = true
 allow-indexing-slicing-in-tests = true
 
 # Output and layout each go through one sanctioned function (docs/plan.md §7): crates/app/src/
-# output.rs for stdout/stderr, and the counted constructor in document_view/imp.rs for Pango
+# output.rs for stdout/stderr, and the counted constructor in render/text.rs for Pango
 # layouts, so the probe sees all layout work. Each of those carries an #[expect].
 disallowed-methods = [
     { path = "std::io::stdout", reason = "write through crates/app/src/output.rs" },

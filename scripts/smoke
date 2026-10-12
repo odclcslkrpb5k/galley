@@ -15,11 +15,11 @@ bin=${CARGO_TARGET_DIR:-target}/release/gbk-markdown
 screens=${CARGO_TARGET_DIR:-target}/screens/${GATE_TREE:-adhoc}
 mkdir -p "$screens"
 
-fixtures=(crates/core/tests/data/corpus/*/input.md target/fixtures/readme-200kb.md target/fixtures/list-1mb.md)
-# Not yet: table-1mb.md and code-1mb.md are each one paragraph to the M0 spike and take 20-35 s
-# to lay out. The leaf model (M1/M2) chunks them; add them to the smoke run then.
-# Not yet (M2): a --bench-scroll run asserting layouts_during_scroll=0 (plan §6). The M0 spike
-# lays out on the main thread while scrolling, so it would fail by design.
+fixtures=(crates/core/tests/data/corpus/*/input.md target/fixtures/{readme-200kb,list-1mb,table-1mb,code-1mb}.md)
+# Scrolled end to end: steady scrolling must find every leaf laid out (plan §6).
+scrolled=(target/fixtures/readme-200kb.md target/fixtures/list-1mb.md crates/core/tests/data/corpus/_synthetic-features/input.md)
+# Height worker against main-thread layout: every height must match exactly (plan §4.5).
+checked=(crates/core/tests/data/corpus/_synthetic-features/input.md crates/core/tests/data/corpus/sharkdp__bat/input.md target/fixtures/readme-200kb.md target/fixtures/table-1mb.md)
 
 # Work before the first frame, judged independently of the view's own layout window (which
 # grading itself could never fail): the text Pango may be given for a 1000 px window and one
@@ -51,5 +51,30 @@ for fixture in "${fixtures[@]}"; do
   n=$((n + 1))
 done
 if ((n == 0)); then echo "smoke: no fixtures ran" >&2; exit 1; fi
+
+for fixture in "${scrolled[@]}"; do
+  if ! out=$(timeout 300 "$bin" --bench-scroll "$fixture" 2>&1); then
+    echo "smoke: scroll $fixture failed: $out" >&2
+    fail=1
+    continue
+  fi
+  frames=$(grep -oE 'layouts_in_scroll_frames=[0-9]+' <<<"$out" | cut -d= -f2 || true)
+  if [[ "$frames" != 0 ]]; then
+    echo "smoke: scroll $fixture laid out ${frames:-?} leaves inside frames; must be 0" >&2
+    fail=1
+  fi
+  n=$((n + 1))
+done
+
+for fixture in "${checked[@]}"; do
+  out=$(timeout 300 "$bin" --check-heights "$fixture" 2>&1 || true)
+  mismatches=$(grep -oE 'height_mismatches=[0-9]+' <<<"$out" | cut -d= -f2 || true)
+  if [[ "$mismatches" != 0 ]]; then
+    echo "smoke: heights $fixture: ${mismatches:-no report} mismatches between worker and layout: $out" >&2
+    fail=1
+  fi
+  n=$((n + 1))
+done
+
 if ((fail)); then exit 1; fi
-echo "smoke: $n fixtures ok; screenshots in $screens"
+echo "smoke: $n runs ok; screenshots in $screens"

@@ -6,6 +6,7 @@
     clippy::as_conversions,
     clippy::cast_possible_truncation,
     clippy::cast_precision_loss,
+    clippy::cast_sign_loss,
     reason = "GTK takes f32 and Pango takes i32; std offers no other conversion from f64"
 )]
 
@@ -29,6 +30,33 @@ pub(crate) fn from_pango_units(units: i32) -> f64 {
 /// A frame-clock interval in microseconds as seconds.
 pub(crate) fn micros_to_seconds(micros: i64) -> f64 {
     micros as f64 / 1e6
+}
+
+/// Logical pixels rounded to a whole pixel. Saturates at the i64 range.
+pub(crate) fn round_px(px: f64) -> i64 {
+    px.round() as i64
+}
+
+/// Whole logical pixels as f64; exact for any on-screen length.
+pub(crate) fn px_to_f64(px: i64) -> f64 {
+    px as f64
+}
+
+/// A byte index into a leaf's text as Pango's u32. Leaf text is capped at 16 KiB, so this never
+/// saturates in practice.
+pub(crate) fn text_index(index: usize) -> u32 {
+    u32::try_from(index).unwrap_or(u32::MAX)
+}
+
+/// A colour's channels as Pango's 16-bit values.
+pub(crate) fn rgba_u16(color: gtk::gdk::RGBA) -> (u16, u16, u16, u16) {
+    let channel = |value: f32| (value.clamp(0.0, 1.0) * 65535.0).round() as u16;
+    (
+        channel(color.red()),
+        channel(color.green()),
+        channel(color.blue()),
+        channel(color.alpha()),
+    )
 }
 
 /// A count as f64; exact up to 2^53, far beyond any document.
@@ -70,5 +98,25 @@ mod tests {
     fn pango_units_saturate() {
         assert_eq!(to_pango_units(1e12), i32::MAX);
         assert_eq!(to_pango_units(f64::NAN), 0);
+    }
+
+    #[test]
+    fn pixels_round_to_the_nearest_whole() {
+        assert_eq!(round_px(2.4), 2);
+        assert_eq!(round_px(2.6), 3);
+        assert_eq!(round_px(-2.6), -3);
+        assert!((px_to_f64(-7) + 7.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn text_indices_saturate() {
+        assert_eq!(text_index(5), 5);
+        assert_eq!(text_index(usize::MAX), u32::MAX);
+    }
+
+    #[test]
+    fn colours_scale_and_clamp_to_sixteen_bits() {
+        let color = gtk::gdk::RGBA::new(1.0, 0.5, -1.0, 2.0);
+        assert_eq!(rgba_u16(color), (65_535, 32_768, 0, 65_535));
     }
 }

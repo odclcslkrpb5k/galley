@@ -22,7 +22,8 @@ use crate::args::ProbeArgs;
 use crate::output::{print_line, report_error};
 use crate::units;
 
-/// Scroll speed for --bench-scroll, in logical pixels per second: a brisk fling.
+/// Scroll speed for --bench-scroll, in logical pixels per second: a brisk fling (faster for a
+/// document too long to cross at this speed within half the frame limit).
 const BENCH_SCROLL_SPEED: f64 = 3000.0;
 /// --bench-scroll gives up after this many frames; reaching it is a failed run.
 const BENCH_SCROLL_MAX_FRAMES: usize = 6000;
@@ -51,6 +52,13 @@ pub(crate) struct Probe {
     presented: Cell<Option<Duration>>,
     /// How long the main thread waited for the loader thread.
     loader_wait: Cell<Option<Duration>>,
+    /// Whether a frame is being painted (before-paint to after-paint).
+    in_frame: Cell<bool>,
+    /// Layouts made inside frames since --bench-scroll began scrolling: steady scrolling must
+    /// find every leaf already laid out (docs/plan.md §6, gated).
+    layouts_in_scroll_frames: Cell<usize>,
+    /// When the height worker finished, after `main` began.
+    heights_measured: Cell<Option<Duration>>,
     /// The vertical adjustment --bench-scroll drives.
     scroll_target: RefCell<Option<gtk::Adjustment>>,
     scroll: RefCell<ScrollRecord>,
@@ -83,6 +91,9 @@ impl Probe {
             gtk_ready: Cell::new(None),
             presented: Cell::new(None),
             loader_wait: Cell::new(None),
+            in_frame: Cell::new(false),
+            layouts_in_scroll_frames: Cell::new(0),
+            heights_measured: Cell::new(None),
             scroll_target: RefCell::new(None),
             scroll: RefCell::new(ScrollRecord::default()),
         })
@@ -116,9 +127,33 @@ impl Probe {
         }
     }
 
+    pub(crate) fn heights_measured(&self) {
+        self.heights_measured.set(Some(self.main_started.elapsed()));
+    }
+
+    pub(crate) fn checking_heights(&self) -> bool {
+        self.args.check_heights
+    }
+
+    /// For --check-heights: reports how many leaf heights the worker got wrong, and exits.
+    pub(crate) fn heights_checked(&self, mismatches: usize, leaves: usize) {
+        let report = format!(
+            "height_mismatches={mismatches} leaves={leaves} heights_measured_us={}",
+            optional_micros(self.heights_measured.get())
+        );
+        std::process::exit(if print_line(report) {
+            0
+        } else {
+            EXIT_NO_REPORT
+        });
+    }
+
     /// Counts one Pango layout of `bytes` bytes of text.
     pub(crate) fn layout_created(&self, bytes: usize) {
         increment(&self.layouts_created, 1);
+        if self.in_frame.get() && self.scroll.borrow().last_frame_time.is_some() {
+            increment(&self.layouts_in_scroll_frames, 1);
+        }
         if !self.first_frame_done.get() {
             increment(&self.laid_out_before_first_frame, 1);
             increment(&self.bytes_laid_out_before_first_frame, bytes);
@@ -148,12 +183,14 @@ impl Probe {
     }
 
     fn before_paint(&self) {
+        self.in_frame.set(true);
         if self.first_frame_done.get() && self.args.bench_scroll {
             self.scroll.borrow_mut().paint_started = Some(Instant::now());
         }
     }
 
     fn after_paint(self: &Rc<Self>, window: &gtk::Window) {
+        self.in_frame.set(false);
         if self.first_frame_done.get() {
             if self.args.bench_scroll {
                 let mut record = self.scroll.borrow_mut();
@@ -171,7 +208,7 @@ impl Probe {
             self.start_scroll(window);
             return;
         }
-        if !self.args.exit_after_first_frame {
+        if !self.args.exit_after_first_frame || self.args.check_heights {
             return;
         }
         // Measure first: the screenshot and report are not part of startup.
@@ -247,7 +284,12 @@ impl Probe {
         };
         // Set the value with no borrow held: value-changed runs the view's layout code.
         if let Some(last) = last {
-            let step = BENCH_SCROLL_SPEED * units::micros_to_seconds(now.saturating_sub(last));
+            // Fast enough to cross any document within the frame limit, and no slower than a
+            // brisk fling.
+            let span = adjustment.upper() - adjustment.page_size();
+            let frames = units::count_to_f64(BENCH_SCROLL_MAX_FRAMES / 2);
+            let speed = BENCH_SCROLL_SPEED.max(span / frames * 60.0);
+            let step = speed * units::micros_to_seconds(now.saturating_sub(last));
             adjustment.set_value(adjustment.value() + step);
         }
         let reached_end = adjustment.value() >= adjustment.upper() - adjustment.page_size();
@@ -286,7 +328,8 @@ impl Probe {
         Some(format!(
             "scroll_frames={} reached_end={reached_end} refresh_us={refresh} refresh_known={} \
              median_interval_us={} p99_interval_us={} max_interval_us={longest} dropped={dropped} \
-             p50_busy_us={} p99_busy_us={} max_busy_us={busiest} layouts_during_scroll={}",
+             p50_busy_us={} p99_busy_us={} max_busy_us={busiest} layouts_during_scroll={} \
+             layouts_in_scroll_frames={}",
             intervals.len(),
             record.refresh_us.is_some(),
             percentile(&intervals, 50)?,
@@ -296,6 +339,7 @@ impl Probe {
             self.layouts_created
                 .get()
                 .saturating_sub(record.layouts_at_start),
+            self.layouts_in_scroll_frames.get(),
         ))
     }
 }

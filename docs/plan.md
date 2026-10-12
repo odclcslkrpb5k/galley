@@ -197,6 +197,26 @@ added later without changing the model.
 - **No work during scroll.** Idle work pauses while scrolling is in motion; steady-state scroll
   frames append cached nodes only.
 
+### As built in M2, and why
+
+- **Paint is pure data.** The loader thread turns the model into `LeafPaint`s (text, Pango-free
+  attribute spans, font role, indents, gaps, decorations) while GTK starts; the widget and the
+  height worker both build layouts from them through one function (`render::text::layout`), so
+  they cannot disagree about attributes (Eliminate).
+- **Worker heights are equal, not close.** The widget's cairo font options cannot be read back
+  (no pangocairo binding), so `TextSetup` derives them from `gtk::Settings` as GTK does.
+  `--check-heights` lays out every leaf on the main thread and compares; the smoke asserts 0
+  mismatches on four fixtures (Engineer). The idle-slice fallback was not needed.
+- **No layout in scroll frames.** Idle prefetch alone lost to fast scrolling (124-1273 layouts in
+  frames). A 3 ms slice after each frame plus a prefetch window of 2 screens either side brought
+  every run to 0; the smoke asserts `layouts_in_scroll_frames=0` on three fixtures (Engineer).
+- **Body font.** Body text is `sans-serif` and code `monospace`, at the desktop font's size. The
+  desktop font here is Source Code Pro, which suits a terminal, not prose.
+- **Not yet:** tables are text rows (M3), long code lines wrap instead of scrolling sideways,
+  images are `[alt]` placeholders (M4). The render-node cache is keyed by leaf, keeps leaves within
+  3 screens of the viewport, and is cleared on any width, palette or setup change (no LRU or
+  context serial).
+
 ### 4.6 Deferred work
 
 - Syntax highlighting (M5): syntect loads on a worker after first paint; visible code chunks first.
@@ -488,7 +508,7 @@ replaces review.)
   in M1 already covers `<pre>` (code block), `<blockquote>` (quote), `<details>`, alignment,
   images, links and inline styles. The renderer still shows M0's spike paragraphs until M2.
 - **M2 renderer v1.** Fenwick tree, first-viewport layout, worker heights, anchoring, caches;
-  M2 features; scroll scenarios; counters within budget.
+  M2 features; scroll scenarios; counters within budget. *Built 2026-10-11* (§4.5 "As built").
 - **M3 GFM completeness.** Tables, tasks, links, footnotes, alerts, anchors, HTML lowering in
   full, front matter, math, emoji; oracle 3.
 - **M4 images.** Placeholders first; local and remote fetched lazily once visible (§4.6).

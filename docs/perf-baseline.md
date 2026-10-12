@@ -174,3 +174,41 @@ Pathological inputs that took 0.5-19 s before (unclosed tags across blocks, stra
 tags) are now linear: the HTML stack caches its state per entry, rejects unmatched closers in
 O(1) and is capped at 256 deep. `crates/core/tests/scaling.rs` gates this (4× input must take
 < 8× time; a planted quadratic bug measured 15-16×).
+
+## M2 (2026-10-11): renderer v1
+
+Real renderer: `LeafPaint`s built on the loader thread, first screen laid out in `prepare`,
+heights from the worker, prefetch after each frame. Host load 4.5-4.8 (`--force`), so absolute
+numbers are noisy; the GL/Cairo comparisons are interleaved and comparable.
+
+### First frame, `bench-startup -n 20`, interleaved (ms)
+
+| Fixture | GL median | Cairo median | Cairo vs GL (95% CI) | Laid out before first frame |
+|---|---|---|---|---|
+| one-line | 284.6 | 210.1 | -74.5 (-98.4 .. -60.6) | 1 leaf, 9 B |
+| ripgrep README | 340.0 | 248.5 | -91.6 (-110.1 .. -70.3) | 29 leaves, 2.0 KiB |
+| list-1mb | 322.7 | 233.3 | -89.5 (-110.5 .. -65.4) | 59 leaves, 559 B |
+| table-1mb | 325.7 | 257.8 | -67.9 (-89.4 .. -35.2) | 2 leaves, 2.9 KiB |
+
+`loader_wait_us` ≤ 6 everywhere: `load` + paint (even table-1mb's ~80 ms) finishes while GTK
+maps the window. Our added cost over the M0 floor is within noise; time to first frame is GTK.
+
+### Scroll, `--bench-scroll`, three interleaved runs each (dropped frames)
+
+| Fixture | Frames | GL | Cairo |
+|---|---|---|---|
+| readme-200kb | ~1730 | 75, 48, 40 | 90, 79, 94 |
+| list-1mb | ~2900 | 75, 64, 41 | 128, 173, 127 |
+| code-1mb | ~2800 | 143, 170, 177 | 167, 108, 163 |
+| table-1mb | ~2780 | 157, 177, 217 | 165, 174, 201 |
+
+`layouts_in_scroll_frames=0` in every run: scroll frames only append cached render nodes.
+GL drops fewer frames on prose and lists; code and table are even. An earlier non-interleaved
+set (same day, same load) had Cairo ahead on scrolling, so that set was a load artefact.
+The remaining drops (2-7%) are not layout; where they go (snapshot of many nodes, X server
+waits) is open.
+
+### Renderer trade-off (for the user's decision, plan §11)
+
+Cairo with GL disabled: 70-90 ms faster first frame (goal 1). GL: fewer dropped frames on
+prose and long lists (goal 2), even on code and tables.

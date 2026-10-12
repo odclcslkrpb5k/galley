@@ -9,6 +9,7 @@ publish.workspace = true
 [dependencies]
 gbk-markdown-core.workspace = true
 gtk.workspace = true
+pangocairo.workspace = true
 thiserror.workspace = true
 
 [lints]

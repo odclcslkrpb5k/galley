@@ -2,10 +2,9 @@
 
 mod args;
 mod document_view;
-mod extent;
 mod output;
 mod probe;
-mod spike;
+mod render;
 mod units;
 
 use std::cell::{Cell, RefCell};
@@ -37,7 +36,7 @@ enum LoadError {
     LoaderPanicked,
 }
 
-type Loader = JoinHandle<Result<Vec<String>, LoadError>>;
+type Loader = JoinHandle<Result<Vec<render::paint::LeafPaint>, LoadError>>;
 
 fn main() -> ExitCode {
     let main_started = Instant::now();
@@ -62,10 +61,12 @@ fn main() -> ExitCode {
     }
 }
 
-fn load(path: &Path) -> Result<Vec<String>, LoadError> {
+/// Reads, parses and paints the document: everything up to Pango, off the main thread.
+fn load(path: &Path) -> Result<Vec<render::paint::LeafPaint>, LoadError> {
     let bytes = std::fs::read(path).map_err(|error| LoadError::Read(error.kind()))?;
-    // M1: the real model, shown as plain text per leaf until M2's renderer.
-    Ok(spike::leaf_texts(&gbk_markdown_core::load(&bytes)))
+    Ok(render::paint::paint_document(&gbk_markdown_core::load(
+        &bytes,
+    )))
 }
 
 fn run_application(args: &Args, loader: Option<Loader>, probe: Rc<Probe>) -> ExitCode {
@@ -140,9 +141,9 @@ fn show(
     probe.presented();
     if let Some(loader) = loader {
         let waited = Instant::now();
-        let paragraphs = loader.join().unwrap_or(Err(LoadError::LoaderPanicked))?;
+        let paints = loader.join().unwrap_or(Err(LoadError::LoaderPanicked))?;
         probe.loader_joined(waited.elapsed());
-        let view = DocumentView::new(paragraphs, Rc::clone(probe));
+        let view = DocumentView::new(paints, Rc::clone(probe));
         let scrolled = gtk::ScrolledWindow::builder()
             .hscrollbar_policy(gtk::PolicyType::Never)
             .child(&view)

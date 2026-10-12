@@ -9,17 +9,19 @@ use gtk::prelude::*;
 use gtk::subclass::prelude::*;
 use gtk::{gio, glib, graphene, gsk, pango};
 
+use crate::images::{Gallery, ImageState, Loading};
 use crate::links::{self, Opening};
 use crate::output::report_error;
 use crate::probe::Probe;
 use crate::render::geometry::{LeafGeometry, MarkerPlace, Rect, Shade};
 use crate::render::heights::{Job, Worker, WorkerGone};
 use crate::render::indicator::{self, Scroll};
+use crate::render::paint::TextAttr;
 use crate::render::paint::{self, BarColor, LeafPaint, Target};
 use crate::render::positions::{Positions, Spot};
-use crate::render::text::{ColumnWidths, Content, Measured, Palette, TextSetup, Typesetter};
+use crate::render::text::{self, ColumnWidths, Content, Measured, Palette, TextSetup, Typesetter};
 use crate::units;
-use gbk_markdown_core::units::{DetailsId, LeafId};
+use gbk_markdown_core::units::{DetailsId, ImageId, LeafId};
 
 /// A summary's marker while its `<details>` is open, and closed.
 const OPEN_MARKER: &str = "▾";
@@ -68,6 +70,8 @@ pub(crate) struct DocumentView {
     /// Set while the view moves the scroll position itself, which is not the user scrolling.
     adjusting: Cell<bool>,
     poll: RefCell<Option<glib::SourceId>>,
+    /// Collects finished image loads while any are in flight.
+    image_poll: RefCell<Option<glib::SourceId>>,
     prefetch: RefCell<Option<glib::SourceId>>,
     settle: RefCell<Option<glib::SourceId>>,
     reconfigure: RefCell<Option<glib::SourceId>>,
@@ -103,6 +107,7 @@ impl Default for DocumentView {
             last_scroll: Cell::new(None),
             adjusting: Cell::new(false),
             poll: RefCell::default(),
+            image_poll: RefCell::default(),
             prefetch: RefCell::default(),
             settle: RefCell::default(),
             reconfigure: RefCell::default(),
@@ -140,6 +145,8 @@ struct Doc {
     open: Vec<bool>,
     /// Each paint's laid-out height, open or not, once known at this width.
     natural: Vec<Option<i64>>,
+    /// The document's images and their loading.
+    gallery: Gallery,
     /// `None` once the worker has stopped.
     worker: Option<Worker>,
     /// For `--check-heights` only: every height the worker sent.
@@ -313,7 +320,12 @@ impl WidgetImpl for DocumentView {
             snapshot.translate(&point(margin, y));
             snapshot.append_node(node);
             snapshot.restore();
+            // Its placeholders are drawn: now its images may load.
+            if let Some(paint) = doc.paints.get(leaf) {
+                doc.gallery.request(paint);
+            }
         }
+        let loading = doc.gallery.outstanding() > 0;
         let resized = doc.positions.total() != total;
         let indicator_color = doc
             .palette
@@ -324,6 +336,9 @@ impl WidgetImpl for DocumentView {
         if resized {
             self.schedule_reconfigure();
         }
+        if loading {
+            self.start_image_polling();
+        }
         self.schedule_prefetch();
     }
 }
@@ -331,15 +346,22 @@ impl WidgetImpl for DocumentView {
 impl ScrollableImpl for DocumentView {}
 
 impl DocumentView {
-    pub(super) fn set_document(
-        &self,
-        paints: Vec<LeafPaint>,
-        anchors: HashMap<String, LeafId>,
-        details: Vec<bool>,
-        path: Option<PathBuf>,
-        start: Option<LeafId>,
-        probe: Rc<Probe>,
-    ) {
+    pub(super) fn set_document(&self, document: super::Opened, probe: Rc<Probe>) {
+        let super::Opened {
+            paints,
+            anchors,
+            details,
+            images,
+            path,
+            start,
+            loading,
+        } = document;
+        // While --check-heights compares layouts, no image arrives to change them.
+        let loading = Loading {
+            enabled: loading.enabled && !probe.checking_heights(),
+            ..loading
+        };
+        let gallery = Gallery::new(images, &paints, path.clone(), loading);
         let start = start.and_then(|leaf| paint::first_paint_of(&paints, leaf.index()));
         let mut open = details;
         // Opening inside a closed `<details>` opens it.
@@ -371,6 +393,7 @@ impl DocumentView {
             hit: None,
             open,
             natural: vec![None; count],
+            gallery,
             worker: Some(worker),
             worker_heights: Vec::new(),
             probe,
@@ -453,6 +476,7 @@ impl DocumentView {
                 view_text_width: width,
                 paints: Arc::clone(&doc.paints),
                 setup: doc.setup,
+                images: Arc::clone(doc.gallery.table()),
             })
         });
         if let Some(Err(gone)) = submitted {
@@ -489,6 +513,50 @@ impl DocumentView {
             let value = self.set_width(width);
             self.configure_vadjustment(value);
             self.obj().queue_draw();
+        }
+    }
+
+    fn start_image_polling(&self) {
+        if self.image_poll.borrow().is_some() {
+            return;
+        }
+        let source = glib::timeout_add_local(
+            POLL_INTERVAL,
+            glib::clone!(
+                #[weak(rename_to = view)]
+                self.obj(),
+                #[upgrade_or]
+                glib::ControlFlow::Break,
+                move || view.imp().collect_images()
+            ),
+        );
+        self.image_poll.replace(Some(source));
+    }
+
+    /// Takes finished image loads: the paints showing them are drawn again, and laid out
+    /// again (an image changes its paint's height) when next on screen or near it.
+    fn collect_images(&self) -> glib::ControlFlow {
+        let more = {
+            let mut document = self.document.borrow_mut();
+            let Some(doc) = document.as_mut() else {
+                self.image_poll.replace(None);
+                return glib::ControlFlow::Break;
+            };
+            let changed = doc.gallery.collect();
+            if !changed.is_empty() {
+                doc.hit = None;
+            }
+            for paint in changed {
+                doc.cache.remove(&paint);
+            }
+            doc.gallery.outstanding() > 0
+        };
+        self.obj().queue_draw();
+        if more {
+            glib::ControlFlow::Continue
+        } else {
+            self.image_poll.replace(None);
+            glib::ControlFlow::Break
         }
     }
 
@@ -798,6 +866,14 @@ impl DocumentView {
 
     /// The link at a point of the view, if any.
     pub(super) fn link_at(&self, x: f64, y: f64) -> Option<Target> {
+        match self.hit_at(x, y)? {
+            Hit::Link(target) => Some(target),
+            Hit::Image(_) => None,
+        }
+    }
+
+    /// The link or image at a point of the view, if any.
+    fn hit_at(&self, x: f64, y: f64) -> Option<Hit> {
         let (top, _page) = self.viewport()?;
         let context = self.obj().pango_context();
         let mut document = self.document.borrow_mut();
@@ -806,7 +882,7 @@ impl DocumentView {
         let y = top - margin + units::round_px(y);
         let paint = doc.positions.visible(y, 1).next()?;
         let local = (units::round_px(x) - margin, y - doc.positions.start(paint));
-        doc.link_in(&context, paint, local)
+        doc.hit_in(&context, paint, local)
     }
 
     /// For --click-at: what a click at a point does, done as `Scope::Document` allows.
@@ -814,6 +890,7 @@ impl DocumentView {
         let pointed = self.pointed_at(x, y);
         let label = match &pointed {
             Some(Pointed::Link(target)) => target.label(),
+            Some(Pointed::Image(image)) => format!("image:{}", image.index()),
             Some(Pointed::Summary(details)) => format!("summary:{}", details.index()),
             None => "none".to_owned(),
         };
@@ -821,6 +898,13 @@ impl DocumentView {
             self.activate(pointed, Scope::Document);
         }
         label
+    }
+
+    pub(super) fn probe_images(&self) -> (usize, usize, usize) {
+        self.document
+            .borrow()
+            .as_ref()
+            .map_or((0, 0, 0), |doc| doc.gallery.counts())
     }
 
     /// The document's height, and the leaf whose paint is at the top of the view.
@@ -835,8 +919,10 @@ impl DocumentView {
 
     /// What a click at a point would do: follow a link, or open or close a `<details>`.
     fn pointed_at(&self, x: f64, y: f64) -> Option<Pointed> {
-        if let Some(target) = self.link_at(x, y) {
-            return Some(Pointed::Link(target));
+        match self.hit_at(x, y) {
+            Some(Hit::Link(target)) => return Some(Pointed::Link(target)),
+            Some(Hit::Image(image)) => return Some(Pointed::Image(image)),
+            None => {}
         }
         let (top, _page) = self.viewport()?;
         let document = self.document.borrow();
@@ -864,10 +950,16 @@ impl DocumentView {
             return;
         }
         let widget = self.obj();
-        widget.set_cursor_from_name(pointed.is_some().then_some("pointer"));
+        let clickable = matches!(pointed, Some(Pointed::Link(_) | Pointed::Summary(_)));
+        widget.set_cursor_from_name(clickable.then_some("pointer"));
         let path = self.path.borrow();
         let tooltip = match &pointed {
             Some(Pointed::Link(target)) => describe(target, path.as_deref()),
+            Some(Pointed::Image(image)) => self
+                .document
+                .borrow()
+                .as_ref()
+                .and_then(|doc| image_note(&doc.gallery, *image)),
             Some(Pointed::Summary(_)) | None => None,
         };
         widget.set_tooltip_text(tooltip.as_deref());
@@ -904,6 +996,8 @@ impl DocumentView {
     /// document (a URL, another file) is opened.
     fn activate(&self, pointed: Pointed, scope: Scope) {
         let result = match pointed {
+            // An image that is not a link does nothing when clicked.
+            Pointed::Image(_) => Ok(()),
             Pointed::Summary(details) => {
                 self.toggle(details);
                 Ok(())
@@ -1160,8 +1254,33 @@ impl DocumentView {
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum Pointed {
     Link(Target),
+    /// An image that is not a link: its tooltip says how its loading went.
+    Image(ImageId),
     /// The summary of this `<details>`: opens or closes it.
     Summary(DetailsId),
+}
+
+/// What is at a point of a leaf.
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum Hit {
+    Link(Target),
+    Image(ImageId),
+}
+
+/// An image's tooltip: why it is not shown, if it is not.
+fn image_note(gallery: &Gallery, image: ImageId) -> Option<String> {
+    let alt = gallery
+        .table()
+        .info(image)
+        .map(|info| info.alt.as_str())
+        .filter(|alt| !alt.is_empty())
+        .unwrap_or("image");
+    match gallery.state(image)? {
+        ImageState::Ready(_) => None,
+        ImageState::Waiting | ImageState::Loading => Some(format!("{alt}: loading")),
+        ImageState::Failed(error) => Some(format!("{alt}: {error}")),
+        ImageState::NotLoaded => Some(format!("{alt}: not loaded (remote images are off)")),
+    }
 }
 
 /// How far a click may reach.
@@ -1251,6 +1370,7 @@ impl Doc {
             context,
             setup: self.setup,
             palette: self.palette,
+            images: Arc::clone(self.gallery.table()),
         }
     }
 
@@ -1263,16 +1383,13 @@ impl Doc {
         }
     }
 
-    /// The link at `(x, y)` in leaf `leaf` (leaf coordinates), laying the leaf out if it is not
-    /// the one last asked about.
-    fn link_in(
-        &mut self,
-        context: &pango::Context,
-        leaf: usize,
-        (x, y): (i64, i64),
-    ) -> Option<Target> {
+    /// What is at `(x, y)` in paint `leaf` (leaf coordinates): a link, else an image; laying
+    /// the paint out if it is not the one last asked about. Paints with neither are not laid out.
+    fn hit_in(&mut self, context: &pango::Context, leaf: usize, (x, y): (i64, i64)) -> Option<Hit> {
         let paints = Arc::clone(&self.paints);
-        let paint = paints.get(leaf).filter(|paint| paint.has_links())?;
+        let paint = paints
+            .get(leaf)
+            .filter(|paint| paint.has_links() || !paint.images.is_empty())?;
         let typesetter = self.typesetter(context.clone());
         let probe = Rc::clone(&self.probe);
         let mut counted = |bytes: usize| probe.layout_created(bytes);
@@ -1285,7 +1402,10 @@ impl Doc {
             self.hit = Some((leaf, measured, geometry));
         }
         let (_leaf, measured, geometry) = self.hit.as_ref()?;
-        typesetter.link_at(paint, measured, geometry, (x, y), &mut counted)
+        typesetter
+            .link_at(paint, measured, geometry, (x, y), &mut counted)
+            .map(Hit::Link)
+            .or_else(|| Typesetter::image_at(paint, measured, geometry, (x, y)).map(Hit::Image))
     }
 
     /// The scroll value that puts a paint's top at the top of the view. It is then the anchor,
@@ -1379,7 +1499,17 @@ impl Doc {
             self.setup
                 .metrics()
                 .geometry(paint, measured.height, measured.grid(), self.width);
-        let node = draw_leaf(&typesetter, &measured, &geometry, disclosure, &mut counted);
+        let node = draw_leaf(
+            &Drawing {
+                typesetter: &typesetter,
+                gallery: &self.gallery,
+                paint,
+                measured: &measured,
+                geometry: &geometry,
+                disclosure,
+            },
+            &mut counted,
+        );
         self.cache.insert(leaf, node);
         let height = self.record_height(leaf, geometry.height);
         self.positions.set(leaf, height, anchor, scrolling)
@@ -1387,13 +1517,26 @@ impl Doc {
 }
 
 /// Draws one leaf at the origin, as its geometry places it.
-fn draw_leaf(
-    typesetter: &Typesetter,
-    measured: &Measured,
-    geometry: &LeafGeometry,
-    disclosure: &str,
-    counted: &mut dyn FnMut(usize),
-) -> Option<gsk::RenderNode> {
+/// What drawing one leaf needs.
+struct Drawing<'a> {
+    typesetter: &'a Typesetter,
+    gallery: &'a Gallery,
+    paint: &'a LeafPaint,
+    measured: &'a Measured,
+    geometry: &'a LeafGeometry,
+    /// The summary marker to show, if the leaf has one.
+    disclosure: &'a str,
+}
+
+fn draw_leaf(drawing: &Drawing<'_>, counted: &mut dyn FnMut(usize)) -> Option<gsk::RenderNode> {
+    let Drawing {
+        typesetter,
+        gallery,
+        paint,
+        measured,
+        geometry,
+        disclosure,
+    } = *drawing;
     let palette = typesetter.palette;
     let snapshot = gtk::Snapshot::new();
     for (rect, shade) in &geometry.fills {
@@ -1426,23 +1569,125 @@ fn draw_leaf(
         );
     }
     match &measured.content {
-        Content::Text(layout) => append_layout(
-            &snapshot,
-            layout,
-            (geometry.text_x, geometry.text_y),
-            palette.foreground,
-        ),
+        Content::Text(layout) => {
+            let origin = (geometry.text_x, geometry.text_y);
+            append_layout(&snapshot, layout, origin, palette.foreground);
+            draw_images(
+                &snapshot,
+                typesetter,
+                gallery,
+                layout,
+                &paint.attrs,
+                origin,
+                counted,
+            );
+        }
         Content::Table { cells, .. } => {
-            for (layouts, origins) in cells.iter().zip(&geometry.cells) {
-                for (layout, &origin) in layouts.iter().zip(origins) {
+            let rows = paint
+                .table
+                .as_ref()
+                .map(|table| table.rows.as_slice())
+                .unwrap_or_default();
+            for ((layouts, origins), row) in cells.iter().zip(&geometry.cells).zip(rows) {
+                for ((layout, &origin), cell) in layouts.iter().zip(origins).zip(&row.cells) {
                     if let Some(layout) = layout {
                         append_layout(&snapshot, layout, origin, palette.foreground);
+                        draw_images(
+                            &snapshot,
+                            typesetter,
+                            gallery,
+                            layout,
+                            &cell.attrs,
+                            origin,
+                            counted,
+                        );
                     }
                 }
             }
         }
     }
     snapshot.to_node()
+}
+
+/// Draws a layout's images, or their placeholders, in the boxes Pango kept for them.
+fn draw_images(
+    snapshot: &gtk::Snapshot,
+    typesetter: &Typesetter,
+    gallery: &Gallery,
+    layout: &pango::Layout,
+    attrs: &[TextAttr],
+    (x, y): (i64, i64),
+    counted: &mut dyn FnMut(usize),
+) {
+    for (image, place) in text::image_boxes(layout, attrs) {
+        let place = Rect {
+            x: place.x + x,
+            y: place.y + y,
+            ..place
+        };
+        match gallery.state(image) {
+            Some(ImageState::Ready(texture)) => {
+                snapshot.append_texture(texture, &graphene_rect(place));
+            }
+            state => {
+                let alt = gallery
+                    .table()
+                    .info(image)
+                    .map_or("", |info| info.alt.as_str());
+                let failed = matches!(state, Some(ImageState::Failed(_)));
+                draw_placeholder(snapshot, typesetter, place, alt, failed, counted);
+            }
+        }
+    }
+}
+
+/// An image not (yet) shown: a faint box with its alt text, marked if it failed to load.
+fn draw_placeholder(
+    snapshot: &gtk::Snapshot,
+    typesetter: &Typesetter,
+    place: Rect,
+    alt: &str,
+    failed: bool,
+    counted: &mut dyn FnMut(usize),
+) {
+    let palette = typesetter.palette;
+    snapshot.append_color(&palette.faint(0.05), &graphene_rect(place));
+    let line = palette.faint(0.25);
+    for edge in [
+        Rect { height: 1, ..place },
+        Rect {
+            y: place.y + place.height - 1,
+            height: 1,
+            ..place
+        },
+        Rect { width: 1, ..place },
+        Rect {
+            x: place.x + place.width - 1,
+            width: 1,
+            ..place
+        },
+    ] {
+        snapshot.append_color(&line, &graphene_rect(edge));
+    }
+    let text = match (failed, alt.is_empty()) {
+        (true, true) => "⚠".to_owned(),
+        (true, false) => format!("⚠ {alt}"),
+        (false, _) => alt.to_owned(),
+    };
+    if text.is_empty() || place.width < 8 || place.height < 8 {
+        return;
+    }
+    let pad = 4;
+    let caption = typesetter.caption(&text, place.width - 2 * pad, counted);
+    let caption_height = i64::from(caption.pixel_size().1);
+    snapshot.push_clip(&graphene_rect(place));
+    append_layout(
+        snapshot,
+        &caption,
+        (place.x + pad, place.y + (place.height - caption_height) / 2),
+        palette.faint(0.6),
+    );
+    snapshot.pop();
 }
 
 fn append_layout(

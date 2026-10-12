@@ -2,6 +2,9 @@
 
 [graph]
 all-features = false
+# The viewer is built for Linux only; crates other platforms would pull in (rustls'
+# platform verifier bundles root certificates on some) are not part of what ships.
+targets = ["x86_64-unknown-linux-gnu"]
 
 [advisories]
 # Advisories for vulnerabilities, unsound crates and yanked versions fail the gate. Unmaintained
@@ -22,6 +25,9 @@ allow = [
     "Zlib",
     "Unicode-3.0",
     "MPL-2.0",
+    # Reviewed 2026-10-12 (M4): permissive, MIT-equivalent; ring, rustls-webpki and untrusted
+    # (TLS for remote images) use it.
+    "ISC",
 ]
 confidence-threshold = 0.93
 # The allow-list is a reviewed set, not an inventory; an entry no crate uses yet is fine.

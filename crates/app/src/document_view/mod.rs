@@ -12,10 +12,28 @@ use std::rc::Rc;
 use gtk::glib;
 use gtk::subclass::prelude::*;
 
+use crate::images::Loading;
 use crate::probe::Probe;
+use crate::render::image::ImageInfo;
 use crate::render::paint::LeafPaint;
 use gbk_markdown_core::model::anchor_name;
 use gbk_markdown_core::units::LeafId;
+
+/// A loaded document, as the view takes it.
+#[derive(Debug)]
+pub(crate) struct Opened {
+    pub(crate) paints: Vec<LeafPaint>,
+    /// Anchor names and the leaves they name.
+    pub(crate) anchors: HashMap<String, LeafId>,
+    /// Whether each `<details>` starts open.
+    pub(crate) details: Vec<bool>,
+    pub(crate) images: Vec<ImageInfo>,
+    /// The document's file, which relative links and images start from.
+    pub(crate) path: Option<PathBuf>,
+    /// The leaf to show at the top first (`--anchor`).
+    pub(crate) start: Option<LeafId>,
+    pub(crate) loading: Loading,
+}
 
 glib::wrapper! {
     pub(crate) struct DocumentView(ObjectSubclass<imp::DocumentView>)
@@ -24,19 +42,9 @@ glib::wrapper! {
 }
 
 impl DocumentView {
-    /// A view of `paints`, the document at `path` (for its relative links), with each
-    /// `<details>` open or not as `details` says, scrolled to leaf `start` if given.
-    pub(crate) fn new(
-        paints: Vec<LeafPaint>,
-        anchors: HashMap<String, LeafId>,
-        details: Vec<bool>,
-        path: Option<PathBuf>,
-        start: Option<LeafId>,
-        probe: Rc<Probe>,
-    ) -> Self {
+    pub(crate) fn new(document: Opened, probe: Rc<Probe>) -> Self {
         let view: Self = glib::Object::new();
-        view.imp()
-            .set_document(paints, anchors, details, path, start, probe);
+        view.imp().set_document(document, probe);
         view
     }
 
@@ -57,6 +65,11 @@ impl DocumentView {
     /// The document's height and the paint at the top of the view.
     pub(crate) fn probe_state(&self) -> (i64, usize) {
         self.imp().probe_state()
+    }
+
+    /// Images shown, failed, and still loading.
+    pub(crate) fn probe_images(&self) -> (usize, usize, usize) {
+        self.imp().probe_images()
     }
 
     /// Lays out the first screen for an expected widget size; see `imp::DocumentView::prepare`.

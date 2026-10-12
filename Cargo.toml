@@ -15,6 +15,10 @@ gbk-markdown-core = { path = "crates/core" }
 gtk = { package = "gtk4", version = "0.11.5", features = ["v4_22"] }
 pangocairo = "0.22.9"
 thiserror = "2.0.21"
+# Remote images (docs/plan.md §4.6): a small blocking HTTP client on worker threads, TLS by
+# rustls with ring, certificates checked against the system's store (no bundled roots).
+ureq = { version = "3.4.2", default-features = false, features = ["rustls-no-provider", "platform-verifier"] }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
 # Exact: core calls comrak::Anchorizer, which is #[doc(hidden)] and so outside semver (plan §2).
 comrak = { version = "=0.56.0", default-features = false, features = ["shortcodes"] }
 html5gum = "0.8.4"

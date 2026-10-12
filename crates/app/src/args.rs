@@ -11,6 +11,7 @@ usage: gbk-markdown [OPTIONS] [--] FILE
 
 options:
   --anchor=NAME             open at the heading or anchor NAME (as in FILE#NAME)
+  --offline                 show remote images as placeholders: fetch nothing
   --renderer=cairo|gl       GTK's renderer (default cairo, faster to first frame); overrides
                             GSK_RENDERER
   --exit-after-first-frame  print the probe report after the first frame and exit
@@ -18,6 +19,8 @@ options:
   --t0=NS                   spawn time in CLOCK_REALTIME nanoseconds, for the startup report
   --screenshot=PATH         save the first frame as PNG
   --link-at=X,Y             with --exit-after-first-frame, report the link at that point
+  --wait-images             with --exit-after-first-frame, report and screenshot once no image
+                            is loading
   --click-at=X,Y            with --exit-after-first-frame, click there after the first frame
                             (links outside the document are reported, not opened), then
                             report and screenshot the next frame
@@ -32,6 +35,8 @@ pub(crate) struct Args {
     pub(crate) file: Option<PathBuf>,
     /// Where to open the file: a heading's or `<a id>`'s name.
     pub(crate) anchor: Option<String>,
+    /// Fetch no remote images.
+    pub(crate) offline: bool,
     pub(crate) mode: Mode,
     /// `None`: not given (see `renderer::env_changes`).
     pub(crate) renderer: Option<Renderer>,
@@ -69,6 +74,8 @@ pub(crate) struct ProbeArgs {
     pub(crate) link_at: Option<(i32, i32)>,
     /// A point to click after the first frame.
     pub(crate) click_at: Option<(i32, i32)>,
+    /// Wait until no image is loading before reporting.
+    pub(crate) wait_images: bool,
 }
 
 #[derive(Debug, PartialEq, Eq, thiserror::Error)]
@@ -93,6 +100,7 @@ pub(crate) enum UsageError {
 pub(crate) fn parse(args: impl IntoIterator<Item = OsString>) -> Result<Args, UsageError> {
     let mut file = None;
     let mut anchor = None;
+    let mut offline = false;
     let mut options_ended = false;
     let mut mode = Mode::Document;
     let mut renderer = None;
@@ -124,6 +132,7 @@ pub(crate) fn parse(args: impl IntoIterator<Item = OsString>) -> Result<Args, Us
             ("--bench-scroll", None) => probe.bench_scroll = true,
             ("--check-heights", None) => probe.check_heights = true,
             ("--no-prepare", None) => probe.no_prepare = true,
+            ("--wait-images", None) => probe.wait_images = true,
             ("--application", None) => startup = Startup::Application,
             ("--t0", Some(value)) => {
                 let nanos = value
@@ -133,6 +142,7 @@ pub(crate) fn parse(args: impl IntoIterator<Item = OsString>) -> Result<Args, Us
             }
             ("--screenshot", Some(path)) => probe.screenshot = Some(PathBuf::from(path)),
             ("--anchor", Some(name)) => anchor = Some(name.to_owned()),
+            ("--offline", None) => offline = true,
             ("--link-at", Some(point)) => probe.link_at = Some(parse_point(point)?),
             ("--click-at", Some(point)) => probe.click_at = Some(parse_point(point)?),
             ("--empty-window", None) => mode = Mode::EmptyWindow,
@@ -149,6 +159,7 @@ pub(crate) fn parse(args: impl IntoIterator<Item = OsString>) -> Result<Args, Us
     Ok(Args {
         file,
         anchor,
+        offline,
         mode,
         renderer,
         startup,
@@ -180,6 +191,7 @@ mod tests {
         let args = parse_strs(&["README.md"]).expect("valid");
         assert_eq!(args.file, Some(PathBuf::from("README.md")));
         assert_eq!(args.anchor, None);
+        assert!(!args.offline);
         assert_eq!(args.mode, Mode::Document);
         assert_eq!(args.renderer, None);
         assert_eq!(args.startup, Startup::PlainInit);
@@ -196,9 +208,11 @@ mod tests {
             "--bench-scroll",
             "--no-prepare",
             "--check-heights",
+            "--wait-images",
             "x.md",
         ])
         .expect("valid");
+        assert!(args.probe.wait_images);
         assert!(args.probe.bench_scroll);
         assert!(args.probe.no_prepare);
         assert!(args.probe.check_heights);
@@ -237,6 +251,7 @@ mod tests {
 
     #[test]
     fn an_anchor_and_a_file_after_the_options_end() {
+        assert!(parse_strs(&["--offline", "a.md"]).expect("valid").offline);
         let args = parse_strs(&["--anchor=install", "--", "--odd name.md"]).expect("valid");
         assert_eq!(args.anchor, Some("install".to_owned()));
         assert_eq!(args.file, Some(PathBuf::from("--odd name.md")));

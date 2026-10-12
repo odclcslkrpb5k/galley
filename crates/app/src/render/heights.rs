@@ -12,6 +12,7 @@ use std::time::{Duration, Instant};
 
 use gtk::prelude::FontMapExt as _;
 
+use super::image::ImageTable;
 use super::paint::LeafPaint;
 use super::text::{ColumnWidths, Palette, TextSetup, Typesetter};
 
@@ -27,6 +28,8 @@ pub(crate) struct Job {
     pub(crate) view_text_width: i64,
     pub(crate) paints: Arc<Vec<LeafPaint>>,
     pub(crate) setup: TextSetup,
+    /// The document's images: the sizes known when each leaf is measured.
+    pub(crate) images: Arc<ImageTable>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -92,6 +95,7 @@ fn run(jobs: &Receiver<Job>, batches: &Sender<Batch>) {
             context: context.clone(),
             setup: job.setup,
             palette: Palette::default(),
+            images: Arc::clone(&job.images),
         };
         // Natural column widths hold for as long as the text setup does.
         if setup.replace(job.setup) != Some(job.setup) {

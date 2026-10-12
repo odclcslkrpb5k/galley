@@ -65,8 +65,9 @@ pub(crate) struct Probe {
     scroll: RefCell<ScrollRecord>,
     /// For --link-at and --click-at: the document view, once there is one.
     view: RefCell<Option<ViewProbe>>,
-    /// For --click-at: the startup report and what the click did, printed after the next frame.
-    after_click: RefCell<Option<String>>,
+    /// For --click-at and --wait-images: the report so far, finished and printed after a later
+    /// frame.
+    deferred: RefCell<Option<String>>,
 }
 
 /// What the probe asks of the document view.
@@ -77,6 +78,8 @@ pub(crate) struct ViewProbe {
     pub(crate) click_at: Box<dyn Fn(f64, f64) -> String>,
     /// The document's height and the paint at the top of the view.
     pub(crate) state: Box<dyn Fn() -> (i64, usize)>,
+    /// Images shown, failed, and still loading.
+    pub(crate) images: Box<dyn Fn() -> (usize, usize, usize)>,
 }
 
 impl std::fmt::Debug for ViewProbe {
@@ -118,7 +121,7 @@ impl Probe {
             scroll_target: RefCell::new(None),
             scroll: RefCell::new(ScrollRecord::default()),
             view: RefCell::new(None),
-            after_click: RefCell::new(None),
+            deferred: RefCell::new(None),
         })
     }
 
@@ -230,15 +233,31 @@ impl Probe {
     fn after_paint(self: &Rc<Self>, window: &gtk::Window) {
         self.in_frame.set(false);
         if self.first_frame_done.get() {
-            // The frame after a --click-at click: report what it shows.
-            if let Some(report) = self.after_click.take() {
-                let state = self.view.borrow().as_ref().map(|view| (view.state)());
-                let (height, top) = state.unwrap_or_default();
-                self.finish(
-                    window,
-                    format!("{report} document_height={height} top_leaf={top}"),
+            // A frame after a --click-at click, or once --wait-images has nothing loading:
+            // report what it shows.
+            let view = self.view.borrow();
+            let images = view
+                .as_ref()
+                .map(|view| (view.images)())
+                .unwrap_or_default();
+            if self.args.wait_images && images.2 > 0 {
+                return;
+            }
+            let Some(mut report) = self.deferred.take() else {
+                return;
+            };
+            if self.args.click_at.is_some() {
+                let (height, top) = view.as_ref().map(|view| (view.state)()).unwrap_or_default();
+                report = format!("{report} document_height={height} top_leaf={top}");
+            }
+            if self.args.wait_images {
+                let (loaded, failed, loading) = images;
+                report = format!(
+                    "{report} images_loaded={loaded} images_failed={failed} images_loading={loading}"
                 );
             }
+            drop(view);
+            self.finish(window, report);
             return;
         }
         if self.expect_document && !self.document_drawn.get() {
@@ -254,14 +273,17 @@ impl Probe {
         }
         // Measure first: the screenshot and report are not part of startup.
         let report = self.startup_report(window);
+        let mut report = report;
         if let Some((x, y)) = self.args.click_at {
             let clicked = self.view.borrow().as_ref().map_or_else(
                 || "no-view".to_owned(),
                 |view| (view.click_at)(f64::from(x), f64::from(y)),
             );
-            self.after_click
-                .replace(Some(format!("{report} clicked={clicked}")));
-            // A click that changes nothing would otherwise leave no next frame.
+            report = format!("{report} clicked={clicked}");
+        }
+        if self.args.click_at.is_some() || self.args.wait_images {
+            self.deferred.replace(Some(report));
+            // A click that changes nothing, or no images, would otherwise leave no next frame.
             window.queue_draw();
             return;
         }

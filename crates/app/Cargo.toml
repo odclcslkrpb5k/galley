@@ -11,6 +11,8 @@ gbk-markdown-core.workspace = true
 gtk.workspace = true
 pangocairo.workspace = true
 thiserror.workspace = true
+ureq.workspace = true
+rustls.workspace = true
 
 [lints]
 workspace = true

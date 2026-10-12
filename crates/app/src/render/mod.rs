@@ -7,6 +7,7 @@
 pub(crate) mod fenwick;
 pub(crate) mod geometry;
 pub(crate) mod heights;
+pub(crate) mod image;
 pub(crate) mod indicator;
 pub(crate) mod paint;
 pub(crate) mod positions;

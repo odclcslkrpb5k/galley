@@ -11,7 +11,7 @@ ARG DEBIAN_FRONTEND=noninteractive
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
       build-essential pkg-config libgtk-4-dev curl ca-certificates jq git \
-      xvfb xauth libgl1-mesa-dri libegl-mesa0 fonts-dejavu-core \
+      xvfb xauth libgl1-mesa-dri libegl-mesa0 fonts-dejavu-core librsvg2-common \
  && rm -rf /var/lib/apt/lists/*
 
 ENV RUSTUP_HOME=/rustup \

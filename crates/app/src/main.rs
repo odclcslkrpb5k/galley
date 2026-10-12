@@ -2,6 +2,7 @@
 
 mod args;
 mod document_view;
+mod images;
 mod links;
 mod output;
 mod probe;
@@ -11,7 +12,7 @@ mod units;
 
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use std::rc::Rc;
 use std::thread::{self, JoinHandle};
@@ -48,9 +49,28 @@ struct Loaded {
     anchors: HashMap<String, LeafId>,
     /// Whether each `<details>` starts open.
     details: Vec<bool>,
+    images: Vec<render::image::ImageInfo>,
 }
 
 type Loader = JoinHandle<Result<Loaded, LoadError>>;
+
+/// What `show` needs of the arguments.
+#[derive(Debug, Clone)]
+struct Showing {
+    file: Option<PathBuf>,
+    anchor: Option<String>,
+    offline: bool,
+}
+
+impl From<&Args> for Showing {
+    fn from(args: &Args) -> Self {
+        Self {
+            file: args.file.clone(),
+            anchor: args.anchor.clone(),
+            offline: args.offline,
+        }
+    }
+}
 
 fn main() -> ExitCode {
     let main_started = Instant::now();
@@ -110,10 +130,12 @@ fn load(path: &Path) -> Result<Loaded, LoadError> {
     let paints = render::paint::paint_document(&doc);
     let anchors = render::paint::anchor_leaves(&doc);
     let details = render::paint::details_open(&doc);
+    let images = render::paint::image_infos(&doc);
     Ok(Loaded {
         paints,
         anchors,
         details,
+        images,
     })
 }
 
@@ -125,20 +147,14 @@ fn run_application(args: &Args, loader: Option<Loader>, probe: Rc<Probe>) -> Exi
     let loader = RefCell::new(loader);
     let failed = Rc::new(Cell::new(false));
     let title = window_title(args);
-    let (file, anchor) = (args.file.clone(), args.anchor.clone());
+    let showing = Showing::from(args);
     app.connect_activate(glib::clone!(
         #[strong]
         failed,
         move |app| {
             probe.gtk_ready();
             let window = gtk::ApplicationWindow::new(app);
-            let shown = show(
-                window.upcast_ref(),
-                &title,
-                loader.take(),
-                (file.as_deref(), anchor.as_deref()),
-                &probe,
-            );
+            let shown = show(window.upcast_ref(), &title, loader.take(), &showing, &probe);
             if let Err(error) = shown {
                 report_error(error);
                 failed.set(true);
@@ -171,8 +187,13 @@ fn run_plain(args: &Args, loader: Option<Loader>, probe: &Rc<Probe>) -> ExitCode
             glib::Propagation::Proceed
         }
     ));
-    let opened = (args.file.as_deref(), args.anchor.as_deref());
-    if let Err(error) = show(&window, &window_title(args), loader, opened, probe) {
+    if let Err(error) = show(
+        &window,
+        &window_title(args),
+        loader,
+        &Showing::from(args),
+        probe,
+    ) {
         report_error(error);
         return ExitCode::FAILURE;
     }
@@ -189,9 +210,14 @@ fn show(
     window: &gtk::Window,
     title: &str,
     loader: Option<Loader>,
-    (file, anchor): (Option<&Path>, Option<&str>),
+    showing: &Showing,
     probe: &Rc<Probe>,
 ) -> Result<(), LoadError> {
+    let Showing {
+        file,
+        anchor,
+        offline,
+    } = showing;
     window.set_title(Some(title));
     window.set_default_size(DEFAULT_WIDTH, DEFAULT_HEIGHT);
     probe.attach(window);
@@ -205,7 +231,7 @@ fn show(
         let waited = Instant::now();
         let document = loader.join().unwrap_or(Err(LoadError::LoaderPanicked))?;
         probe.loader_joined(waited.elapsed());
-        let start = anchor.and_then(|name| {
+        let start = anchor.as_deref().and_then(|name| {
             let leaf = document_view::anchor_leaf(&document.anchors, name);
             if leaf.is_none() {
                 report_error(format_args!(
@@ -215,13 +241,22 @@ fn show(
             leaf
         });
         let view = DocumentView::new(
-            document.paints,
-            document.anchors,
-            document.details,
-            // Absolute, so `/path` links find the repository above it whatever the working
-            // directory was.
-            file.map(|file| std::path::absolute(file).unwrap_or_else(|_| file.to_path_buf())),
-            start,
+            document_view::Opened {
+                paints: document.paints,
+                anchors: document.anchors,
+                details: document.details,
+                images: document.images,
+                // Absolute, so `/path` links find the repository above it whatever the working
+                // directory was.
+                path: file
+                    .as_deref()
+                    .map(|file| std::path::absolute(file).unwrap_or_else(|_| file.to_path_buf())),
+                start,
+                loading: images::Loading {
+                    remote: !*offline,
+                    enabled: true,
+                },
+            },
             Rc::clone(probe),
         );
         // The view draws its own scroll indicator (render/indicator.rs says why).
@@ -231,11 +266,13 @@ fn show(
             .child(&view)
             .build();
         probe.set_scroll_target(scrolled.vadjustment());
-        let (looking, clicking, stating) = (view.clone(), view.clone(), view.clone());
+        let (looking, clicking, stating, counting) =
+            (view.clone(), view.clone(), view.clone(), view.clone());
         probe.set_view(probe::ViewProbe {
             link_at: Box::new(move |x, y| looking.link_label_at(x, y)),
             click_at: Box::new(move |x, y| clicking.probe_click(x, y)),
             state: Box::new(move || stating.probe_state()),
+            images: Box::new(move || counting.probe_images()),
         });
         window.set_child(Some(&scrolled));
         if probe.prepare_enabled() {

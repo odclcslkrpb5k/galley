@@ -27,17 +27,7 @@ pub(crate) fn resolve(
     fragment: Option<&str>,
     is_repository: &dyn Fn(&Path) -> bool,
 ) -> Opening {
-    let folder = document.parent().unwrap_or_else(|| Path::new(""));
-    let path = match link.strip_prefix('/') {
-        Some(from_root) => {
-            let root = folder
-                .ancestors()
-                .find(|ancestor| is_repository(ancestor))
-                .unwrap_or(folder);
-            normalise(&root.join(from_root))
-        }
-        None => normalise(&folder.join(link)),
-    };
+    let path = resolve_path(document, link, is_repository);
     let markdown = path
         .extension()
         .and_then(|extension| extension.to_str())
@@ -49,6 +39,26 @@ pub(crate) fn resolve(
         }
     } else {
         Opening::System(path)
+    }
+}
+
+/// The file a relative path names, from the document at `document`: from its folder, or for
+/// `/path` from its repository's root (images resolve the same way).
+pub(crate) fn resolve_path(
+    document: &Path,
+    link: &str,
+    is_repository: &dyn Fn(&Path) -> bool,
+) -> PathBuf {
+    let folder = document.parent().unwrap_or_else(|| Path::new(""));
+    match link.strip_prefix('/') {
+        Some(from_root) => {
+            let root = folder
+                .ancestors()
+                .find(|ancestor| is_repository(ancestor))
+                .unwrap_or(folder);
+            normalise(&root.join(from_root))
+        }
+        None => normalise(&folder.join(link)),
     }
 }
 

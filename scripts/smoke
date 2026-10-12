@@ -12,6 +12,8 @@ export NO_AT_BRIDGE=1 GTK_A11Y=none XDG_RUNTIME_DIR=/tmp/xdg-runtime
 mkdir -p -m 700 "$XDG_RUNTIME_DIR"
 
 bin=${CARGO_TARGET_DIR:-target}/release/gbk-markdown
+# Every run is --offline: the gate must not depend on, or contact, the network (images from the
+# corpus READMEs are remote).
 screens=${CARGO_TARGET_DIR:-target}/screens/${GATE_TREE:-adhoc}
 mkdir -p "$screens"
 
@@ -19,7 +21,7 @@ fixtures=(crates/core/tests/data/corpus/*/input.md target/fixtures/{readme-200kb
 # Scrolled end to end: steady scrolling must find every leaf laid out (plan §6).
 scrolled=(target/fixtures/readme-200kb.md target/fixtures/list-1mb.md target/fixtures/table-1mb.md target/fixtures/wide-table.md crates/core/tests/data/corpus/_synthetic-features/input.md)
 # Height worker against main-thread layout: every height must match exactly (plan §4.5).
-checked=(crates/core/tests/data/corpus/_synthetic-features/input.md crates/core/tests/data/corpus/sharkdp__bat/input.md target/fixtures/readme-200kb.md target/fixtures/table-1mb.md)
+checked=(target/fixtures/images.md crates/core/tests/data/corpus/_synthetic-features/input.md crates/core/tests/data/corpus/sharkdp__bat/input.md target/fixtures/readme-200kb.md target/fixtures/table-1mb.md)
 
 # Work before the first frame, judged independently of the view's own layout window (which
 # grading itself could never fail): the text Pango may be given for a 1000 px window. Two screens
@@ -38,7 +40,7 @@ for fixture in "${fixtures[@]}"; do
   name=$(basename "$(dirname "$fixture")")
   [[ "$name" == fixtures ]] && name=$(basename "$fixture" .md)
   status=0
-  out=$(timeout 60 "$bin" --exit-after-first-frame --screenshot="$screens/$name.png" "$fixture" 2>&1) || status=$?
+  out=$(timeout 60 "$bin" --offline --exit-after-first-frame --screenshot="$screens/$name.png" "$fixture" 2>&1) || status=$?
   if ((status)); then
     # 124 is timeout's; above 128, a signal (128 + its number).
     echo "smoke: $name: no first frame (exit status $status): $out" >&2
@@ -76,7 +78,7 @@ done
 if ((n == 0)); then echo "smoke: no fixtures ran" >&2; exit 1; fi
 
 for fixture in "${scrolled[@]}"; do
-  if ! out=$(timeout 300 "$bin" --bench-scroll "$fixture" 2>&1); then
+  if ! out=$(timeout 300 "$bin" --offline --bench-scroll "$fixture" 2>&1); then
     echo "smoke: scroll $fixture failed: $out" >&2
     fail=1
     continue
@@ -95,7 +97,7 @@ done
 probe_run() {
   local into=$1 status=0 out
   shift
-  out=$(timeout 60 "$bin" --exit-after-first-frame "$@" 2>&1) || status=$?
+  out=$(timeout 60 "$bin" --offline --exit-after-first-frame "$@" 2>&1) || status=$?
   n=$((n + 1))
   if ((status)) || ! grep -q '^first_frame_us=' <<<"$out"; then
     echo "smoke: $* exited with status $status: $out" >&2
@@ -138,15 +140,24 @@ if [[ "$(field clicked "$opened")" != summary:0 || "$(field clicked "$missed")" 
   fail=1
 fi
 
+# Images: local PNG and SVG files load (the inline, sized, table and too-wide uses of them),
+# a missing file and a non-image fail, and the remote one is not fetched.
+probe_run pictures --wait-images --screenshot="$screens/images-loaded.png" target/fixtures/images.md
+if [[ "$(field images_loaded "$pictures")" != 5 || "$(field images_failed "$pictures")" != 2 ||
+  "$(field images_loading "$pictures")" != 0 ]]; then
+  echo "smoke: images.md did not load 5 images and fail 2: $pictures" >&2
+  fail=1
+fi
+
 # The GL fallback (--renderer=gl): it must really be GL, reach a first frame and scroll without
 # layout in frames.
 gl_fixture=target/fixtures/readme-200kb.md
-out=$(timeout 60 "$bin" --renderer=gl --exit-after-first-frame "$gl_fixture" 2>&1 || true)
+out=$(timeout 60 "$bin" --offline --renderer=gl --exit-after-first-frame "$gl_fixture" 2>&1 || true)
 if ! grep -q 'renderer=GskGLRenderer' <<<"$out"; then
   echo "smoke: --renderer=gl did not render with GL: $out" >&2
   fail=1
 fi
-out=$(timeout 300 "$bin" --renderer=gl --bench-scroll "$gl_fixture" 2>&1 || true)
+out=$(timeout 300 "$bin" --offline --renderer=gl --bench-scroll "$gl_fixture" 2>&1 || true)
 if ! grep -q 'layouts_in_scroll_frames=0' <<<"$out"; then
   echo "smoke: --renderer=gl scroll laid out leaves inside frames: $out" >&2
   fail=1
@@ -154,7 +165,7 @@ fi
 n=$((n + 2))
 
 for fixture in "${checked[@]}"; do
-  out=$(timeout 300 "$bin" --check-heights "$fixture" 2>&1 || true)
+  out=$(timeout 300 "$bin" --offline --check-heights "$fixture" 2>&1 || true)
   mismatches=$(grep -oE 'height_mismatches=[0-9]+' <<<"$out" | cut -d= -f2 || true)
   if [[ "$mismatches" != 0 ]]; then
     echo "smoke: heights $fixture: ${mismatches:-no report} mismatches between worker and layout: $out" >&2

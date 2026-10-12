@@ -23,8 +23,11 @@ use gbk_markdown_core::model::{
     AlertKind, Align, Container, Delimiter, HeadingLevel, InlineObject, Inlines, LEAF_TEXT_BYTES,
     Leaf, LeafKind, LinkTarget, Marker, Style,
 };
-use gbk_markdown_core::units::{ContextId, DetailsId, FootnoteId, LeafId, LinkId, RowNo, TableId};
+use gbk_markdown_core::units::{
+    ContextId, DetailsId, FootnoteId, ImageId, LeafId, LinkId, RowNo, TableId,
+};
 
+use super::image::{ImageInfo, ImageSource};
 use super::table::{CellPaint, ColumnSample, RowPaint, TablePaint};
 
 /// Indent per container level, in em.
@@ -81,6 +84,9 @@ pub(crate) struct LeafPaint {
     pub(crate) pad_below_em: f64,
     pub(crate) background: Option<Fill>,
     pub(crate) decorations: Vec<Decoration>,
+    /// The images in it (its text's, or its cells'), in order: the view loads them when the
+    /// paint is drawn.
+    pub(crate) images: Vec<ImageId>,
     /// The `<details>` this is inside (by id), shown only while all of them are open; a
     /// summary is not inside its own.
     pub(crate) details: Vec<DetailsId>,
@@ -112,6 +118,7 @@ impl LeafPaint {
             attrs,
             links: Vec::new(),
             table: None,
+            images: Vec::new(),
             font,
             align: Align::Start,
             indent_em: 0.0,
@@ -187,8 +194,8 @@ pub(crate) enum AttrKind {
     Subscript,
     Superscript,
     Highlight,
-    /// Secondary text: image placeholders.
-    Muted,
+    /// An image, at its object character.
+    Image(ImageId),
     /// An alert's title, in its colour.
     AlertTitle(AlertKind),
 }
@@ -275,6 +282,31 @@ pub(crate) fn anchor_leaves(doc: &Document) -> HashMap<String, LeafId> {
             .or_insert(anchor.leaf());
     }
     anchors
+}
+
+/// The document's images: alt text, size attributes, and where each comes from (only http,
+/// https and relative paths are ever loaded).
+pub(crate) fn image_infos(doc: &Document) -> Vec<ImageInfo> {
+    doc.images()
+        .iter()
+        .map(|image| {
+            let (width, height) = image.size();
+            ImageInfo {
+                alt: image.alt().to_owned(),
+                width,
+                height,
+                source: image.source().and_then(|source| match source {
+                    LinkTarget::Absolute(url) => Some(ImageSource::Url(url.clone())),
+                    LinkTarget::Relative { path, .. } if !path.is_empty() => {
+                        Some(ImageSource::Path(path.clone()))
+                    }
+                    LinkTarget::Relative { .. }
+                    | LinkTarget::Fragment(_)
+                    | LinkTarget::Footnote(_) => None,
+                }),
+            }
+        })
+        .collect()
 }
 
 /// Whether each `<details>` (by id) starts open: those written `<details open>`.
@@ -386,13 +418,13 @@ impl Painter<'_> {
         leaf: &Leaf,
         next: &[ContextId],
     ) -> LeafPaint {
-        let doc = self.doc;
         let mut paint = LeafPaint {
             source,
             text: String::new(),
             attrs: Vec::new(),
             links: Vec::new(),
             table: None,
+            images: Vec::new(),
             font: FontRole::Body,
             align: leaf.align(),
             indent_em: 0.0,
@@ -406,6 +438,14 @@ impl Painter<'_> {
             summary_of: None,
         };
         let tight = self.containers(&mut paint, id, leaf, next);
+        self.fill(&mut paint, leaf, tight);
+        paint.images = images_in(&paint);
+        paint
+    }
+
+    /// Fills in what the leaf holds: its text, or its table rows.
+    fn fill(&mut self, paint: &mut LeafPaint, leaf: &Leaf, tight: bool) {
+        let doc = self.doc;
         match leaf.kind() {
             LeafKind::Paragraph(inlines) => {
                 self.push_inlines(&mut paint.styled(), inlines);
@@ -477,7 +517,6 @@ impl Painter<'_> {
                 paint.gap_below_em = PARAGRAPH_GAP / 2.0;
             }
         }
-        paint
     }
 
     /// Applies the leaf's containers, outermost first: indent, bars, markers. Returns whether
@@ -712,40 +751,32 @@ impl Painter<'_> {
         })
     }
 
-    /// Appends styled text. Images become "[alt]" placeholders until M4 draws them.
+    /// Appends styled text. Each image stays at its object character, marked `Image`: Pango
+    /// reserves its box there (`text`), and the view draws it (or its placeholder) in it.
     fn push_inlines(&self, out: &mut Styled<'_>, inlines: &Inlines) {
-        let doc = self.doc;
-        let source = inlines.text();
-        // Where runs of source text start, in the source and in the paint text: a placeholder
-        // replaces each image's one object character, so positions after it move.
-        let mut runs: Vec<(usize, usize)> = vec![(0, out.text.len())];
-        let mut copied = 0;
+        let base = out.text.len();
+        out.text.push_str(inlines.text());
         for (offset, object) in inlines.objects() {
-            let at = offset.index();
-            out.text
-                .push_str(source.get(copied..at).unwrap_or_default());
             let InlineObject::Image(image) = object;
-            let alt = doc.image(*image).map_or("", |image| image.alt());
-            let placeholder = format!("[{}]", if alt.is_empty() { "image" } else { alt });
-            let start = out.text.len();
-            out.text.push_str(&placeholder);
+            let start = base + offset.index();
             out.attrs.push(TextAttr {
                 start,
-                end: out.text.len(),
-                kind: AttrKind::Muted,
+                end: start + Inlines::OBJECT.len_utf8(),
+                kind: AttrKind::Image(*image),
             });
-            copied = at + Inlines::OBJECT.len_utf8();
-            runs.push((copied, out.text.len()));
         }
-        out.text.push_str(source.get(copied..).unwrap_or_default());
-        let map = |position: usize| {
-            let (from, to) = runs
-                .iter()
-                .rev()
-                .find(|&&(from, _)| from <= position)
-                .copied()
-                .unwrap_or_default();
-            to + (position - from)
+        let map = |position: usize| base + position;
+        let images: Vec<usize> = inlines
+            .objects()
+            .iter()
+            .map(|(offset, _object)| map(offset.index()))
+            .collect();
+        // Text attributes stop at images: a link's underline or a code span's background is
+        // not drawn under a badge (the link itself still covers it, for clicking).
+        let mut add = |start: usize, end: usize, kind: AttrKind| {
+            for (start, end) in around(start, end, &images) {
+                out.attrs.push(TextAttr { start, end, kind });
+            }
         };
         for span in inlines.spans() {
             let range = span.range();
@@ -766,17 +797,13 @@ impl Painter<'_> {
                 (Style::HIGHLIGHT, AttrKind::Highlight),
             ] {
                 if style.contains(bit) {
-                    out.attrs.push(TextAttr { start, end, kind });
+                    add(start, end, kind);
                 }
             }
             let Some(target) = span.link().and_then(|link| self.target(link)) else {
                 continue;
             };
-            out.attrs.push(TextAttr {
-                start,
-                end,
-                kind: AttrKind::Link,
-            });
+            add(start, end, AttrKind::Link);
             // Runs of one link in several styles are one link.
             match out.links.last_mut() {
                 Some(last) if last.end == start && last.target == target => last.end = end,
@@ -809,6 +836,52 @@ fn is_display_math(inlines: &Inlines) -> bool {
     }
     // No spans: plain text (an empty paragraph is never painted).
     !inlines.spans().is_empty() && at == inlines.text().len()
+}
+
+/// `start..end` without the object characters at `images` (sorted byte offsets).
+fn around(start: usize, end: usize, images: &[usize]) -> Vec<(usize, usize)> {
+    let mut pieces = Vec::new();
+    let mut from = start;
+    for &image in images
+        .iter()
+        .filter(|&&image| (start..end).contains(&image))
+    {
+        if image > from {
+            pieces.push((from, image));
+        }
+        from = image + Inlines::OBJECT.len_utf8();
+    }
+    if end > from {
+        pieces.push((from, end));
+    }
+    pieces
+}
+
+/// The images a paint holds, in its text's or its cells' attributes.
+fn images_in(paint: &LeafPaint) -> Vec<ImageId> {
+    let cells = paint
+        .table
+        .iter()
+        .flat_map(|table| table.rows.iter().flat_map(|row| row.cells.iter()))
+        .flat_map(|cell| cell.attrs.iter());
+    paint
+        .attrs
+        .iter()
+        .chain(cells)
+        .filter_map(|attr| match attr.kind {
+            AttrKind::Image(image) => Some(image),
+            AttrKind::Bold
+            | AttrKind::Italic
+            | AttrKind::Strikethrough
+            | AttrKind::Underline
+            | AttrKind::Code
+            | AttrKind::Link
+            | AttrKind::Subscript
+            | AttrKind::Superscript
+            | AttrKind::Highlight
+            | AttrKind::AlertTitle(_) => None,
+        })
+        .collect()
 }
 
 /// Cuts a cell's text to `max` bytes, with an ellipsis.
@@ -888,6 +961,7 @@ fn split(paint: LeafPaint) -> Vec<LeafPaint> {
                     rows: table.rows.get(rows).unwrap_or_default().to_vec(),
                     last: table.last && index + 1 == count,
                 });
+                piece.images = images_in(&piece);
                 piece
             })
             .collect();
@@ -913,6 +987,7 @@ fn split(paint: LeafPaint) -> Vec<LeafPaint> {
         piece.attrs.clone_from(&paint.attrs);
         piece.links.clone_from(&paint.links);
         clamp_spans(&mut piece.attrs, &mut piece.links, from, to);
+        piece.images = images_in(&piece);
         pieces.push(piece);
         from = next;
     }
@@ -948,6 +1023,7 @@ fn piece(paint: &LeafPaint, first: bool, last: bool) -> LeafPaint {
         attrs: Vec::new(),
         links: Vec::new(),
         table: None,
+        images: Vec::new(),
         font: paint.font,
         align: paint.align,
         indent_em: paint.indent_em,
@@ -1164,21 +1240,79 @@ mod tests {
     }
 
     #[test]
-    fn images_become_placeholders_and_attributes_follow_them() {
-        let paints = paints("a ![logo](x.png) **bold** ![](y.png) [link](z)");
+    fn images_stay_at_their_object_character_and_are_listed() {
+        let paints =
+            paints("a ![logo](x.png) **bold** ![](y.png) [link](z)\n\n| ![c](c.png) |\n|---|\n");
         let paint = paints.first().expect("paragraph");
-        assert_eq!(paint.text, "a [logo] bold [image] link");
-        let at = |kind: AttrKind| -> Vec<&str> {
+        assert_eq!(paint.text, "a \u{FFFC} bold \u{FFFC} link");
+        let at = |kind: fn(AttrKind) -> bool| -> Vec<&str> {
             paint
                 .attrs
                 .iter()
-                .filter(|attr| attr.kind == kind)
+                .filter(|attr| kind(attr.kind))
                 .map(|attr| paint.text.get(attr.start..attr.end).expect("in text"))
                 .collect()
         };
-        assert_eq!(at(AttrKind::Bold), vec!["bold"]);
-        assert_eq!(at(AttrKind::Muted), vec!["[logo]", "[image]"]);
-        assert_eq!(at(AttrKind::Link), vec!["link"]);
+        assert_eq!(at(|kind| kind == AttrKind::Bold), vec!["bold"]);
+        assert_eq!(
+            at(|kind| matches!(kind, AttrKind::Image(_))),
+            vec!["\u{FFFC}", "\u{FFFC}"]
+        );
+        assert_eq!(at(|kind| kind == AttrKind::Link), vec!["link"]);
+        assert_eq!(paint.images.len(), 2);
+        // A table piece lists its cells' images.
+        let table = paints.get(1).expect("table");
+        assert_eq!(table.images.len(), 1);
+        assert_ne!(table.images, paint.images);
+    }
+
+    #[test]
+    fn links_cover_images_for_clicking_but_draw_nothing_under_them() {
+        let paints = paints("[![badge](b.svg) docs ![x](y.png)](https://x.org)\n");
+        let paint = paints.first().expect("paragraph");
+        let link_attrs: Vec<(usize, usize)> = paint
+            .attrs
+            .iter()
+            .filter(|attr| attr.kind == AttrKind::Link)
+            .map(|attr| (attr.start, attr.end))
+            .collect();
+        // "\u{FFFC} docs \u{FFFC}": the underline is only under " docs ".
+        assert_eq!(link_attrs, vec![(3, 9)]);
+        let spans: Vec<(usize, usize)> = paint
+            .links
+            .iter()
+            .map(|link| (link.start, link.end))
+            .collect();
+        assert_eq!(spans, vec![(0, 12)]);
+        assert_eq!(around(0, 12, &[0, 9]), vec![(3, 9)]);
+        assert_eq!(around(0, 4, &[]), vec![(0, 4)]);
+        assert_eq!(around(2, 4, &[0, 9]), vec![(2, 4)]);
+        assert_eq!(around(0, 3, &[0]), Vec::<(usize, usize)>::new());
+    }
+
+    #[test]
+    fn image_infos_keep_alt_size_and_loadable_sources() {
+        let doc = gbk_markdown_core::load(
+            b"![a](x.png) <img src=\"https://h/y.svg\" width=\"30\" alt=\"b\"> ![c](#frag) ![d](data:x)",
+        );
+        let infos = image_infos(&doc);
+        let summary: Vec<(&str, Option<u32>, Option<ImageSource>)> = infos
+            .iter()
+            .map(|info| (info.alt.as_str(), info.width, info.source.clone()))
+            .collect();
+        assert_eq!(
+            summary,
+            vec![
+                ("a", None, Some(ImageSource::Path("x.png".to_owned()))),
+                (
+                    "b",
+                    Some(30),
+                    Some(ImageSource::Url("https://h/y.svg".to_owned()))
+                ),
+                ("c", None, None),
+                ("d", None, None),
+            ]
+        );
     }
 
     #[test]

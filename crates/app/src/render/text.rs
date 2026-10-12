@@ -5,21 +5,26 @@
 //! size; the worker uses a default palette.
 
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use gtk::pango;
 use gtk::prelude::*;
 
-use super::geometry::{LeafGeometry, Metrics};
+use super::geometry::{LeafGeometry, Metrics, Rect};
+use super::image::ImageTable;
 use super::paint::{AttrKind, FontRole, LeafPaint, LinkSpan, Target, TextAttr};
 use super::table::{self, CELL_PAD_X_EM, CELL_PAD_Y_EM, ColumnSample, Grid, MIN_COLUMN_EM};
 use crate::units;
 use gbk_markdown_core::model::{AlertKind, Align, HeadingLevel};
+use gbk_markdown_core::units::ImageId;
 use gbk_markdown_core::units::TableId;
 
 /// Body text is sans-serif and code monospace, at the desktop font's size: the desktop font may
 /// itself be monospace (this host's is Source Code Pro), which suits a terminal, not a document.
 const BODY_FAMILY: &str = "sans-serif";
 const CODE_FAMILY: &str = "monospace";
+/// An image placeholder's caption, relative to the body font.
+const CAPTION_SCALE: f64 = 0.8;
 
 /// Everything that decides how text is laid out, copied from the widget's Pango context so the
 /// height worker's own context matches it. Plain data, so it can cross to the worker.
@@ -183,6 +188,8 @@ pub(crate) struct Typesetter {
     pub(crate) context: pango::Context,
     pub(crate) setup: TextSetup,
     pub(crate) palette: Palette,
+    /// The document's images, for the size of the box each takes in the text.
+    pub(crate) images: Arc<ImageTable>,
 }
 
 /// A laid-out leaf: its text, or its table's cells and grid; and the height of either.
@@ -219,11 +226,15 @@ impl Measured {
 /// (`table::column_widths`, arithmetic). Every piece of a table uses them, so its columns line
 /// up. Whoever measures keeps one, and clears it when the text setup changes.
 #[derive(Debug, Default)]
-pub(crate) struct ColumnWidths(HashMap<TableId, Vec<i64>>);
+pub(crate) struct ColumnWidths {
+    natural: HashMap<TableId, Vec<i64>>,
+    /// The image table's version they were measured at: an image arriving can widen a column.
+    images: u64,
+}
 
 impl ColumnWidths {
     pub(crate) fn clear(&mut self) {
-        self.0.clear();
+        self.natural.clear();
     }
 }
 
@@ -265,8 +276,13 @@ impl Typesetter {
     ) -> Measured {
         let metrics = self.setup.metrics();
         let (pad_x, pad_y) = (metrics.px(CELL_PAD_X_EM), metrics.px(CELL_PAD_Y_EM));
+        let version = self.images.version();
+        if columns.images != version {
+            columns.natural.clear();
+            columns.images = version;
+        }
         let natural = columns
-            .0
+            .natural
             .entry(table.columns.table)
             .or_insert_with(|| self.natural_widths(&table.columns, pad_x, counted));
         let widths = table::column_widths(natural, width, metrics.px(MIN_COLUMN_EM));
@@ -384,11 +400,119 @@ impl Typesetter {
         }
     }
 
+    /// The image at `(x, y)` (leaf coordinates) in a laid-out leaf, if any.
+    pub(crate) fn image_at(
+        paint: &LeafPaint,
+        measured: &Measured,
+        geometry: &LeafGeometry,
+        (x, y): (i64, i64),
+    ) -> Option<ImageId> {
+        let inside = |layout: &pango::Layout, attrs: &[TextAttr], (left, top): (i64, i64)| {
+            image_boxes(layout, attrs)
+                .into_iter()
+                .find_map(|(image, place)| {
+                    let (x, y) = (x - left, y - top);
+                    ((place.x..place.x + place.width).contains(&x)
+                        && (place.y..place.y + place.height).contains(&y))
+                    .then_some(image)
+                })
+        };
+        match &measured.content {
+            Content::Text(layout) => {
+                inside(layout, &paint.attrs, (geometry.text_x, geometry.text_y))
+            }
+            Content::Table { cells, .. } => {
+                let rows = paint
+                    .table
+                    .as_ref()
+                    .map(|table| table.rows.as_slice())
+                    .unwrap_or_default();
+                cells
+                    .iter()
+                    .zip(&geometry.cells)
+                    .zip(rows)
+                    .find_map(|((layouts, origins), row)| {
+                        layouts.iter().zip(origins).zip(&row.cells).find_map(
+                            |((layout, &origin), cell)| {
+                                inside(layout.as_ref()?, &cell.attrs, origin)
+                            },
+                        )
+                    })
+            }
+        }
+    }
+
+    /// An image placeholder's caption (its alt text), one line in a smaller body font,
+    /// ellipsized at `width` pixels.
+    pub(crate) fn caption(
+        &self,
+        text: &str,
+        width: i64,
+        counted: &mut dyn FnMut(usize),
+    ) -> pango::Layout {
+        let layout = new_layout(&self.context, text, counted);
+        let mut font = self.setup.font(FontRole::Body);
+        font.set_size(units::to_pango_units(self.setup.size_pt * CAPTION_SCALE));
+        layout.set_font_description(Some(&font));
+        layout.set_width(units::to_pango_units(units::px_to_f64(width.max(1))));
+        layout.set_ellipsize(pango::EllipsizeMode::End);
+        layout
+    }
+
     /// A marker (list bullet, number, summary triangle) in the body font.
     pub(crate) fn marker(&self, text: &str, counted: &mut dyn FnMut(usize)) -> pango::Layout {
         let layout = new_layout(&self.context, text, counted);
         layout.set_font_description(Some(&self.setup.font(FontRole::Body)));
         layout
+    }
+}
+
+/// Where a layout placed each of its images: the image and its box, in layout pixels. Each
+/// image's shape attribute makes it a run of its own, whose extents are the box.
+pub(crate) fn image_boxes(layout: &pango::Layout, attrs: &[TextAttr]) -> Vec<(ImageId, Rect)> {
+    let images: Vec<(usize, ImageId)> = attrs
+        .iter()
+        .filter_map(|attr| match attr.kind {
+            AttrKind::Image(image) => Some((attr.start, image)),
+            AttrKind::Bold
+            | AttrKind::Italic
+            | AttrKind::Strikethrough
+            | AttrKind::Underline
+            | AttrKind::Code
+            | AttrKind::Link
+            | AttrKind::Subscript
+            | AttrKind::Superscript
+            | AttrKind::Highlight
+            | AttrKind::AlertTitle(_) => None,
+        })
+        .collect();
+    let mut boxes = Vec::with_capacity(images.len());
+    if images.is_empty() {
+        return boxes;
+    }
+    let px = |units: i32| units::round_px(units::from_pango_units(units));
+    let mut iter = layout.iter();
+    loop {
+        let offset = iter
+            .run_readonly()
+            .and_then(|run| usize::try_from(run.item().offset()).ok());
+        if let Some(&(_start, image)) =
+            offset.and_then(|offset| images.iter().find(|&&(start, _)| start == offset))
+        {
+            let (_ink, logical) = iter.run_extents();
+            boxes.push((
+                image,
+                Rect {
+                    x: px(logical.x()),
+                    y: px(logical.y()),
+                    width: px(logical.width()),
+                    height: px(logical.height()),
+                },
+            ));
+        }
+        if !iter.next_run() {
+            return boxes;
+        }
     }
 }
 
@@ -424,6 +548,7 @@ pub(crate) fn warm_up(
         context: widget.pango_context(),
         setup: TextSetup::of(widget),
         palette: Palette::default(),
+        images: Arc::default(),
     };
     let text = "Ag 1. •◦▪☑☐▾▸";
     let styled = |kind| {
@@ -528,10 +653,16 @@ impl Typesetter {
                         add(attribute);
                     }
                 }
-                AttrKind::Muted => {
-                    for attribute in foreground(palette.faint(0.6)) {
-                        add(attribute);
-                    }
+                AttrKind::Image(image) => {
+                    // The image's box, standing on the baseline.
+                    let (width, height) = self.images.display_size(image, width, setup.metrics());
+                    let rect = pango::Rectangle::new(
+                        0,
+                        -units::to_pango_units(units::px_to_f64(height)),
+                        units::to_pango_units(units::px_to_f64(width)),
+                        units::to_pango_units(units::px_to_f64(height)),
+                    );
+                    add(pango::AttrShape::new(&rect, &rect).into());
                 }
                 AttrKind::AlertTitle(kind) => {
                     for attribute in foreground(palette.alert(kind)) {
@@ -601,6 +732,7 @@ mod tests {
             context,
             setup,
             palette: Palette::default(),
+            images: Arc::default(),
         }
     }
 

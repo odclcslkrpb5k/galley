@@ -19,7 +19,11 @@ use crate::render::paint::{self, BarColor, LeafPaint, Target};
 use crate::render::positions::{Positions, Spot};
 use crate::render::text::{ColumnWidths, Content, Measured, Palette, TextSetup, Typesetter};
 use crate::units;
+use gbk_markdown_core::units::{DetailsId, LeafId};
 
+/// A summary's marker while its `<details>` is open, and closed.
+const OPEN_MARKER: &str = "▾";
+const CLOSED_MARKER: &str = "▸";
 /// Space around the document, in em.
 const MARGIN_EM: f64 = 2.0;
 /// Leaves are laid out ahead of the viewport this many screens up and down, between frames.
@@ -128,8 +132,8 @@ struct Doc {
     cache: HashMap<usize, Option<gsk::RenderNode>>,
     /// Tables' column widths at this width and text setup.
     columns: ColumnWidths,
-    /// Anchor names and the paints they name.
-    anchors: HashMap<String, usize>,
+    /// Anchor names and the leaves they name (`paint::anchor_leaves`).
+    anchors: HashMap<String, LeafId>,
     /// The leaf last hit-tested for links, laid out (the pointer moves over one leaf at a time).
     hit: Option<(usize, Measured, LeafGeometry)>,
     /// Whether each `<details>` is open; paints inside a closed one have no height.
@@ -330,12 +334,13 @@ impl DocumentView {
     pub(super) fn set_document(
         &self,
         paints: Vec<LeafPaint>,
-        anchors: HashMap<String, usize>,
+        anchors: HashMap<String, LeafId>,
         details: Vec<bool>,
         path: Option<PathBuf>,
-        start: Option<usize>,
+        start: Option<LeafId>,
         probe: Rc<Probe>,
     ) {
+        let start = start.and_then(|leaf| paint::first_paint_of(&paints, leaf.index()));
         let mut open = details;
         // Opening inside a closed `<details>` opens it.
         for id in start
@@ -343,7 +348,7 @@ impl DocumentView {
             .map(|paint| paint.details.clone())
             .unwrap_or_default()
         {
-            if let Some(slot) = open.get_mut(id) {
+            if let Some(slot) = open.get_mut(id.index()) {
                 *slot = true;
             }
         }
@@ -424,7 +429,6 @@ impl DocumentView {
         doc.width = width;
         doc.generation += 1;
         doc.cache.clear();
-        doc.columns.clear();
         doc.hit = None;
         doc.natural = vec![None; doc.paints.len()];
         let metrics = doc.setup.metrics();
@@ -475,6 +479,8 @@ impl DocumentView {
                 return;
             }
             doc.setup = setup;
+            // Natural column widths are measured in the old setup's fonts.
+            doc.columns.clear();
             // Forces `set_width` to start over even if the width is the same.
             doc.width = 0;
         }
@@ -788,7 +794,7 @@ impl DocumentView {
         doc.probe.heights_checked(mismatches, doc.paints.len());
     }
 
-    // Links.
+    // Links and <details>.
 
     /// The link at a point of the view, if any.
     pub(super) fn link_at(&self, x: f64, y: f64) -> Option<Target> {
@@ -798,35 +804,32 @@ impl DocumentView {
         let doc = document.as_mut()?;
         let margin = doc.margin();
         let y = top - margin + units::round_px(y);
-        let leaf = doc.positions.visible(y, 1).next()?;
-        let local = (units::round_px(x) - margin, y - doc.positions.start(leaf));
-        doc.link_in(&context, leaf, local)
+        let paint = doc.positions.visible(y, 1).next()?;
+        let local = (units::round_px(x) - margin, y - doc.positions.start(paint));
+        doc.link_in(&context, paint, local)
     }
 
+    /// For --click-at: what a click at a point does, done as `Scope::Document` allows.
     pub(super) fn probe_click(&self, x: f64, y: f64) -> String {
-        match self.pointed_at(x, y) {
-            Some(Pointed::Link(target)) => {
-                let label = target.label();
-                if matches!(target, Target::Leaf(_)) {
-                    self.open(target);
-                }
-                label
-            }
-            Some(Pointed::Summary(details)) => {
-                self.toggle(details);
-                format!("summary:{details}")
-            }
+        let pointed = self.pointed_at(x, y);
+        let label = match &pointed {
+            Some(Pointed::Link(target)) => target.label(),
+            Some(Pointed::Summary(details)) => format!("summary:{}", details.index()),
             None => "none".to_owned(),
+        };
+        if let Some(pointed) = pointed {
+            self.activate(pointed, Scope::Document);
         }
+        label
     }
 
+    /// The document's height, and the leaf whose paint is at the top of the view.
     pub(super) fn probe_state(&self) -> (i64, usize) {
         let top = self.viewport().map_or(0, |(top, _page)| top);
         self.document.borrow().as_ref().map_or((0, 0), |doc| {
-            (
-                doc.positions.total(),
-                doc.positions.anchor(top - doc.margin()).unwrap_or(0),
-            )
+            let paint = doc.positions.anchor(top - doc.margin()).unwrap_or(0);
+            let leaf = doc.paints.get(paint).map_or(0, |paint| paint.source);
+            (doc.positions.total(), leaf)
         })
     }
 
@@ -839,16 +842,23 @@ impl DocumentView {
         let document = self.document.borrow();
         let doc = document.as_ref()?;
         let y = top - doc.margin() + units::round_px(y);
-        let leaf = doc.positions.visible(y, 1).next()?;
-        let paint = doc.paints.get(leaf)?;
+        let paint = doc.positions.visible(y, 1).next()?;
         // Not past the end of the document.
-        let inside = y < doc.positions.start(leaf + 1);
-        paint.summary_of.filter(|_| inside).map(Pointed::Summary)
+        let inside = y < doc.positions.start(paint + 1);
+        doc.paints
+            .get(paint)?
+            .summary_of
+            .filter(|_| inside)
+            .map(Pointed::Summary)
     }
 
     /// The pointer moved to `at` (or left): a hand over a link or summary, and where a link
-    /// goes.
+    /// goes. Not while scrolling: the content moves under a still pointer, and laying out the
+    /// leaf it is over would cost frames.
     fn hover(&self, at: Option<(f64, f64)>) {
+        if at.is_some() && self.in_motion() {
+            return;
+        }
         let pointed = at.and_then(|(x, y)| self.pointed_at(x, y));
         if *self.hovered.borrow() == pointed {
             return;
@@ -867,10 +877,8 @@ impl DocumentView {
     fn clicked(&self, button: u32, presses: i32, x: f64, y: f64) {
         match button {
             gtk::gdk::BUTTON_PRIMARY if presses == 1 && !self.on_indicator(x) => {
-                match self.pointed_at(x, y) {
-                    Some(Pointed::Link(target)) => self.open(target),
-                    Some(Pointed::Summary(details)) => self.toggle(details),
-                    None => {}
+                if let Some(pointed) = self.pointed_at(x, y) {
+                    self.activate(pointed, Scope::Everywhere);
                 }
             }
             // The "back" side button.
@@ -892,23 +900,51 @@ impl DocumentView {
         glib::Propagation::Proceed
     }
 
+    /// Does what a click on `pointed` means; in `Scope::Document`, nothing that leaves the
+    /// document (a URL, another file) is opened.
+    fn activate(&self, pointed: Pointed, scope: Scope) {
+        let result = match pointed {
+            Pointed::Summary(details) => {
+                self.toggle(details);
+                Ok(())
+            }
+            Pointed::Link(Target::Leaf(leaf)) => {
+                self.reveal_leaf(leaf);
+                Ok(())
+            }
+            Pointed::Link(Target::Missing(name)) => Err(OpenError::NoAnchor(name)),
+            Pointed::Link(Target::Uri(_) | Target::Relative { .. }) if scope == Scope::Document => {
+                Ok(())
+            }
+            Pointed::Link(Target::Uri(uri)) => {
+                self.launch_uri(uri);
+                Ok(())
+            }
+            Pointed::Link(Target::Relative { path, fragment }) => {
+                self.open_relative(&path, fragment.as_deref())
+            }
+        };
+        if let Err(error) = result {
+            report_error(error);
+        }
+    }
+
     /// Opens or closes a `<details>`: its content's heights become their laid-out heights (or
     /// estimates) or nothing, keeping the content at the top of the view still.
-    fn toggle(&self, details: usize) {
+    fn toggle(&self, details: DetailsId) {
         let top = self.viewport().map(|(top, _page)| top);
         let shift = {
             let mut document = self.document.borrow_mut();
             let Some(doc) = document.as_mut() else {
                 return;
             };
-            let Some(slot) = doc.open.get_mut(details) else {
+            let Some(slot) = doc.open.get_mut(details.index()) else {
                 return;
             };
             *slot = !*slot;
             let anchor = top.and_then(|top| doc.positions.anchor(top - doc.margin()));
             doc.hit = None;
             let paints = Arc::clone(&doc.paints);
-            let metrics = doc.setup.metrics();
             let mut shift = 0;
             for (index, paint) in paints.iter().enumerate() {
                 let inside = paint.details.contains(&details);
@@ -917,15 +953,7 @@ impl DocumentView {
                     doc.cache.remove(&index);
                 }
                 if inside {
-                    let height = if doc.shown(paint) {
-                        doc.natural
-                            .get(index)
-                            .copied()
-                            .flatten()
-                            .unwrap_or_else(|| metrics.estimate(paint, doc.width))
-                    } else {
-                        0
-                    };
+                    let height = doc.shown_height(index, paint);
                     shift += doc.positions.estimate(index, height, anchor);
                 }
             }
@@ -934,55 +962,22 @@ impl DocumentView {
         self.after_heights_changed(shift);
     }
 
-    fn open(&self, target: Target) {
-        match target {
-            Target::Leaf(leaf) => {
-                let (paint, closed) = {
-                    let document = self.document.borrow();
-                    let Some(doc) = document.as_ref() else {
-                        return;
-                    };
-                    let paint = paint::first_paint_of(&doc.paints, leaf);
-                    // Any `<details>` closed around it opens first.
-                    let closed: Vec<usize> = paint
-                        .and_then(|paint| doc.paints.get(paint))
-                        .map(|paint| {
-                            paint
-                                .details
-                                .iter()
-                                .copied()
-                                .filter(|&id| doc.open.get(id) == Some(&false))
-                                .collect()
-                        })
-                        .unwrap_or_default();
-                    (paint, closed)
-                };
-                for details in closed {
-                    self.toggle(details);
-                }
-                if let Some(paint) = paint {
-                    self.jump_to(paint);
-                }
-            }
-            Target::Missing(name) => {
-                report_error(format_args!(
-                    "no heading or anchor named {name:?} in this document"
-                ));
-            }
-            Target::Uri(uri) => {
-                let window = self.obj().root().and_downcast::<gtk::Window>();
-                gtk::UriLauncher::new(&uri).launch(
-                    window.as_ref(),
-                    gio::Cancellable::NONE,
-                    move |result| {
-                        if let Err(error) = result {
-                            report_error(format_args!("cannot open {uri}: {error}"));
-                        }
-                    },
-                );
-            }
-            Target::Relative { path, fragment } => self.open_relative(&path, fragment.as_deref()),
+    /// Shows a leaf's first paint at the top, opening any `<details>` closed around it first.
+    fn reveal_leaf(&self, leaf: LeafId) {
+        let (paint, closed) = {
+            let document = self.document.borrow();
+            let Some(doc) = document.as_ref() else {
+                return;
+            };
+            let Some(paint) = paint::first_paint_of(&doc.paints, leaf.index()) else {
+                return;
+            };
+            (paint, doc.closed_around(paint))
+        };
+        for details in closed {
+            self.toggle(details);
         }
+        self.jump_to(paint);
     }
 
     /// Shows paint `paint` at the top, remembering where the view was.
@@ -1021,52 +1016,61 @@ impl DocumentView {
         self.obj().queue_draw();
     }
 
-    fn open_relative(&self, link: &str, fragment: Option<&str>) {
+    fn launch_uri(&self, uri: String) {
+        let window = self.obj().root().and_downcast::<gtk::Window>();
+        gtk::UriLauncher::new(&uri).launch(
+            window.as_ref(),
+            gio::Cancellable::NONE,
+            move |result| {
+                if let Err(error) = result {
+                    report_error(OpenError::Launch(uri, error.to_string()));
+                }
+            },
+        );
+    }
+
+    fn open_relative(&self, link: &str, fragment: Option<&str>) -> Result<(), OpenError> {
         let Some(document) = self.path.borrow().clone() else {
-            return;
+            return Ok(());
         };
         let is_repository = |folder: &Path| folder.join(".git").exists();
         match links::resolve(&document, link, fragment, &is_repository) {
-            Opening::Viewer { path, fragment } => {
-                if same_file(&path, &document) {
-                    let paint = fragment.as_deref().and_then(|name| {
-                        self.document
-                            .borrow()
-                            .as_ref()
-                            .and_then(|doc| super::find_anchor(&doc.anchors, name))
-                    });
-                    match (paint, fragment) {
-                        (Some(paint), _) => self.jump_to(paint),
-                        (None, Some(name)) => self.open(Target::Missing(name)),
-                        (None, None) => {}
-                    }
-                } else {
-                    open_in_viewer(&path, fragment.as_deref());
-                }
+            Opening::Viewer { path, fragment } if same_file(&path, &document) => {
+                let Some(name) = fragment else {
+                    return Ok(());
+                };
+                let leaf = self
+                    .document
+                    .borrow()
+                    .as_ref()
+                    .and_then(|doc| super::anchor_leaf(&doc.anchors, &name));
+                let leaf = leaf.ok_or(OpenError::NoAnchor(name))?;
+                self.reveal_leaf(leaf);
+                Ok(())
             }
-            Opening::System(path) => match std::fs::metadata(&path) {
-                Ok(metadata) if links::safe_to_open(&path, &metadata) => {
-                    let window = self.obj().root().and_downcast::<gtk::Window>();
-                    let file = gio::File::for_path(&path);
-                    gtk::FileLauncher::new(Some(&file)).launch(
-                        window.as_ref(),
-                        gio::Cancellable::NONE,
-                        move |result| {
-                            if let Err(error) = result {
-                                report_error(format_args!(
-                                    "cannot open {}: {error}",
-                                    path.display()
-                                ));
-                            }
-                        },
-                    );
+            Opening::Viewer { path, fragment } => open_in_viewer(&path, fragment.as_deref()),
+            Opening::System(path) => {
+                let metadata = std::fs::metadata(&path)
+                    .map_err(|error| OpenError::Read(path.clone(), error.kind()))?;
+                if !links::safe_to_open(&path, &metadata) {
+                    return Err(OpenError::Program(path));
                 }
-                Ok(_executable) => report_error(format_args!(
-                    "not opening {}: it is a program or launcher",
-                    path.display()
-                )),
-                Err(error) => report_error(format_args!("cannot open {}: {error}", path.display())),
-            },
+                let window = self.obj().root().and_downcast::<gtk::Window>();
+                let file = gio::File::for_path(&path);
+                gtk::FileLauncher::new(Some(&file)).launch(
+                    window.as_ref(),
+                    gio::Cancellable::NONE,
+                    move |result| {
+                        if let Err(error) = result {
+                            report_error(OpenError::Launch(
+                                path.display().to_string(),
+                                error.to_string(),
+                            ));
+                        }
+                    },
+                );
+                Ok(())
+            }
         }
     }
 
@@ -1153,8 +1157,31 @@ impl DocumentView {
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum Pointed {
     Link(Target),
-    /// The summary of the `<details>` with this id: opens or closes it.
-    Summary(usize),
+    /// The summary of this `<details>`: opens or closes it.
+    Summary(DetailsId),
+}
+
+/// How far a click may reach.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Scope {
+    Everywhere,
+    /// Only this document: the probe's --click-at never opens a browser or another file.
+    Document,
+}
+
+/// Why a link could not be followed.
+#[derive(Debug, thiserror::Error)]
+enum OpenError {
+    #[error("no heading or anchor named {0:?} in this document")]
+    NoAnchor(String),
+    #[error("cannot open {0}: {1:?}")]
+    Read(PathBuf, std::io::ErrorKind),
+    #[error("not opening {0}: it is a program or launcher")]
+    Program(PathBuf),
+    #[error("cannot find this viewer to open {0}: {1:?}")]
+    NoViewer(PathBuf, std::io::ErrorKind),
+    #[error("cannot open {0}: {1}")]
+    Launch(String, String),
 }
 
 /// What a link's tooltip says: where it goes, when that is not this document.
@@ -1184,17 +1211,9 @@ fn same_file(a: &Path, b: &Path) -> bool {
 }
 
 /// Opens a Markdown file in a new viewer window, at `fragment` if given.
-fn open_in_viewer(path: &Path, fragment: Option<&str>) {
-    let viewer = match std::env::current_exe() {
-        Ok(viewer) => viewer,
-        Err(error) => {
-            report_error(format_args!(
-                "cannot find this viewer to open {}: {error}",
-                path.display()
-            ));
-            return;
-        }
-    };
+fn open_in_viewer(path: &Path, fragment: Option<&str>) -> Result<(), OpenError> {
+    let viewer = std::env::current_exe()
+        .map_err(|error| OpenError::NoViewer(path.to_path_buf(), error.kind()))?;
     let mut argv: Vec<std::ffi::OsString> = vec![viewer.into_os_string()];
     if let Some(fragment) = fragment {
         argv.push(format!("--anchor={fragment}").into());
@@ -1202,9 +1221,9 @@ fn open_in_viewer(path: &Path, fragment: Option<&str>) {
     argv.push("--".into());
     argv.push(path.as_os_str().to_owned());
     let argv: Vec<&std::ffi::OsStr> = argv.iter().map(std::ffi::OsString::as_os_str).collect();
-    if let Err(error) = gio::Subprocess::newv(&argv, gio::SubprocessFlags::NONE) {
-        report_error(format_args!("cannot open {}: {error}", path.display()));
-    }
+    gio::Subprocess::newv(&argv, gio::SubprocessFlags::NONE)
+        .map(drop)
+        .map_err(|error| OpenError::Launch(path.display().to_string(), error.to_string()))
 }
 
 /// Reports, once, that heights will stay estimates.
@@ -1245,10 +1264,12 @@ impl Doc {
         (x, y): (i64, i64),
     ) -> Option<Target> {
         let paints = Arc::clone(&self.paints);
-        let paint = paints.get(leaf)?;
+        let paint = paints.get(leaf).filter(|paint| paint.has_links())?;
         let typesetter = self.typesetter(context.clone());
+        let probe = Rc::clone(&self.probe);
+        let mut counted = |bytes: usize| probe.layout_created(bytes);
         if self.hit.as_ref().is_none_or(|(at, _, _)| *at != leaf) {
-            let measured = typesetter.measure(paint, self.width, &mut self.columns, &mut |_| {});
+            let measured = typesetter.measure(paint, self.width, &mut self.columns, &mut counted);
             let geometry =
                 self.setup
                     .metrics()
@@ -1256,7 +1277,7 @@ impl Doc {
             self.hit = Some((leaf, measured, geometry));
         }
         let (_leaf, measured, geometry) = self.hit.as_ref()?;
-        typesetter.link_at(paint, measured, geometry, (x, y))
+        typesetter.link_at(paint, measured, geometry, (x, y), &mut counted)
     }
 
     /// The scroll value that puts a paint's top at the top of the view. It is then the anchor,
@@ -1267,10 +1288,39 @@ impl Doc {
 
     /// Whether a paint is shown: every `<details>` it is inside is open.
     fn shown(&self, paint: &LeafPaint) -> bool {
+        self.closed_around_paint(paint).next().is_none()
+    }
+
+    /// The closed `<details>` a paint is inside.
+    fn closed_around_paint<'a>(
+        &'a self,
+        paint: &'a LeafPaint,
+    ) -> impl Iterator<Item = DetailsId> + 'a {
         paint
             .details
             .iter()
-            .all(|&id| self.open.get(id).copied().unwrap_or(true))
+            .copied()
+            .filter(|id| self.open.get(id.index()) == Some(&false))
+    }
+
+    fn closed_around(&self, paint: usize) -> Vec<DetailsId> {
+        self.paints
+            .get(paint)
+            .map(|paint| self.closed_around_paint(paint).collect())
+            .unwrap_or_default()
+    }
+
+    /// The height a paint takes now: none in a closed `<details>`, else its laid-out height,
+    /// or an estimate until it has one.
+    fn shown_height(&self, index: usize, paint: &LeafPaint) -> i64 {
+        if !self.shown(paint) {
+            return 0;
+        }
+        self.natural
+            .get(index)
+            .copied()
+            .flatten()
+            .unwrap_or_else(|| self.setup.metrics().estimate(paint, self.width))
     }
 
     /// Keeps a paint's laid-out height; returns the height it takes in the document (none if
@@ -1305,15 +1355,14 @@ impl Doc {
             self.cache.insert(leaf, None);
             return 0;
         }
-        let closed_summary = paint
+        // A summary's marker points down while its details are open, right while closed.
+        let disclosure = if paint
             .summary_of
-            .is_some_and(|id| self.open.get(id) == Some(&false));
-        let closed;
-        let paint = if closed_summary {
-            closed = paint.closed_summary();
-            &closed
+            .is_some_and(|id| self.open.get(id.index()) == Some(&false))
+        {
+            CLOSED_MARKER
         } else {
-            paint
+            OPEN_MARKER
         };
         let probe = Rc::clone(&self.probe);
         let mut counted = |bytes: usize| probe.layout_created(bytes);
@@ -1322,7 +1371,7 @@ impl Doc {
             self.setup
                 .metrics()
                 .geometry(paint, measured.height, measured.grid(), self.width);
-        let node = draw_leaf(&typesetter, &measured, &geometry, &mut counted);
+        let node = draw_leaf(&typesetter, &measured, &geometry, disclosure, &mut counted);
         self.cache.insert(leaf, node);
         let height = self.record_height(leaf, geometry.height);
         self.positions.set(leaf, height, anchor, scrolling)
@@ -1334,6 +1383,7 @@ fn draw_leaf(
     typesetter: &Typesetter,
     measured: &Measured,
     geometry: &LeafGeometry,
+    disclosure: &str,
     counted: &mut dyn FnMut(usize),
 ) -> Option<gsk::RenderNode> {
     let palette = typesetter.palette;
@@ -1349,16 +1399,21 @@ fn draw_leaf(
         };
         snapshot.append_color(&color, &graphene_rect(*rect));
     }
-    for MarkerPlace {
-        text, right, top, ..
-    } in &geometry.markers
-    {
+    let places = geometry.markers.iter().map(
+        |MarkerPlace {
+             text, right, top, ..
+         }| (text.as_str(), *right, *top),
+    );
+    let disclosed = geometry
+        .disclosure
+        .map(|(right, top)| (disclosure, right, top));
+    for (text, right, top) in places.chain(disclosed) {
         let marker = typesetter.marker(text, counted);
         let marker_width = i64::from(marker.pixel_size().0);
         append_layout(
             &snapshot,
             &marker,
-            (right - marker_width, *top),
+            (right - marker_width, top),
             palette.foreground,
         );
     }

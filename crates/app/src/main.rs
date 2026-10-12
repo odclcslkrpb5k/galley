@@ -22,6 +22,7 @@ use gtk::{gio, glib};
 
 use args::{Args, Mode, Startup};
 use document_view::DocumentView;
+use gbk_markdown_core::units::LeafId;
 use output::report_error;
 use probe::Probe;
 use renderer::EnvChange;
@@ -43,8 +44,8 @@ enum LoadError {
 /// What the loader thread makes of the file.
 struct Loaded {
     paints: Vec<render::paint::LeafPaint>,
-    /// Anchor names and the paints they name.
-    anchors: HashMap<String, usize>,
+    /// Anchor names and the leaves they name.
+    anchors: HashMap<String, LeafId>,
     /// Whether each `<details>` starts open.
     details: Vec<bool>,
 }
@@ -107,7 +108,7 @@ fn load(path: &Path) -> Result<Loaded, LoadError> {
     let bytes = std::fs::read(path).map_err(|error| LoadError::Read(error.kind()))?;
     let doc = gbk_markdown_core::load(&bytes);
     let paints = render::paint::paint_document(&doc);
-    let anchors = render::paint::anchors(&doc, &paints);
+    let anchors = render::paint::anchor_leaves(&doc);
     let details = render::paint::details_open(&doc);
     Ok(Loaded {
         paints,
@@ -205,13 +206,13 @@ fn show(
         let document = loader.join().unwrap_or(Err(LoadError::LoaderPanicked))?;
         probe.loader_joined(waited.elapsed());
         let start = anchor.and_then(|name| {
-            let paint = document_view::find_anchor(&document.anchors, name);
-            if paint.is_none() {
+            let leaf = document_view::anchor_leaf(&document.anchors, name);
+            if leaf.is_none() {
                 report_error(format_args!(
                     "no heading or anchor named {name:?}; showing the top"
                 ));
             }
-            paint
+            leaf
         });
         let view = DocumentView::new(
             document.paints,

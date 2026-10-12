@@ -10,6 +10,7 @@
 //!
 //! Coordinates are document pixels: 0 is the top of the first leaf.
 
+use std::collections::HashMap;
 use std::ops::Range;
 
 use super::fenwick::Fenwick;
@@ -19,8 +20,9 @@ pub(crate) struct Positions {
     heights: Fenwick,
     /// Whether a leaf's height is measured, not estimated.
     exact: Vec<bool>,
-    /// Exact heights for leaves above the anchor, held while scrolling.
-    held: Vec<(usize, i64)>,
+    /// Exact heights for leaves above the anchor, held while scrolling; the latest per leaf.
+    /// A map, as every height applied drops its leaf's (out of date) held one.
+    held: HashMap<usize, i64>,
 }
 
 /// Where the top of the viewport is, as a leaf and the fraction of it above the top: kept across
@@ -37,7 +39,7 @@ impl Positions {
         Self {
             heights: Fenwick::new(estimates),
             exact: vec![false; count],
-            held: Vec::new(),
+            held: HashMap::new(),
         }
     }
 
@@ -100,7 +102,7 @@ impl Positions {
         }
         let above = anchor.is_some_and(|anchor| leaf < anchor);
         if above && scrolling {
-            self.held.push((leaf, height));
+            self.held.insert(leaf, height);
             return 0;
         }
         self.apply(leaf, height, above)
@@ -118,7 +120,7 @@ impl Positions {
 
     /// Sets a height now, dropping any held for the same leaf (it is out of date).
     fn apply(&mut self, leaf: usize, height: i64, above: bool) -> i64 {
-        self.held.retain(|&(held, _height)| held != leaf);
+        self.held.remove(&leaf);
         let delta = self.heights.set(leaf, height).unwrap_or(0);
         if above { delta } else { 0 }
     }
@@ -152,7 +154,7 @@ impl Positions {
         let Some(anchor) = anchor else {
             return;
         };
-        let (now, still): (Vec<_>, Vec<_>) = std::mem::take(&mut self.held)
+        let (now, still): (HashMap<_, _>, HashMap<_, _>) = std::mem::take(&mut self.held)
             .into_iter()
             .partition(|&(leaf, _)| leaf >= anchor);
         self.held = still;

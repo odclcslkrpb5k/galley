@@ -21,7 +21,7 @@ use gbk_markdown_core::model::{
     AlertKind, Align, Container, Delimiter, HeadingLevel, InlineObject, Inlines, LEAF_TEXT_BYTES,
     Leaf, LeafKind, LinkTarget, Marker, Style,
 };
-use gbk_markdown_core::units::{ContextId, FootnoteId, LeafId, LinkId, RowNo, TableId};
+use gbk_markdown_core::units::{ContextId, DetailsId, FootnoteId, LeafId, LinkId, RowNo, TableId};
 
 use super::table::{CellPaint, ColumnSample, RowPaint, TablePaint};
 
@@ -46,13 +46,16 @@ const SPLIT_AT_LINE_BYTES: usize = 2 * 1024;
 /// Most text in one table cell: a cell is laid out whole, and no README needs more. Longer
 /// cells are cut short with an ellipsis (a listed deviation, plan §5).
 const CELL_TEXT_BYTES: usize = 2 * 1024;
-/// A summary's marker while its `<details>` is open, and closed.
-const OPEN_MARKER: &str = "▾";
-const CLOSED_MARKER: &str = "▸";
+
 /// Most rows and text a table's column widths are measured from (`table::ColumnSample`), and
 /// most text of one sampled cell.
 const SAMPLE_BYTES: usize = 8 * 1024;
 const SAMPLE_CELL_BYTES: usize = 256;
+/// Most cells measured for a sample, and laid out in one table piece: each is a layout, and a
+/// piece is laid out whole in one prefetch slice (a 100-column table would otherwise be
+/// thousands of layouts at once).
+const SAMPLE_CELLS: usize = 128;
+const PIECE_CELLS: usize = 64;
 const SAMPLE_ROWS: usize = 50;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -78,12 +81,27 @@ pub(crate) struct LeafPaint {
     pub(crate) decorations: Vec<Decoration>,
     /// The `<details>` this is inside (by id), shown only while all of them are open; a
     /// summary is not inside its own.
-    pub(crate) details: Vec<usize>,
+    pub(crate) details: Vec<DetailsId>,
     /// The `<details>` whose summary this is: clicking it opens or closes them.
-    pub(crate) summary_of: Option<usize>,
+    pub(crate) summary_of: Option<DetailsId>,
 }
 
 impl LeafPaint {
+    /// Whether anything in it is a link: its text, a table cell's, or a marker.
+    pub(crate) fn has_links(&self) -> bool {
+        !self.links.is_empty()
+            || self.table.as_ref().is_some_and(|table| {
+                table
+                    .rows
+                    .iter()
+                    .any(|row| row.cells.iter().any(|cell| !cell.links.is_empty()))
+            })
+            || self
+                .decorations
+                .iter()
+                .any(|decoration| matches!(decoration, Decoration::Marker { link: Some(_), .. }))
+    }
+
     /// Unstyled text in a font, with no box around it.
     pub(crate) fn plain(text: &str, font: FontRole, attrs: Vec<TextAttr>) -> Self {
         Self {
@@ -127,7 +145,7 @@ pub(crate) struct LinkSpan {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum Target {
     /// A leaf of this document: a heading or `<a id>`, a footnote, or back to the reference.
-    Leaf(usize),
+    Leaf(LeafId),
     /// A `#fragment` that names nothing in this document.
     Missing(String),
     /// A URL, opened by the system.
@@ -144,7 +162,7 @@ impl Target {
     /// A one-word description, for the probe's report: `leaf:3`, `uri:https://...`.
     pub(crate) fn label(&self) -> String {
         match self {
-            Self::Leaf(leaf) => format!("leaf:{leaf}"),
+            Self::Leaf(leaf) => format!("leaf:{}", leaf.index()),
             Self::Missing(name) => format!("missing:{name}"),
             Self::Uri(uri) => format!("uri:{uri}"),
             Self::Relative { path, fragment } => match fragment {
@@ -221,6 +239,9 @@ pub(crate) enum Decoration {
         text: String,
         link: Option<Target>,
     },
+    /// A `<details>` summary's marker, right-aligned to end at `x_em`: which way it points
+    /// depends on whether the details are open, which is the view's state, not the paint's.
+    Disclosure { x_em: f64 },
     /// A horizontal rule across the leaf (thematic break).
     Rule,
     /// The line under an h1 or h2, as on GitHub.
@@ -242,14 +263,14 @@ pub(crate) fn first_paint_of(paints: &[LeafPaint], leaf: usize) -> Option<usize>
         .then_some(at)
 }
 
-/// Each anchor's name (a heading's slug, an `<a id>`) and the paint it names. The first of a
-/// name wins, as in a browser.
-pub(crate) fn anchors(doc: &Document, paints: &[LeafPaint]) -> HashMap<String, usize> {
+/// Each anchor's name (a heading's slug, an `<a id>`) and the leaf it names. The first of a
+/// name wins, as in a browser. Looked up with `model::anchor_name`, like `Document::anchor_leaf`.
+pub(crate) fn anchor_leaves(doc: &Document) -> HashMap<String, LeafId> {
     let mut anchors = HashMap::new();
     for anchor in doc.anchors() {
-        if let Some(paint) = first_paint_of(paints, anchor.leaf().index()) {
-            anchors.entry(anchor.slug().to_owned()).or_insert(paint);
-        }
+        anchors
+            .entry(anchor.slug().to_owned())
+            .or_insert(anchor.leaf());
     }
     anchors
 }
@@ -281,6 +302,16 @@ pub(crate) fn paint_document(doc: &Document) -> Vec<LeafPaint> {
     let mut painter = Painter {
         doc,
         references: first_references(doc),
+        footnotes: doc
+            .contexts_with_ids()
+            .filter_map(|(_id, context)| match context.container() {
+                Container::Footnote(footnote) => Some((*footnote, context.first_leaf()?)),
+                Container::Quote
+                | Container::Alert(_)
+                | Container::ListItem { .. }
+                | Container::Details { .. } => None,
+            })
+            .collect(),
         samples: HashMap::new(),
     };
     let mut paints = Vec::with_capacity(leaves.len());
@@ -296,7 +327,7 @@ pub(crate) fn paint_document(doc: &Document) -> Vec<LeafPaint> {
 }
 
 /// The leaf of each footnote's first reference, where its number links back to.
-fn first_references(doc: &Document) -> HashMap<FootnoteId, usize> {
+fn first_references(doc: &Document) -> HashMap<FootnoteId, LeafId> {
     let mut references = HashMap::new();
     for (id, leaf) in doc.leaves_with_ids() {
         let mut note = |inlines: &Inlines| {
@@ -306,7 +337,7 @@ fn first_references(doc: &Document) -> HashMap<FootnoteId, usize> {
                     .and_then(|link| doc.link(link))
                     .map(gbk_markdown_core::model::Link::target)
                 {
-                    references.entry(*footnote).or_insert(id.index());
+                    references.entry(*footnote).or_insert(id);
                 }
             }
         };
@@ -331,7 +362,9 @@ fn first_references(doc: &Document) -> HashMap<FootnoteId, usize> {
 
 struct Painter<'d> {
     doc: &'d Document,
-    references: HashMap<FootnoteId, usize>,
+    references: HashMap<FootnoteId, LeafId>,
+    /// Each footnote's first leaf, where a reference to it goes.
+    footnotes: HashMap<FootnoteId, LeafId>,
     /// Each table's column sample, shared by its pieces.
     samples: HashMap<TableId, Arc<ColumnSample>>,
 }
@@ -434,12 +467,10 @@ impl Painter<'_> {
                 paint.gap_below_em = TIGHT_GAP;
             }
             LeafKind::DetailsSummary { details, inlines } => {
-                paint.summary_of = Some(details.index());
+                paint.summary_of = Some(*details);
                 self.push_inlines(&mut paint.styled(), inlines);
-                paint.decorations.push(Decoration::Marker {
+                paint.decorations.push(Decoration::Disclosure {
                     x_em: paint.indent_em - MARKER_GAP,
-                    text: OPEN_MARKER.to_owned(),
-                    link: None,
                 });
                 paint.gap_below_em = PARAGRAPH_GAP / 2.0;
             }
@@ -514,7 +545,7 @@ impl Painter<'_> {
                         LeafKind::DetailsSummary { details: of, .. } if of == details
                     );
                     if !own_summary {
-                        paint.details.push(details.index());
+                        paint.details.push(*details);
                     }
                 }
             }
@@ -535,16 +566,26 @@ impl Painter<'_> {
         let table = doc.table(table_id)?;
         let body = table.row_range(rows)?;
         let columns = self.samples.get(&table_id).cloned().unwrap_or_else(|| {
+            let count = table
+                .rows()
+                .iter()
+                .map(Vec::len)
+                .chain([table.header().len()])
+                .max()
+                .unwrap_or(0);
+            let rows = self.sample_rows(table);
+            let mut chars = vec![0; count];
+            for row in &rows {
+                for (cell, longest) in row.cells.iter().zip(chars.iter_mut()) {
+                    let line = cell.text.lines().map(|line| line.chars().count()).max();
+                    *longest = (*longest).max(line.unwrap_or(0));
+                }
+            }
             let sample = Arc::new(ColumnSample {
-                table: table_id.index(),
-                count: table
-                    .rows()
-                    .iter()
-                    .map(Vec::len)
-                    .chain([table.header().len()])
-                    .max()
-                    .unwrap_or(0),
-                rows: self.sample_rows(table),
+                table: table_id,
+                count,
+                rows,
+                chars,
             });
             self.samples.insert(table_id, Arc::clone(&sample));
             sample
@@ -571,14 +612,15 @@ impl Painter<'_> {
         let body = table.rows();
         let body = body.get(..SAMPLE_ROWS.min(body.len())).unwrap_or_default();
         rows.extend(self.body_rows(table, 0, body));
-        let mut bytes = 0;
+        let (mut bytes, mut cells) = (0, 0);
         let mut kept = Vec::with_capacity(rows.len());
         for mut row in rows {
             for cell in &mut row.cells {
                 cut_cell(cell, SAMPLE_CELL_BYTES);
             }
             bytes += row.cells.iter().map(|cell| cell.text.len()).sum::<usize>();
-            if bytes > SAMPLE_BYTES && !kept.is_empty() {
+            cells += row.cells.len();
+            if (bytes > SAMPLE_BYTES || cells > SAMPLE_CELLS) && !kept.is_empty() {
                 break;
             }
             kept.push(row);
@@ -647,18 +689,10 @@ impl Painter<'_> {
     fn target(&self, link: LinkId) -> Option<Target> {
         let doc = self.doc;
         Some(match doc.link(link)?.target() {
-            LinkTarget::Fragment(fragment) => doc.anchor_leaf(fragment).map_or_else(
-                || Target::Missing(fragment.clone()),
-                |leaf| Target::Leaf(leaf.index()),
-            ),
-            LinkTarget::Footnote(footnote) => {
-                let leaf = doc.contexts_with_ids().find_map(|(_id, context)| {
-                    (*context.container() == Container::Footnote(*footnote))
-                        .then(|| context.first_leaf())
-                        .flatten()
-                })?;
-                Target::Leaf(leaf.index())
-            }
+            LinkTarget::Fragment(fragment) => doc
+                .anchor_leaf(fragment)
+                .map_or_else(|| Target::Missing(fragment.clone()), Target::Leaf),
+            LinkTarget::Footnote(footnote) => Target::Leaf(*self.footnotes.get(footnote)?),
             LinkTarget::Absolute(url) => Target::Uri(url.clone()),
             LinkTarget::Relative { path, fragment, .. } => {
                 if path.is_empty() {
@@ -666,7 +700,7 @@ impl Painter<'_> {
                     return fragment
                         .as_deref()
                         .and_then(|fragment| doc.anchor_leaf(fragment))
-                        .map(|leaf| Target::Leaf(leaf.index()));
+                        .map(Target::Leaf);
                 }
                 Target::Relative {
                     path: path.clone(),
@@ -751,19 +785,6 @@ impl Painter<'_> {
 }
 
 impl LeafPaint {
-    /// This summary as drawn while its `<details>` is closed: its marker points right.
-    pub(crate) fn closed_summary(&self) -> Self {
-        let mut closed = self.clone();
-        for decoration in &mut closed.decorations {
-            if let Decoration::Marker { text, .. } = decoration
-                && text == OPEN_MARKER
-            {
-                CLOSED_MARKER.clone_into(text);
-            }
-        }
-        closed
-    }
-
     fn styled(&mut self) -> Styled<'_> {
         Styled {
             text: &mut self.text,
@@ -913,7 +934,9 @@ fn piece(paint: &LeafPaint, first: bool, last: bool) -> LeafPaint {
                 first: first && *starts,
                 last: last && *ends,
             }),
-            Decoration::Marker { .. } | Decoration::Rule => first.then(|| decoration.clone()),
+            Decoration::Marker { .. } | Decoration::Disclosure { .. } | Decoration::Rule => {
+                first.then(|| decoration.clone())
+            }
             Decoration::HeadingRule => last.then(|| decoration.clone()),
         })
         .collect();
@@ -937,20 +960,22 @@ fn piece(paint: &LeafPaint, first: bool, last: bool) -> LeafPaint {
     }
 }
 
-/// Row ranges for a table's pieces: as many rows as fit in `SPLIT_AT_LINE_BYTES` of cell text,
-/// at least one.
+/// Row ranges for a table's pieces: as many rows as fit in `SPLIT_AT_LINE_BYTES` of cell text
+/// and `PIECE_CELLS` cells, at least one.
 fn table_cuts(table: &TablePaint) -> Vec<Range<usize>> {
     let mut ranges = Vec::new();
-    let mut start = 0;
-    let mut bytes = 0;
+    let (mut start, mut bytes, mut cells) = (0, 0, 0);
     for (index, row) in table.rows.iter().enumerate() {
         let size: usize = row.cells.iter().map(|cell| cell.text.len()).sum();
-        if index > start && bytes + size > SPLIT_AT_LINE_BYTES {
+        let count = row.cells.len();
+        if index > start && (bytes + size > SPLIT_AT_LINE_BYTES || cells + count > PIECE_CELLS) {
             ranges.push(start..index);
             start = index;
             bytes = 0;
+            cells = 0;
         }
         bytes += size;
+        cells += count;
     }
     ranges.push(start..table.rows.len());
     ranges
@@ -1019,6 +1044,7 @@ mod tests {
             .iter()
             .filter_map(|decoration| match decoration {
                 Decoration::Marker { x_em, text, .. } => Some((*x_em, text.clone())),
+                Decoration::Disclosure { x_em } => Some((*x_em, "disclosure".to_owned())),
                 Decoration::Bar { .. } | Decoration::Rule | Decoration::HeadingRule => None,
             })
             .collect()
@@ -1067,7 +1093,10 @@ mod tests {
                 .iter()
                 .filter_map(|decoration| match decoration {
                     Decoration::Bar { x_em, color, .. } => Some((*x_em, *color)),
-                    Decoration::Marker { .. } | Decoration::Rule | Decoration::HeadingRule => None,
+                    Decoration::Marker { .. }
+                    | Decoration::Disclosure { .. }
+                    | Decoration::Rule
+                    | Decoration::HeadingRule => None,
                 })
                 .collect()
         };
@@ -1087,7 +1116,10 @@ mod tests {
                 .iter()
                 .filter_map(|decoration| match decoration {
                     Decoration::Bar { last, .. } => Some(*last),
-                    Decoration::Marker { .. } | Decoration::Rule | Decoration::HeadingRule => None,
+                    Decoration::Marker { .. }
+                    | Decoration::Disclosure { .. }
+                    | Decoration::Rule
+                    | Decoration::HeadingRule => None,
                 })
                 .collect()
         };
@@ -1169,7 +1201,10 @@ mod tests {
             .iter()
             .filter_map(|decoration| match decoration {
                 Decoration::Bar { first, last, .. } => Some((*first, *last)),
-                Decoration::Marker { .. } | Decoration::Rule | Decoration::HeadingRule => None,
+                Decoration::Marker { .. }
+                | Decoration::Disclosure { .. }
+                | Decoration::Rule
+                | Decoration::HeadingRule => None,
             })
             .collect()
     }
@@ -1440,7 +1475,13 @@ mod tests {
         );
         let shape: Vec<(&str, Vec<usize>, Option<usize>)> = paints
             .iter()
-            .map(|paint| (paint.text.as_str(), paint.details.clone(), paint.summary_of))
+            .map(|paint| {
+                (
+                    paint.text.as_str(),
+                    paint.details.iter().map(|id| id.index()).collect(),
+                    paint.summary_of.map(DetailsId::index),
+                )
+            })
             .collect();
         assert_eq!(
             shape,
@@ -1452,30 +1493,18 @@ mod tests {
                 ("after", vec![], None),
             ]
         );
+        // A summary's marker is a disclosure: the view decides which way it points.
         let summary = paints.first().expect("summary");
         assert_eq!(
             markers(summary),
-            vec![(DETAILS_INDENT - MARKER_GAP, OPEN_MARKER.to_owned())]
+            vec![(DETAILS_INDENT - MARKER_GAP, "disclosure".to_owned())]
         );
-        let closed = summary.closed_summary();
-        assert_eq!(
-            markers(&closed),
-            vec![(DETAILS_INDENT - MARKER_GAP, CLOSED_MARKER.to_owned())]
-        );
-        assert_eq!(closed.text, summary.text);
-        // Only the summary's marker turns.
-        let item = paints_of_list();
-        assert_eq!(markers(&item.closed_summary()), markers(&item));
         let doc = gbk_markdown_core::load(b"<details open></details><details></details>x");
         assert_eq!(details_open(&doc), vec![true, false]);
         assert_eq!(
             details_open(&gbk_markdown_core::load(b"x")),
             Vec::<bool>::new()
         );
-    }
-
-    fn paints_of_list() -> LeafPaint {
-        paints("- item\n").into_iter().next().expect("item")
     }
 
     #[test]
@@ -1491,7 +1520,13 @@ mod tests {
 
     #[test]
     fn targets_have_one_word_labels() {
-        assert_eq!(Target::Leaf(3).label(), "leaf:3");
+        let doc = gbk_markdown_core::load(b"a\n\nb\n\nc\n\nd\n");
+        let fourth = doc
+            .leaves_with_ids()
+            .nth(3)
+            .map(|(id, _)| id)
+            .expect("leaf 3");
+        assert_eq!(Target::Leaf(fourth).label(), "leaf:3");
         assert_eq!(Target::Missing("x".to_owned()).label(), "missing:x");
         assert_eq!(Target::Uri("https://a".to_owned()).label(), "uri:https://a");
         let relative = |fragment: Option<&str>| Target::Relative {
@@ -1545,46 +1580,43 @@ mod tests {
             "# Top\n\n[up](#top) [gone](#nowhere) [web](https://x.org) [doc](docs/a.md#b) [self](?x#top)\n\nNote[^n].\n\n[^n]: The note.\n",
         );
         let text = paints.get(1).expect("links");
-        let targets: Vec<(&str, Target)> = text
+        let targets: Vec<(&str, String)> = text
             .links
             .iter()
             .map(|link| {
                 (
                     text.text.get(link.start..link.end).unwrap_or(""),
-                    link.target.clone(),
+                    link.target.label(),
                 )
             })
             .collect();
         assert_eq!(
             targets,
             vec![
-                ("up", Target::Leaf(0)),
-                ("gone", Target::Missing("nowhere".to_owned())),
-                ("web", Target::Uri("https://x.org".to_owned())),
-                (
-                    "doc",
-                    Target::Relative {
-                        path: "docs/a.md".to_owned(),
-                        fragment: Some("b".to_owned())
-                    }
-                ),
-                ("self", Target::Leaf(0)),
+                ("up", "leaf:0".to_owned()),
+                ("gone", "missing:nowhere".to_owned()),
+                ("web", "uri:https://x.org".to_owned()),
+                ("doc", "relative:docs/a.md#b".to_owned()),
+                ("self", "leaf:0".to_owned()),
             ]
         );
         let reference = paints.get(2).expect("reference");
         assert_eq!(
-            reference.links.first().map(|link| link.target.clone()),
-            Some(Target::Leaf(3))
+            reference.links.first().map(|link| link.target.label()),
+            Some("leaf:3".to_owned())
         );
         let note = paints.get(3).expect("footnote");
         let back = note
             .decorations
             .iter()
             .find_map(|decoration| match decoration {
-                Decoration::Marker { link, .. } => link.clone(),
-                Decoration::Bar { .. } | Decoration::Rule | Decoration::HeadingRule => None,
+                Decoration::Marker { link, .. } => link.as_ref().map(Target::label),
+                Decoration::Bar { .. }
+                | Decoration::Disclosure { .. }
+                | Decoration::Rule
+                | Decoration::HeadingRule => None,
             });
-        assert_eq!(back, Some(Target::Leaf(2)));
+        assert_eq!(back, Some("leaf:2".to_owned()));
     }
 
     #[test]
@@ -1614,7 +1646,7 @@ mod tests {
         assert_eq!(summary.text, "More");
         assert_eq!(
             markers(summary),
-            vec![(DETAILS_INDENT - MARKER_GAP, "▾".to_owned())]
+            vec![(DETAILS_INDENT - MARKER_GAP, "disclosure".to_owned())]
         );
         assert!((summary.gap_below_em - PARAGRAPH_GAP / 2.0).abs() < f64::EPSILON);
         assert!((summary.indent_em - DETAILS_INDENT).abs() < f64::EPSILON);

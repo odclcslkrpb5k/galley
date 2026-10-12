@@ -382,6 +382,10 @@ mod gfm {
             raw.leaves_with_ids().nth(1).map(|(id, _)| id)
         );
         assert_eq!(raw.anchor_leaf(""), None);
+        let prefixed = load(b"<a id=\"user-content-x\"></a>\n\nText\n");
+        let text = prefixed.leaves_with_ids().next().map(|(id, _)| id);
+        assert_eq!(prefixed.anchor_leaf("x"), text);
+        assert_eq!(prefixed.anchor_leaf("user-content-x"), text);
         assert_eq!(doc.notices(), &[]);
         assert_eq!(
             load(b"\xFF").notices(),

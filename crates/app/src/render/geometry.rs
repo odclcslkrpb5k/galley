@@ -5,7 +5,7 @@
 //! the boxes the widget draws both come from it, so they cannot drift apart.
 
 use super::paint::{BarColor, CODE_PADDING, Decoration, Fill, LeafPaint, Target};
-use super::table::{CELL_PAD_Y_EM, Grid, LINE_PX};
+use super::table::{CELL_PAD_X_EM, CELL_PAD_Y_EM, Grid, LINE_PX, MIN_COLUMN_EM, column_widths};
 use crate::units;
 
 /// Bar width in em, and its least width in pixels.
@@ -51,6 +51,8 @@ pub(crate) struct LeafGeometry {
     pub(crate) text_y: i64,
     pub(crate) fills: Vec<(Rect, Shade)>,
     pub(crate) markers: Vec<MarkerPlace>,
+    /// A summary's disclosure marker: its right edge and top (the view picks ▾ or ▸).
+    pub(crate) disclosure: Option<(i64, i64)>,
     /// For a table: the top-left corner of each cell's text, row by row.
     pub(crate) cells: Vec<Vec<(i64, i64)>>,
 }
@@ -121,6 +123,12 @@ impl Metrics {
             ));
         }
         let mut markers = Vec::new();
+        let mut disclosure = None;
+        // Markers sit level with the first line of text: a table's is in its first cell.
+        let first_line = text_y
+            + grid
+                .and_then(|grid| grid.cells.first()?.first())
+                .map_or(0, |&(_x, y)| y);
         for decoration in &paint.decorations {
             match decoration {
                 Decoration::Bar {
@@ -144,10 +152,10 @@ impl Metrics {
                 Decoration::Marker { x_em, text, link } => markers.push(MarkerPlace {
                     text: text.clone(),
                     right: self.px(*x_em),
-                    // Level with a table's first line of text, else with the text.
-                    top: text_y + grid.map_or(0, |_| LINE_PX + self.px(CELL_PAD_Y_EM)),
+                    top: first_line,
                     link: link.clone(),
                 }),
+                Decoration::Disclosure { x_em } => disclosure = Some((self.px(*x_em), first_line)),
                 Decoration::Rule => fills.push((
                     Rect {
                         x: indent,
@@ -193,6 +201,7 @@ impl Metrics {
             text_y,
             fills,
             markers,
+            disclosure,
             cells,
         }
     }
@@ -202,10 +211,21 @@ impl Metrics {
     pub(crate) fn estimate(self, paint: &LeafPaint, view_text_width: i64) -> i64 {
         let scale = paint.font.scale();
         let line = units::round_px(self.em_px * scale * 1.4);
+        let char_px = self.em_px * scale * 0.5;
         if let Some(table) = paint.table.as_ref() {
-            let columns = units::count_to_f64(table.columns.count.max(1));
-            let column = units::px_to_f64(self.text_width(paint, view_text_width)) / columns;
-            let per_line = (column / (self.em_px * 0.5)).max(1.0);
+            // Columns fitted as `measure` fits them, from the sample's longest lines.
+            let pad_x = self.px(CELL_PAD_X_EM);
+            let natural: Vec<i64> = table
+                .columns
+                .chars
+                .iter()
+                .map(|&chars| units::round_px(units::count_to_f64(chars) * char_px) + 2 * pad_x)
+                .collect();
+            let widths = column_widths(
+                &natural,
+                self.text_width(paint, view_text_width),
+                self.px(MIN_COLUMN_EM),
+            );
             let rows: i64 = table
                 .rows
                 .iter()
@@ -213,14 +233,10 @@ impl Metrics {
                     let lines = row
                         .cells
                         .iter()
-                        .map(|cell| {
-                            cell.text
-                                .split('\n')
-                                .map(|line| {
-                                    let chars = units::count_to_f64(line.chars().count());
-                                    units::round_px((chars / per_line).ceil().max(1.0))
-                                })
-                                .sum::<i64>()
+                        .zip(&widths)
+                        .map(|(cell, width)| {
+                            let per_line = units::px_to_f64(width - 2 * pad_x) / char_px;
+                            lines_of(&cell.text, per_line)
                         })
                         .max()
                         .unwrap_or(1);
@@ -229,19 +245,21 @@ impl Metrics {
                 .sum();
             return self.leaf_height(paint, rows + if table.last { LINE_PX } else { 0 });
         }
-        let char_px = self.em_px * scale * 0.5;
         let width = units::px_to_f64(self.text_width(paint, view_text_width));
-        let per_line = (width / char_px).max(1.0);
-        let lines: i64 = paint
-            .text
-            .split('\n')
-            .map(|line| {
-                let chars = units::count_to_f64(line.chars().count());
-                units::round_px((chars / per_line).ceil().max(1.0))
-            })
-            .sum();
+        let lines = lines_of(&paint.text, width / char_px);
         self.leaf_height(paint, lines.max(1) * line)
     }
+}
+
+/// Lines `text` takes at `per_line` characters to a line: each of its lines, at least one.
+fn lines_of(text: &str, per_line: f64) -> i64 {
+    let per_line = per_line.max(1.0);
+    text.split('\n')
+        .map(|line| {
+            let chars = units::count_to_f64(line.chars().count());
+            units::round_px((chars / per_line).ceil().max(1.0))
+        })
+        .sum()
 }
 
 #[cfg(test)]

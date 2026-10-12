@@ -14,6 +14,8 @@ use gtk::subclass::prelude::*;
 
 use crate::probe::Probe;
 use crate::render::paint::LeafPaint;
+use gbk_markdown_core::model::anchor_name;
+use gbk_markdown_core::units::LeafId;
 
 glib::wrapper! {
     pub(crate) struct DocumentView(ObjectSubclass<imp::DocumentView>)
@@ -23,13 +25,13 @@ glib::wrapper! {
 
 impl DocumentView {
     /// A view of `paints`, the document at `path` (for its relative links), with each
-    /// `<details>` open or not as `details` says, scrolled to paint `start` if given.
+    /// `<details>` open or not as `details` says, scrolled to leaf `start` if given.
     pub(crate) fn new(
         paints: Vec<LeafPaint>,
-        anchors: HashMap<String, usize>,
+        anchors: HashMap<String, LeafId>,
         details: Vec<bool>,
         path: Option<PathBuf>,
-        start: Option<usize>,
+        start: Option<LeafId>,
         probe: Rc<Probe>,
     ) -> Self {
         let view: Self = glib::Object::new();
@@ -63,8 +65,7 @@ impl DocumentView {
     }
 }
 
-/// The paint an anchor name names: as written, or with GitHub's `user-content-` prefix.
-pub(crate) fn find_anchor(anchors: &HashMap<String, usize>, name: &str) -> Option<usize> {
-    let name = name.strip_prefix("user-content-").unwrap_or(name);
-    anchors.get(name).copied()
+/// The leaf a `#fragment` names, by the same rule as `Document::anchor_leaf`.
+pub(crate) fn anchor_leaf(anchors: &HashMap<String, LeafId>, fragment: &str) -> Option<LeafId> {
+    anchors.get(anchor_name(fragment)).copied()
 }

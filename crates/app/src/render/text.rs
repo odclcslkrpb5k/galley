@@ -14,6 +14,7 @@ use super::paint::{AttrKind, FontRole, LeafPaint, LinkSpan, Target, TextAttr};
 use super::table::{self, CELL_PAD_X_EM, CELL_PAD_Y_EM, ColumnSample, Grid, MIN_COLUMN_EM};
 use crate::units;
 use gbk_markdown_core::model::{AlertKind, Align, HeadingLevel};
+use gbk_markdown_core::units::TableId;
 
 /// Body text is sans-serif and code monospace, at the desktop font's size: the desktop font may
 /// itself be monospace (this host's is Source Code Pro), which suits a terminal, not a document.
@@ -210,10 +211,12 @@ impl Measured {
     }
 }
 
-/// Each table's column widths, measured once for one view width and text setup: every piece of
-/// a table uses them, so its columns line up. Whoever measures keeps one per width.
+/// Each table's natural column widths (its sample's widest cells, unwrapped), measured once per
+/// text setup: they do not depend on the view's width, so a resize only fits them again
+/// (`table::column_widths`, arithmetic). Every piece of a table uses them, so its columns line
+/// up. Whoever measures keeps one, and clears it when the text setup changes.
 #[derive(Debug, Default)]
-pub(crate) struct ColumnWidths(HashMap<usize, Vec<i64>>);
+pub(crate) struct ColumnWidths(HashMap<TableId, Vec<i64>>);
 
 impl ColumnWidths {
     pub(crate) fn clear(&mut self) {
@@ -259,14 +262,11 @@ impl Typesetter {
     ) -> Measured {
         let metrics = self.setup.metrics();
         let (pad_x, pad_y) = (metrics.px(CELL_PAD_X_EM), metrics.px(CELL_PAD_Y_EM));
-        let widths = columns
+        let natural = columns
             .0
             .entry(table.columns.table)
-            .or_insert_with(|| {
-                let natural = self.natural_widths(&table.columns, pad_x, counted);
-                table::column_widths(&natural, width, metrics.px(MIN_COLUMN_EM))
-            })
-            .clone();
+            .or_insert_with(|| self.natural_widths(&table.columns, pad_x, counted));
+        let widths = table::column_widths(natural, width, metrics.px(MIN_COLUMN_EM));
         let mut cells = Vec::with_capacity(table.rows.len());
         let mut heights = Vec::with_capacity(table.rows.len());
         for row in &table.rows {
@@ -332,12 +332,13 @@ impl Typesetter {
         measured: &Measured,
         geometry: &LeafGeometry,
         (x, y): (i64, i64),
+        counted: &mut dyn FnMut(usize),
     ) -> Option<Target> {
         for marker in &geometry.markers {
             let Some(link) = marker.link.as_ref() else {
                 continue;
             };
-            let (width, height) = self.marker(&marker.text, &mut |_| {}).pixel_size();
+            let (width, height) = self.marker(&marker.text, counted).pixel_size();
             let (width, height) = (i64::from(width), i64::from(height));
             if (marker.right - width..marker.right).contains(&x)
                 && (marker.top..marker.top + height).contains(&y)
@@ -636,6 +637,7 @@ mod tests {
                 measured,
                 geometry,
                 (x + geometry.text_x, y + geometry.text_y),
+                &mut |_| {},
             )
         };
         let site = Some(Target::Uri("https://x.org".to_owned()));
@@ -645,12 +647,15 @@ mod tests {
         assert_eq!(at(paint.text.find("here").expect("after")), None);
         // Past the end of the line, and outside the leaf.
         assert_eq!(
-            typesetter.link_at(paint, measured, geometry, (590, 2)),
+            typesetter.link_at(paint, measured, geometry, (590, 2), &mut |_| {}),
             None
         );
-        assert_eq!(typesetter.link_at(paint, measured, geometry, (5, -3)), None);
         assert_eq!(
-            typesetter.link_at(paint, measured, geometry, (5, 500)),
+            typesetter.link_at(paint, measured, geometry, (5, -3), &mut |_| {}),
+            None
+        );
+        assert_eq!(
+            typesetter.link_at(paint, measured, geometry, (5, 500), &mut |_| {}),
             None
         );
     }
@@ -672,7 +677,13 @@ mod tests {
             .expect("origin");
         let (x, y) = middle_of(cell, 0);
         assert_eq!(
-            typesetter.link_at(paint, measured, geometry, (x + origin.0, y + origin.1)),
+            typesetter.link_at(
+                paint,
+                measured,
+                geometry,
+                (x + origin.0, y + origin.1),
+                &mut |_| {}
+            ),
             Some(Target::Missing("top".to_owned()))
         );
         let first = geometry
@@ -681,26 +692,36 @@ mod tests {
             .and_then(|row| row.first())
             .expect("cell x");
         assert_eq!(
-            typesetter.link_at(paint, measured, geometry, (first.0 + 2, first.1 + 2)),
+            typesetter.link_at(
+                paint,
+                measured,
+                geometry,
+                (first.0 + 2, first.1 + 2),
+                &mut |_| {}
+            ),
             None
         );
         let (paint, measured, geometry) = leaves.last().expect("footnote");
         let marker = geometry.markers.first().expect("number");
         assert_eq!(
-            typesetter.link_at(
-                paint,
-                measured,
-                geometry,
-                (marker.right - 2, marker.top + 4)
-            ),
-            Some(Target::Leaf(1))
+            typesetter
+                .link_at(
+                    paint,
+                    measured,
+                    geometry,
+                    (marker.right - 2, marker.top + 4),
+                    &mut |_| {}
+                )
+                .map(|target| target.label()),
+            Some("leaf:1".to_owned())
         );
         assert_eq!(
             typesetter.link_at(
                 paint,
                 measured,
                 geometry,
-                (marker.right + 40, marker.top + 4)
+                (marker.right + 40, marker.top + 4),
+                &mut |_| {}
             ),
             None
         );

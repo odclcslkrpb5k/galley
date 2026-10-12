@@ -148,14 +148,13 @@ impl Document {
         &self.anchors
     }
 
-    /// The heading a `#fragment` link goes to. GitHub accepts the slug with or without its
-    /// `user-content-` prefix.
+    /// The leaf a `#fragment` link goes to: a heading's, or a raw `<a id>`'s or `<a name>`'s.
     #[must_use]
     pub fn anchor_leaf(&self, fragment: &str) -> Option<LeafId> {
-        let slug = fragment.strip_prefix("user-content-").unwrap_or(fragment);
+        let name = anchor_name(fragment);
         self.anchors
             .iter()
-            .find(|anchor| anchor.slug == slug)
+            .find(|anchor| anchor.slug == name)
             .map(|anchor| anchor.leaf)
     }
 
@@ -633,7 +632,8 @@ impl CodeBlock {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Anchor {
-    /// The id GitHub gives the heading (`#user-content-` prefix not included).
+    /// The name: a heading's GitHub slug, or a raw anchor's `id`/`name` (GitHub's
+    /// `user-content-` prefix not included).
     pub(crate) slug: String,
     pub(crate) leaf: LeafId,
 }
@@ -648,6 +648,13 @@ impl Anchor {
     pub fn leaf(&self) -> LeafId {
         self.leaf
     }
+}
+
+/// The anchor name a `#fragment` names: GitHub prefixes the ids in its pages with
+/// `user-content-`, and links are written with or without it.
+#[must_use]
+pub fn anchor_name(fragment: &str) -> &str {
+    fragment.strip_prefix("user-content-").unwrap_or(fragment)
 }
 
 /// Something about the document the person viewing it should know.

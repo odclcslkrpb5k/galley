@@ -8,14 +8,18 @@
 use std::sync::Arc;
 use std::sync::mpsc::{self, Receiver, Sender, TryRecvError};
 use std::thread;
+use std::time::{Duration, Instant};
 
 use gtk::prelude::FontMapExt as _;
 
 use super::paint::LeafPaint;
 use super::text::{ColumnWidths, Palette, TextSetup, Typesetter};
 
-/// Leaves per batch: small enough to switch jobs quickly, large enough to keep sends cheap.
+/// Most leaves per batch, and most time a batch may take: a newer job (a resize) waits for the
+/// batch in progress, and a table piece is dozens of layouts, so a count alone could make that
+/// hundreds of milliseconds. Large enough to keep sends cheap.
 const BATCH: usize = 128;
+const BATCH_TIME: Duration = Duration::from_millis(20);
 
 #[derive(Debug, Clone)]
 pub(crate) struct Job {
@@ -79,6 +83,8 @@ fn run(jobs: &Receiver<Job>, batches: &Sender<Batch>) {
     let font_map = pangocairo::FontMap::new();
     let context = font_map.create_context();
     let mut next = jobs.recv().ok();
+    let mut columns = ColumnWidths::default();
+    let mut setup = None;
     while let Some(job) = next.take() {
         job.setup.apply(&context);
         let metrics = job.setup.metrics();
@@ -87,7 +93,10 @@ fn run(jobs: &Receiver<Job>, batches: &Sender<Batch>) {
             setup: job.setup,
             palette: Palette::default(),
         };
-        let mut columns = ColumnWidths::default();
+        // Natural column widths hold for as long as the text setup does.
+        if setup.replace(job.setup) != Some(job.setup) {
+            columns.clear();
+        }
         let mut first = 0;
         let total = job.paints.len();
         loop {
@@ -100,23 +109,19 @@ fn run(jobs: &Receiver<Job>, batches: &Sender<Batch>) {
                 Err(TryRecvError::Empty) => {}
                 Err(TryRecvError::Disconnected) => return,
             }
-            let end = (first + BATCH).min(total);
-            let heights = job
-                .paints
-                .get(first..end)
-                .unwrap_or_default()
-                .iter()
-                .map(|paint| {
-                    // The worker's layouts are its own; the probe counts main-thread work only.
-                    let measured = typesetter.measure(
-                        paint,
-                        job.view_text_width,
-                        &mut columns,
-                        &mut |_bytes| {},
-                    );
-                    metrics.leaf_height(paint, measured.height)
-                })
-                .collect();
+            let started = Instant::now();
+            let mut heights = Vec::new();
+            let mut end = first;
+            while let Some(paint) = job.paints.get(end)
+                && heights.len() < BATCH
+                && (heights.is_empty() || started.elapsed() < BATCH_TIME)
+            {
+                // The worker's layouts are its own; the probe counts main-thread work only.
+                let measured =
+                    typesetter.measure(paint, job.view_text_width, &mut columns, &mut |_bytes| {});
+                heights.push(metrics.leaf_height(paint, measured.height));
+                end += 1;
+            }
             let done = end >= total;
             if batches
                 .send(Batch {

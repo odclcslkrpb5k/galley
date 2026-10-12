@@ -10,6 +10,7 @@
 use std::sync::Arc;
 
 use gbk_markdown_core::model::Align;
+use gbk_markdown_core::units::TableId;
 
 use super::geometry::{Rect, Shade};
 use super::paint::{LinkSpan, TextAttr};
@@ -35,9 +36,12 @@ pub(crate) struct TablePaint {
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct ColumnSample {
     /// Which table of the document: the key its measured widths are kept under.
-    pub(crate) table: usize,
+    pub(crate) table: TableId,
     pub(crate) count: usize,
     pub(crate) rows: Vec<RowPaint>,
+    /// Each column's longest sampled line, in characters: for estimating heights before any
+    /// layout.
+    pub(crate) chars: Vec<usize>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -73,7 +77,8 @@ pub(crate) fn column_widths(natural: &[i64], available: i64, min: i64) -> Vec<i6
     for (done, &column) in order.iter().enumerate() {
         let sharing = i64::try_from(order.len() - done).unwrap_or(1).max(1);
         let natural = natural.get(column).copied().unwrap_or_default();
-        let width = natural.min(left / sharing).max(min);
+        // Never wider than its natural width, nor narrower than `min` unless that is wider.
+        let width = natural.min((left / sharing).max(min));
         if let Some(slot) = widths.get_mut(column) {
             *slot = width;
         }
@@ -93,8 +98,8 @@ pub(crate) struct Grid {
 }
 
 /// The grid of `table` with column `widths` and each cell's text height (`heights`, row by row),
-/// `pad_x` and `pad_y` pixels inside each cell. Every row has a line above it; the table's last
-/// piece also has one below.
+/// `pad_x` and `pad_y` pixels inside each cell. Every row has a line above it, the table's last
+/// piece one below too; each column boundary is one upright the height of the piece.
 pub(crate) fn grid(
     table: &TablePaint,
     widths: &[i64],
@@ -105,10 +110,8 @@ pub(crate) fn grid(
     let width = widths.iter().map(|width| width + LINE_PX).sum::<i64>() + LINE_PX;
     let mut cells = Vec::with_capacity(table.rows.len());
     let mut fills = Vec::new();
-    let mut y = 0;
-    for (row, row_heights) in table.rows.iter().zip(heights) {
-        let height = row_heights.iter().copied().max().unwrap_or(0) + 2 * pad_y;
-        fills.push((
+    let line = |y: i64| {
+        (
             Rect {
                 x: 0,
                 y,
@@ -116,7 +119,12 @@ pub(crate) fn grid(
                 height: LINE_PX,
             },
             Shade::TableLine,
-        ));
+        )
+    };
+    let mut y = 0;
+    for (row, row_heights) in table.rows.iter().zip(heights) {
+        let height = row_heights.iter().copied().max().unwrap_or(0) + 2 * pad_y;
+        fills.push(line(y));
         y += LINE_PX;
         if row.striped {
             fills.push((
@@ -129,45 +137,35 @@ pub(crate) fn grid(
                 Shade::TableStripe,
             ));
         }
-        let mut x = 0;
-        let mut origins = Vec::with_capacity(widths.len());
-        for column_width in widths {
-            fills.push((
-                Rect {
-                    x,
-                    y,
-                    width: LINE_PX,
-                    height,
-                },
-                Shade::TableLine,
-            ));
-            x += LINE_PX;
-            origins.push((x + pad_x, y + pad_y));
-            x += column_width;
-        }
-        fills.push((
-            Rect {
-                x,
-                y,
-                width: LINE_PX,
-                height,
-            },
-            Shade::TableLine,
-        ));
-        cells.push(origins);
+        let mut x = LINE_PX;
+        cells.push(
+            widths
+                .iter()
+                .map(|column_width| {
+                    let origin = (x + pad_x, y + pad_y);
+                    x += column_width + LINE_PX;
+                    origin
+                })
+                .collect(),
+        );
         y += height;
     }
     if table.last {
+        fills.push(line(y));
+        y += LINE_PX;
+    }
+    let mut x = 0;
+    for column_width in widths.iter().copied().chain([0]) {
         fills.push((
             Rect {
-                x: 0,
-                y,
-                width,
-                height: LINE_PX,
+                x,
+                y: 0,
+                width: LINE_PX,
+                height: y,
             },
             Shade::TableLine,
         ));
-        y += LINE_PX;
+        x += column_width + LINE_PX;
     }
     Grid {
         width,
@@ -180,6 +178,21 @@ pub(crate) fn grid(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A table id (core makes them only for its own tables).
+    fn table_id() -> TableId {
+        let doc = gbk_markdown_core::load(b"| a |\n|---|\n");
+        doc.leaves()
+            .iter()
+            .find_map(|leaf| {
+                if let gbk_markdown_core::model::LeafKind::TableRows { table, .. } = leaf.kind() {
+                    Some(*table)
+                } else {
+                    None
+                }
+            })
+            .expect("a table")
+    }
 
     fn cell(text: &str) -> CellPaint {
         CellPaint {
@@ -200,9 +213,10 @@ mod tests {
             .collect();
         TablePaint {
             columns: Arc::new(ColumnSample {
-                table: 0,
+                table: table_id(),
                 count: 2,
                 rows: rows.clone(),
+                chars: vec![1, 1],
             }),
             rows,
             last,
@@ -220,8 +234,10 @@ mod tests {
     fn a_wide_table_gives_narrow_columns_their_width_and_shares_the_rest() {
         // 300 px less 4 lines: the 60 px column keeps its width, the others split 236.
         assert_eq!(column_widths(&[400, 60, 500], 300, 48), vec![118, 60, 118]);
-        // No column narrower than the least, even if the table then overflows.
+        // No column narrower than the least, even if the table then overflows; but a column
+        // narrower than the least by nature keeps its own width.
         assert_eq!(column_widths(&[400, 400, 400], 100, 48), vec![48, 48, 48]);
+        assert_eq!(column_widths(&[20, 400, 400], 100, 48), vec![20, 48, 48]);
         assert_eq!(column_widths(&[], 100, 48), Vec::<i64>::new());
     }
 
@@ -256,8 +272,22 @@ mod tests {
             .iter()
             .filter(|(_rect, shade)| *shade == Shade::TableLine)
             .count();
-        // Per row: a line above and three upright; then the bottom line.
-        assert_eq!(lines, 2 * 4 + 1);
+        // A line above each row and below the last; three uprights the height of the piece.
+        assert_eq!(lines, 2 + 1 + 3);
+        let upright = grid
+            .fills
+            .iter()
+            .filter(|(rect, shade)| *shade == Shade::TableLine && rect.width == 1)
+            .map(|(rect, _shade)| (rect.x, rect.y, rect.height))
+            .collect::<Vec<_>>();
+        assert_eq!(
+            upright,
+            vec![
+                (0, 0, grid.height),
+                (41, 0, grid.height),
+                (102, 0, grid.height)
+            ]
+        );
     }
 
     #[test]
@@ -266,5 +296,10 @@ mod tests {
         let grid = grid(&piece, &[40], &[vec![20]], 0, 0);
         assert_eq!(grid.height, 1 + 20);
         assert_eq!(grid.fills.len(), 1 + 2);
+        assert!(
+            grid.fills
+                .iter()
+                .all(|(rect, _shade)| rect.y + rect.height <= grid.height)
+        );
     }
 }

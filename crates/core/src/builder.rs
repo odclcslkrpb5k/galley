@@ -647,11 +647,15 @@ impl Builder {
 
     fn inline_effect(&mut self, name: &str, token: &HtmlToken<'_>) -> Option<Effect> {
         if name == "a" {
-            // A named place a `#fragment` link can go to, as GitHub keeps it (prefixed
-            // `user-content-`, which `Document::anchor_leaf` accepts too).
+            // A named place a `#fragment` link can go to. Stored without GitHub's
+            // `user-content-` prefix, as headings' slugs are, so `#x` and `#user-content-x`
+            // both reach `<a id="x">` and `<a id="user-content-x">`.
             for attribute in ["id", "name"] {
-                if let Some(value) = token.attribute(attribute).filter(|v| !v.is_empty()) {
-                    self.pending_anchors.push(value.to_owned());
+                if let Some(value) = token.attribute(attribute) {
+                    let name = crate::model::anchor_name(value);
+                    if !name.is_empty() {
+                        self.pending_anchors.push(name.to_owned());
+                    }
                 }
             }
             let link = token

@@ -34,8 +34,11 @@ fail=0 n=0
 for fixture in "${fixtures[@]}"; do
   name=$(basename "$(dirname "$fixture")")
   [[ "$name" == fixtures ]] && name=$(basename "$fixture" .md)
-  if ! out=$(timeout 60 "$bin" --exit-after-first-frame --screenshot="$screens/$name.png" "$fixture" 2>&1); then
-    echo "smoke: $name: no first frame: $out" >&2
+  status=0
+  out=$(timeout 60 "$bin" --exit-after-first-frame --screenshot="$screens/$name.png" "$fixture" 2>&1) || status=$?
+  if ((status)); then
+    # 124 is timeout's; above 128, a signal (128 + its number).
+    echo "smoke: $name: no first frame (exit status $status): $out" >&2
     fail=1
     continue
   fi

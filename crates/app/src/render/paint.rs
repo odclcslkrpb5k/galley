@@ -49,7 +49,10 @@ const CELL_TEXT_BYTES: usize = 2 * 1024;
 /// A summary's marker while its `<details>` is open, and closed.
 const OPEN_MARKER: &str = "▾";
 const CLOSED_MARKER: &str = "▸";
-/// Body rows a table's column widths are measured from (`table::ColumnSample`).
+/// Most rows and text a table's column widths are measured from (`table::ColumnSample`), and
+/// most text of one sampled cell.
+const SAMPLE_BYTES: usize = 8 * 1024;
+const SAMPLE_CELL_BYTES: usize = 256;
 const SAMPLE_ROWS: usize = 50;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -541,7 +544,7 @@ impl Painter<'_> {
                     .chain([table.header().len()])
                     .max()
                     .unwrap_or(0),
-                rows: self.rows_of(table, 0, true, SAMPLE_ROWS),
+                rows: self.sample_rows(table),
             });
             self.samples.insert(table_id, Arc::clone(&sample));
             sample
@@ -558,25 +561,29 @@ impl Painter<'_> {
         })
     }
 
-    /// The header and up to `count` body rows from `from`, as the sample measures them.
-    fn rows_of(
-        &self,
-        table: &gbk_markdown_core::model::Table,
-        from: usize,
-        with_header: bool,
-        count: usize,
-    ) -> Vec<RowPaint> {
-        let body = table.rows().get(from..).unwrap_or_default();
-        let mut rows = Vec::new();
-        if with_header {
-            rows.extend(self.header_row(table));
+    /// The rows a table's column widths are measured from: its header and first body rows, up to
+    /// `SAMPLE_ROWS` rows or `SAMPLE_BYTES` of text, each cell cut to `SAMPLE_CELL_BYTES`. A
+    /// cell that long is wider than any view anyway, and the sample is measured before the first
+    /// frame when a table is on the first screen (the M3 smoke run: 50 rows of 2 KiB cells gave
+    /// Pango 104 KiB before the first frame).
+    fn sample_rows(&self, table: &gbk_markdown_core::model::Table) -> Vec<RowPaint> {
+        let mut rows: Vec<RowPaint> = self.header_row(table).into_iter().collect();
+        let body = table.rows();
+        let body = body.get(..SAMPLE_ROWS.min(body.len())).unwrap_or_default();
+        rows.extend(self.body_rows(table, 0, body));
+        let mut bytes = 0;
+        let mut kept = Vec::with_capacity(rows.len());
+        for mut row in rows {
+            for cell in &mut row.cells {
+                cut_cell(cell, SAMPLE_CELL_BYTES);
+            }
+            bytes += row.cells.iter().map(|cell| cell.text.len()).sum::<usize>();
+            if bytes > SAMPLE_BYTES && !kept.is_empty() {
+                break;
+            }
+            kept.push(row);
         }
-        rows.extend(self.body_rows(
-            table,
-            from,
-            body.get(..count.min(body.len())).unwrap_or_default(),
-        ));
-        rows
+        kept
     }
 
     fn header_row(&self, table: &gbk_markdown_core::model::Table) -> Option<RowPaint> {
@@ -628,7 +635,7 @@ impl Painter<'_> {
                         },
                         inlines,
                     );
-                    cut_cell(&mut cell);
+                    cut_cell(&mut cell, CELL_TEXT_BYTES);
                     cell
                 })
                 .collect(),
@@ -781,12 +788,12 @@ fn is_display_math(inlines: &Inlines) -> bool {
         && covered == inlines.text().len()
 }
 
-/// Cuts a cell's text to `CELL_TEXT_BYTES`, with an ellipsis.
-fn cut_cell(cell: &mut CellPaint) {
-    if cell.text.len() <= CELL_TEXT_BYTES {
+/// Cuts a cell's text to `max` bytes, with an ellipsis.
+fn cut_cell(cell: &mut CellPaint, max: usize) {
+    if cell.text.len() <= max {
         return;
     }
-    let at = cell.text.floor_char_boundary(CELL_TEXT_BYTES);
+    let at = cell.text.floor_char_boundary(max);
     cell.text.truncate(at);
     cell.text.push('…');
     clamp_spans(&mut cell.attrs, &mut cell.links, 0, at);
@@ -1493,6 +1500,43 @@ mod tests {
         };
         assert_eq!(relative(None).label(), "relative:a.md");
         assert_eq!(relative(Some("b")).label(), "relative:a.md#b");
+    }
+
+    #[test]
+    fn column_samples_are_capped_by_cell_and_in_total() {
+        let wide = "w".repeat(1000);
+        let rows = (0..50)
+            .map(|_| format!("| {wide} | x |\n"))
+            .collect::<Vec<_>>()
+            .concat();
+        let pieces = paints(&format!("| H | I |\n|---|---|\n{rows}"));
+        let sample = &pieces
+            .first()
+            .and_then(|p| p.table.as_ref())
+            .expect("table")
+            .columns;
+        let longest = sample
+            .rows
+            .iter()
+            .flat_map(|row| row.cells.iter().map(|cell| cell.text.len()))
+            .max()
+            .expect("cells");
+        assert_eq!(longest, SAMPLE_CELL_BYTES + '…'.len_utf8());
+        let total: usize = sample
+            .rows
+            .iter()
+            .flat_map(|row| row.cells.iter().map(|cell| cell.text.len()))
+            .sum();
+        assert!(total <= SAMPLE_BYTES, "{total}");
+        assert!(sample.rows.len() < 1 + 50, "{}", sample.rows.len());
+        // The rows drawn are not cut to the sample's length.
+        let drawn = pieces
+            .iter()
+            .flat_map(|p| p.table.iter().flat_map(|t| t.rows.iter()))
+            .nth(1)
+            .and_then(|row| row.cells.first())
+            .expect("a body cell");
+        assert_eq!(drawn.text.len(), 1000);
     }
 
     #[test]

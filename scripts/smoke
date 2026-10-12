@@ -48,8 +48,11 @@ for fixture in "${fixtures[@]}"; do
   report=$(grep -E '^first_frame_us=' <<<"$out" || true)
   bytes=$(grep -oE 'bytes_laid_out_before_first_frame=[0-9]+' <<<"$report" | cut -d= -f2 || true)
   time_us=$(grep -oE 'since_main_us=[0-9]+' <<<"$report" | cut -d= -f2 || true)
-  layouts=$(grep -oE 'laid_out_before_first_frame=[0-9]+' <<<"$report" | cut -d= -f2 || true)
-  if [[ -z "$bytes" || -z "$time_us" || -z "$layouts" ]]; then
+  # The leading space: bytes_laid_out_before_first_frame ends the same way.
+  layouts=$(grep -oE ' laid_out_before_first_frame=[0-9]+' <<<"$report" | cut -d= -f2 || true)
+  # Each must be one number: a pattern matching twice would make the comparisons below
+  # arithmetic errors, which a condition takes as false (a check that cannot fail).
+  if ! [[ "$bytes" =~ ^[0-9]+$ && "$time_us" =~ ^[0-9]+$ && "$layouts" =~ ^[0-9]+$ ]]; then
     echo "smoke: $name: no probe report in: $out" >&2
     fail=1
   elif ! grep -q 'renderer=GskCairoRenderer' <<<"$report"; then
@@ -126,8 +129,11 @@ fi
 details=target/fixtures/details.md
 probe_run opened --click-at=120,44 "$details"
 probe_run missed --click-at=120,900 "$details"
+opened_height=$(field document_height "$opened")
+missed_height=$(field document_height "$missed")
 if [[ "$(field clicked "$opened")" != summary:0 || "$(field clicked "$missed")" != none ]] ||
-  (($(field document_height "$opened") <= $(field document_height "$missed") + 0)); then
+  ! [[ "$opened_height" =~ ^[0-9]+$ && "$missed_height" =~ ^[0-9]+$ ]] ||
+  ((opened_height <= missed_height)); then
   echo "smoke: clicking the summary did not open its details: $opened / $missed" >&2
   fail=1
 fi

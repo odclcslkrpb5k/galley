@@ -207,3 +207,32 @@ Not repeated here, so there is one source each (an earlier copy here drifted fro
   was unreachable, `centred_on`'s value override unread, own `floor_char_boundary` replaced by
   std's `str::floor_char_boundary`). Timeouts (17) are infinite loops, i.e. caught. GTK glue
   (widget, text, heights worker) stays covered by the smoke run, per the M0 policy.
+
+- 2026-10-12: M3 (GFM completeness) built and reviewed. Core: oracle 3 (`tests/corpus.rs`,
+  23 READMEs vs GitHub's HTML; text, styles, links, images; 8 listed deviations), raw HTML
+  tables lowered to tables (colspan, details in cells), front matter table, shortcodes, link
+  protocols as GitHub's sanitiser, raw `<a id>` anchors (one rule: `model::anchor_name`),
+  default "Details" summary, `<br>` trimming. App: tables as grids (`render/table.rs`), links
+  resolved at paint time (`Target`), hit testing, hover, Alt+Left back, `--anchor`,
+  `links.rs` (relative paths, safe opening: allowlisted types direct, others via the chooser,
+  executables never), `<details>` collapse, display math centred, probe `--link-at` and
+  `--click-at` (smoke checks a link jump and a summary opening). Plan §4.5 "As built in M3"
+  and §5 list what is deferred (rowspan, `<th>` per cell, inline table tags, headings in
+  summaries, in-window error notice, `LeafPaint` text/table as an enum).
+  Learned: GitHub's sanitiser drops links whose "protocol" (text before the first `:` with no
+  `/` or `#` before it) is not allowed, which is why `[x](javascript:...)` and `[a](b)` badge
+  typos are text there; GitHub wraps every image in a `target="_blank"` link and adds
+  screen-reader text ("Loading" on diagrams), which the oracle must ignore.
+  Process lessons (each fixed on a higher rung than "be careful"):
+  - `xvfb-run` as a container's PID 1 waits forever: `scripts/in-docker` runs `--init`
+    (Engineer; hung three times first).
+  - Exact-text replacements kept breaking after `cargo fmt` (third milestone running): the
+    session uses a whitespace-blind edit helper, `scratchpad/tools/wsedit.py` (match with all
+    whitespace removed; `(start, end)` marker pairs for spans rustfmt rewrote). Recreate it if
+    the scratchpad is gone; it is not in the repo because it edits the repo.
+  - `pkill -f PATTERN` inside a command whose own text contains PATTERN kills that command
+    (Eliminate: stop stuck tasks with the task tool, never pkill -f in a compound command).
+  - Smoke helpers that set `fail`/`n` must not run as `$(...)` (a subshell drops them):
+    `probe_run VAR ...` assigns with `printf -v`. And a bash `((a > b))` on a non-number is an
+    error a condition reads as false, so smoke now requires each counter to match ^[0-9]+$
+    (a layout budget passed vacuously once before this).

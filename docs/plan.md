@@ -1,6 +1,6 @@
 # gbk-markdown: implementation plan
 
-Status: draft 3, 2026-10-11; M0 complete after its review follow-up (see §10, docs/perf-baseline.md). Draft 2 was revised after a three-way red-team (performance; GFM and
+Status: draft 3, 2026-10-11; M0-M3 complete (see §10, docs/perf-baseline.md). Draft 2 was revised after a three-way red-team (performance; GFM and
 renderer design; build, rules and process); §13 lists those changes. Draft 3 applies the user's
 answers in §11.
 
@@ -60,7 +60,8 @@ crates/core/            gbk-markdown-core: library; no GTK, no I/O
 crates/app/             gbk-markdown: binary; GTK adapter layer
 crates/lint-canary/     one line per configured lint; the gate checks each one fires (§7)
 crates/core/tests/data/ spec.txt + extensions.txt (from M1) (cmark-gfm, CC-BY-SA 4.0, with LICENSE and
-                        attribution), README corpus + GitHub-rendered HTML (§9)
+                        attribution), README corpus + GitHub-rendered HTML (§9),
+                        corpus-deviations.txt (oracle 3's known differences)
 fuzz/                   cargo-fuzz targets (nightly; outside the workspace), later
 docs/                   plan.md, claude-notes.md, perf-baseline.md
 ```
@@ -104,9 +105,13 @@ accessors, `load` the only constructor, so the invariants below cannot be broken
   `Alert(kind)`, `ListItem { marker, tight }`, `Footnote(id)`, `Details { id, open }`. A list
   marker or footnote number is drawn on its context's first leaf (`Context::starts_at`).
   `Document::containers(leaf)` walks innermost first.
-- **Side tables.** `links`, `images`, `footnotes` (label, number), `tables` (alignments, header,
-  rows of `Inlines`), `code_blocks` (info, text, line starts), `anchors` (slug, heading leaf),
-  `notices` (invalid UTF-8, HTML nested too deep). Ids are index newtypes (`units.rs`).
+- **Side tables.** `links`, `images` (source optional: GitHub's sanitiser drops other
+  protocols), `footnotes` (label, number), `tables` (alignments, header (empty for a headerless
+  HTML table or front matter), rows of `Inlines`), `code_blocks` (info, text, line starts),
+  `anchors` (name and leaf: headings' slugs and raw `<a id>`/`<a name>`, stored without
+  `user-content-`, indexed by name), `notices` (invalid UTF-8, HTML nested too deep). Ids are
+  index newtypes (`units.rs`). `model::anchor_name` is the one rule turning a `#fragment` into
+  an anchor name.
 - **Markers.** `Marker::Bullet`, `Ordered { number, delimiter }`, `Task { checked }`.
 - **Positions** are (leaf, `ByteOffset`); `Inlines::offset` turns a Pango byte index into one,
   refusing non-boundaries.
@@ -215,8 +220,8 @@ added later without changing the model.
   a millisecond whatever the document holds: the M2 review found a 2 MB code line never reached
   a first frame, and 200-line code chunks took 10-48 ms each (Eliminate). Paints therefore do
   not map one to one onto leaves; each records its `source` leaf. A map from paint text offsets
-  back to the leaf's `ByteOffset`s (placeholders and table separators shift them) is needed for
-  M3's link hit-testing and is built then.
+  back to the leaf's `ByteOffset`s (placeholders shift them) was thought needed for M3's link
+  hit-testing; M3 resolved links at paint time instead, so it waits for selection and find.
 - **Worker heights are equal, not close.** The widget's cairo font options cannot be read back
   (no pangocairo binding), so `TextSetup` derives them from `gtk::Settings` as GTK does.
   `--check-heights` lays out every leaf on the main thread and compares it with the height the
@@ -239,12 +244,49 @@ added later without changing the model.
   every run to 0; the smoke asserts `layouts_in_scroll_frames=0` on three fixtures (Engineer).
 - **Body font.** Body text is `sans-serif` and code `monospace`, at the desktop font's size. The
   desktop font here is Source Code Pro, which suits a terminal, not prose.
-- **Not yet:** tables are text rows (M3), long code lines wrap instead of scrolling sideways,
+- **Not yet:** long code lines wrap instead of scrolling sideways,
   images are `[alt]` placeholders (M4). Leaf estimates for the first width are computed on the
   main thread (0.7-2.5 ms on 1 MiB fixtures); they could move to the loader. Rendering each leaf
   to a texture during prefetch, so scroll frames are blits, is the next scroll experiment (GSK
   rendering is now most of a scroll frame's 5-10 ms). A list marker before a heading (`- # x`)
   sits at the text's top in the body font, not on the heading's baseline.
+
+### As built in M3, and why
+
+- **Tables are grids** (`render/table.rs`, pure and tested). One Pango layout per cell; a
+  1 px grid (one upright per column boundary per piece), bold header, every second body row
+  shaded, per-column alignment. Column widths come from a `ColumnSample` per table (header and
+  first rows, ≤ 50 rows, 128 cells, 8 KiB, each cell cut to 256 B): natural widths are measured
+  once per text setup and fitted to each width (`table::column_widths`: natural when the table
+  fits, else narrow columns keep theirs and wide ones share the rest, none under 3 em unless
+  naturally narrower). Every piece of a table shares the sample, so columns line up and the
+  worker and widget agree. Pieces are cut between rows at 2 KiB of cell text or 64 cells
+  (a 100-column table was one uninterruptible piece of thousands of layouts); cells over 2 KiB
+  are cut with "…" (a listed deviation, §5). A table narrower than the text follows the leaf's
+  alignment. Estimates fit columns from the sample's longest lines, as measuring does.
+- **Links are resolved at paint time** to a `Target`: a leaf (heading, raw anchor, footnote,
+  or a footnote's number back to its first reference), a missing fragment, a URL, or a relative
+  path. So clicking needs no document, and the paint-to-`ByteOffset` map M2 deferred to M3 was
+  not needed; it stays deferred for selection and find. Hit testing lays out the one leaf under
+  the pointer (cached until the pointer leaves it; counted; skipped for leaves without links
+  and while scrolling). Hover shows a hand and the destination; a click jumps within the
+  document (Alt+Left or the back button returns), opens URLs (`gtk::UriLauncher`), opens a
+  relative Markdown file in a new viewer process at its fragment (`--anchor`, `--` before the
+  path), and other files with `gtk::FileLauncher`: directly for images, audio, video, PDF, plain
+  text, Markdown, CSV, HTML and folders, through the application chooser for anything else (a
+  default handler could run an `.exe` or `.jar`), never for executables or `.desktop` files
+  (`links.rs`, pure and tested). A jump puts its target at the top of the view, so it is the
+  anchor and stays there as heights around it become exact. Link failures are reported on
+  stderr only (a listed deviation; an in-window notice is M6).
+- **`<details>` collapse**, closed unless written `open`, as on GitHub. Paints inside a closed
+  one take no height; their laid-out heights are kept, so opening is immediate. A click on a
+  summary toggles it (`Positions::estimate` sets the changed heights, inexact, so they are
+  measured again when laid out); a link or `--anchor` into closed content opens it first. The
+  summary's marker is a `Disclosure` decoration the view turns by its state.
+- **Display math** (`$$…$$` alone in a paragraph, ```` ```math ````) is centred, and math blocks
+  are not boxed, as GitHub shows them (still monospace source, not typeset).
+- **Worker batches** end after 128 leaves or 20 ms, so a resize does not wait behind a batch
+  of table pieces; held heights are a map (dropping one when a height is set now is O(1)).
 
 ### 4.6 Deferred work
 
@@ -275,19 +317,28 @@ asserting its effect (Engineer).
 | Headings, paragraphs, breaks, emphasis, strong, code spans, strikethrough | native | M2 |
 | Code blocks | chunked monospace; horizontal scroll | M2 |
 | Quotes, lists (nested, tight/loose), thematic break | leaf context | M2 |
-| Task lists | `Marker::Task`; comrak's separate `TaskItem` node | M3 |
-| Tables, alignment | chunked rows; widths from the first rows, refined | M3 |
-| Links, autolinks | clickable; fragment → anchor (`#x` and `#user-content-x`); relative `.md` opens in viewer; others via `gtk::UriLauncher` | M3 |
-| Relative paths | `{path, query, fragment}`, percent-decoded; `/x` resolves from the repo root (walk up to `.git`); images resolve from the document's directory | M3 |
-| Footnotes | number in text; definitions at end; click to jump | M3 |
+| Task lists | `Marker::Task`; comrak's separate `TaskItem` node | M3, done |
+| Tables, alignment | grids; widths from a sample of the first rows (§4.5 "As built in M3") | M3, done |
+| Links, autolinks | clickable; fragment → anchor (`#x` and `#user-content-x`); relative `.md` opens in a new viewer at its fragment; URLs via `gtk::UriLauncher`; only http, https and mailto are links (images: http, https), as GitHub's sanitiser has it | M3, done |
+| Relative paths | `{path, query, fragment}`, percent-decoded; `/x` resolves from the repo root (walk up to `.git`); images resolve from the document's directory (M4) | M3, done |
+| Footnotes | number in text; definitions at end; click to jump; the definition's number jumps back | M3, done |
 | Alerts | coloured bar + title. comrak accepts `> [!NOTE] Custom title`; GitHub renders it as a plain quote (verified in the corpus), so it is a quote starting with the marker line as written. `>[!TIP]` without a space is an alert on GitHub (corpus: bat) though comrak misses it; the walker recognises it. Lower-case `[!note]` is an alert. Alerts nested in lists: comrak makes them alerts; whether GitHub does is unverified | M3 |
-| Heading anchors | `comrak::Anchorizer` per document, over GitHub's text content (image alt left out, line breaks dropped); checked against every heading id in the corpus. Raw `<a id>` anchors are not yet link targets (M3) | M1 |
-| **Raw HTML** | lowered into the model, not shown as source (§5.1) | M3 |
-| Front matter | GitHub renders a key/value table (verified in the corpus); v1 renders a code block, recorded as a known deviation | M3 |
-| Math | parsed so `$a_b$` is not mangled; `MATH` / `DISPLAY_MATH` styles, shown monospace | M3 |
-| Emoji shortcodes | comrak `shortcodes` → Unicode; measure binary size. GitHub renders `:octocat:` as an image; we leave it as text. Unknown shortcodes stay literal | M3 |
+| Heading anchors | `comrak::Anchorizer` per document, over GitHub's text content (image alt left out, line breaks dropped, shortcodes by name); checked against every heading id in the corpus. Raw `<a id>`/`<a name>` are link targets too | M1, M3 |
+| **Raw HTML** | lowered into the model, not shown as source (§5.1) | M3, done |
+| Front matter | a key/value table, as GitHub shows it, for flat YAML (scalars, quoted with escapes, lists shown "a, b"); anything else (nested maps, block strings) stays YAML in a code block | M3, done |
+| Math | parsed so `$a_b$` is not mangled; `MATH` / `DISPLAY_MATH` styles, shown monospace; display math centred | M3, done |
+| Emoji shortcodes | comrak `shortcodes` → Unicode (the `emojis` crate). GitHub renders `:octocat:` as an image; we leave it as text. Unknown shortcodes stay literal | M3, done |
 | Images | §4.6 | M4 |
 | Mermaid | code block | — |
+
+Known deviations from GitHub, as built in M3 (besides oracle 3's list, §9):
+
+- Table cells over 2 KiB are cut with "…"; `rowspan` is ignored (`colspan` keeps columns in
+  place); `<th>` in body rows is not bold, and a column takes the first `align` given in it.
+- A list in front matter shows as "a, b"; GitHub shows a nested table.
+- Link failures (missing file, refused program) are reported on stderr, not in the window.
+- Table tags inside a Markdown paragraph line (`text</td><td>more`) are not cells.
+- Headings inside `<summary>` or a table cell get no anchor (GitHub's behaviour unverified).
 | `@mention`, `#123`, SHA links | need repo context; out of scope | — |
 
 ### 5.1 Raw HTML
@@ -315,8 +366,15 @@ built in M1 (`builder.rs`, tokens from `html5gum` via `html.rs`):
   `noframes`, `plaintext` are shown as literal text (checked against github.com's rendering).
 - `video`/`audio` → a "▶ video" link to the media; `template` → hidden; comments dropped;
   unknown tags stripped, text kept.
-- Raw HTML tables read as text, cells separated by spaces (v1; listed deviation, revisit in
-  M3).
+- **Raw HTML tables are tables** (M3): rows, a first row of only `<th>` as the header,
+  per-column `align` (the first given), `colspan` as empty cells after the spanning one; a cell's
+  paragraphs, `<br>`s, block tags, `<details>` and `<summary>` are lines of it; a table inside a
+  cell reads as text in it; text outside any cell shows before the table; anything a cell
+  cannot hold (a code block, a list) ends the table there.
+- A `<details>` with no `<summary>` gets "Details", as a browser shows it. One trailing `<br>`
+  in a block shows nothing and the rest are empty lines, as a browser lays them out. Inline
+  `<video>`/`<audio>` become links, like block ones. Links and images keep only the protocols
+  GitHub's sanitiser allows (§5).
 
 ## 6. Measurement
 
@@ -354,7 +412,12 @@ uncounted. The gate's Xvfb smoke run (§8) asserts bytes before the first frame 
 independent of the view's own layout window (the M0 review found the first version, "laid out ≤
 the view's own window", could not fail). From M2: a --bench-scroll smoke run asserts layouts
 inside scroll frames = 0. A leaf's render node is built in the same step as its layout, so that
-counter covers node building too. Scroll scenarios other than steady scroll-to-end (flinging up
+counter covers node building too. From M3 the smoke also budgets layouts before the first
+frame (≤ 1000: bytes miss a table's many small cells), scrolls table-1mb and a 100-column
+table, and checks links and clicks through the probe: `--link-at=X,Y` reports the link at a
+point after the first frame (`link_at=leaf:N|uri:…|relative:…|missing:…|none`), and
+`--click-at=X,Y` clicks there through the widget's own handling (never opening anything outside
+the document) and reports the next frame (`clicked=`, `document_height=`, `top_leaf=`). Scroll scenarios other than steady scroll-to-end (flinging up
 into estimated leaves, resizing mid-document) are covered by `render::positions`' unit tests,
 not by bench runs.
 
@@ -430,6 +493,8 @@ every push, `anyhow` banned, comrak wrapped to core, duplicate versions warn.
   advisory database); `CARGO_TARGET_DIR=/work/target/docker` so host tools (rust-analyzer) do not
   contend for the same lock.
 - Image tag = hash of `Dockerfile` + `rust-toolchain.toml`; `scripts/check` builds it if missing.
+- `docker run --init`: otherwise the first command is PID 1, and `xvfb-run` as PID 1 waits
+  forever for its X server (it hung three times in M3).
 
 ### The gate: `scripts/check`
 
@@ -491,10 +556,19 @@ nodes, lost tightness, wrong link targets) need oracles:
    breaks, code spans, quotes, footnotes, heading levels, table headers, raw `<pre>` and span
    merging are all caught.
 3. **GitHub corpus** (fetched 2026-10-11 by `scripts/fetch-corpus`, in
-   `crates/core/tests/data/corpus/`). 21 READMEs under MIT, Apache-2.0, BSD-3, Unlicense or CC0,
+   `crates/core/tests/data/corpus/`; `crates/core/tests/corpus.rs` from M3). 21 READMEs under MIT, Apache-2.0, BSD-3, Unlicense or CC0,
    each pinned to a commit with its licence and GitHub's own repo-view HTML; plus two synthetic
    inputs of ours (`_synthetic-features`, `_synthetic-front-matter`) rendered by GitHub's
-   repository file view. Compared on text and heading ids. `POST /markdown` is **not** used: it
+   repository file view. Compared on text, styles, link targets and images (the styled-character
+   view of oracles 1 and 2, with images as characters so `<br>` trimming is exact) and, in
+   `tests/gfm.rs`, heading ids. Known differences are substitutions in
+   `tests/data/corpus-deviations.txt` (GitHub's text, ours, why), exact both ways. GitHub's
+   page chrome is normalised in the oracle: the `target="_blank"` link around each image,
+   screen-reader-only text, footnote href hashes, math `$` delimiters, video wrappers, and image
+   source rewrites (camo, `/blob/` to `/raw/`, uploaded assets). Block structure is not
+   compared for the corpus (raw HTML segments blocks differently; oracles 1 and 2 cover blocks
+   on the spec), and the corpus has one small raw HTML table: a synthetic input of HTML tables
+   (`th`, `colspan`, nesting) rendered by GitHub is the next addition. `POST /markdown` is **not** used: it
    skips alerts, math and emoji and renders front matter as a heading. Signed image-URL tokens are
    stripped at fetch.
 - A count floor on each oracle: finding fewer examples than expected fails.
@@ -547,7 +621,9 @@ replaces review.)
 - **M2 renderer v1.** Fenwick tree, first-viewport layout, worker heights, anchoring, caches;
   M2 features; scroll scenarios; counters within budget. *Built 2026-10-11* (§4.5 "As built").
 - **M3 GFM completeness.** Tables, tasks, links, footnotes, alerts, anchors, HTML lowering in
-  full, front matter, math, emoji; oracle 3.
+  full, front matter, math, emoji; oracle 3. *Done 2026-10-12:* oracle 3 green on all 23
+  corpus inputs with 8 listed deviations; spec/extension oracles 684 of 702 (four raw-HTML-table
+  deviations went, 6 for GitHub's link protocols came); §4.5 "As built in M3", §5's known deviations.
 - **M4 images.** Placeholders first; local and remote fetched lazily once visible (§4.6).
 - **M5 syntax highlighting.** Lazy syntect.
 - **M6 viewer features.** Reload on
@@ -586,6 +662,9 @@ Open: none.
   idle-slice fallback exists.
 - The renderer floor may dominate TTFP; §4.4's choices are the lever, decided on numbers.
 - Theming: GTK4 defaults to Adwaita on Xfce; a small stylesheet aligns it.
+- A relative `.md` link starts a new viewer process: fast (it is the startup path), but each
+  is a window of its own; in-place navigation with history is a possible later change.
+- Link failures are invisible without a terminal until M6 adds an in-window notice.
 
 ## 13. Changes from draft 1 (red-team)
 

@@ -8,7 +8,16 @@ step "format"
 cargo fmt --all --check
 
 step "clippy"
-cargo clippy --workspace --exclude gbk-markdown-lint-canary --all-targets --locked -- -D warnings
+# -D warnings does not cover clippy's own configuration warnings (a disallowed-methods path that
+# no longer resolves only warns), so any warning in the output fails the step.
+clippy_log=target/gate/clippy.log
+mkdir -p target/gate
+cargo clippy --workspace --exclude gbk-markdown-lint-canary --all-targets --locked -- -D warnings \
+    2>&1 | tee "$clippy_log"
+if grep -q '^warning' "$clippy_log"; then
+    echo "gate: clippy printed warnings (see above)" >&2
+    exit 1
+fi
 
 step "lint canary"
 scripts/lint-canary

@@ -17,7 +17,7 @@ use std::time::Instant;
 use gtk::prelude::*;
 use gtk::{gio, glib};
 
-use args::{Args, Spike, Startup};
+use args::{Args, Mode, Startup};
 use document_view::DocumentView;
 use output::report_error;
 use probe::Probe;
@@ -50,9 +50,9 @@ fn main() -> ExitCode {
     };
     // Read and parse the file on a worker while GTK starts and the window is mapped
     // (docs/plan.md §4.4).
-    let loader: Option<Loader> = match (args.spike, args.file.clone()) {
-        (Spike::Paragraphs, Some(path)) => Some(thread::spawn(move || load(&path))),
-        (Spike::Paragraphs | Spike::Empty, _) => None,
+    let loader: Option<Loader> = match (args.mode, args.file.clone()) {
+        (Mode::Document, Some(path)) => Some(thread::spawn(move || load(&path))),
+        (Mode::Document | Mode::EmptyWindow, _) => None,
     };
     let probe = Probe::new(args.probe.clone(), main_started, loader.is_some());
     match args.startup {
@@ -140,12 +140,18 @@ fn show(
     window.present();
     probe.presented();
     if let Some(loader) = loader {
+        // Fonts load on first use, 3-15 ms each; load them while the loader finishes.
+        render::text::warm_up(window, &|| loader.is_finished(), &mut |bytes| {
+            probe.layout_created(bytes);
+        });
         let waited = Instant::now();
         let paints = loader.join().unwrap_or(Err(LoadError::LoaderPanicked))?;
         probe.loader_joined(waited.elapsed());
         let view = DocumentView::new(paints, Rc::clone(probe));
+        // The view draws its own scroll indicator (render/indicator.rs says why).
         let scrolled = gtk::ScrolledWindow::builder()
             .hscrollbar_policy(gtk::PolicyType::Never)
+            .vscrollbar_policy(gtk::PolicyType::External)
             .child(&view)
             .build();
         probe.set_scroll_target(scrolled.vadjustment());

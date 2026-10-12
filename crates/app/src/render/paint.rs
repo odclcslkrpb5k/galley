@@ -6,12 +6,16 @@
 //! and the widget lay out, so the two cannot disagree about a leaf.
 //!
 //! Lengths are in em (multiples of the body font size): the paint does not know the screen's
-//! resolution, which is applied when it is laid out.
+//! resolution, which is applied when it is laid out (`geometry`).
+//!
+//! No paint's text is longer than `LEAF_TEXT_BYTES`, whatever the document holds: laying out one
+//! huge leaf would stall a frame, so `split` cuts such paints into several. Paints therefore do
+//! not map one to one onto the document's leaves; each records its `source` leaf.
 
 use gbk_markdown_core::Document;
 use gbk_markdown_core::model::{
-    AlertKind, Align, Container, Delimiter, HeadingLevel, InlineObject, Inlines, Leaf, LeafKind,
-    Marker, Style,
+    AlertKind, Align, Container, Delimiter, HeadingLevel, InlineObject, Inlines, LEAF_TEXT_BYTES,
+    Leaf, LeafKind, Marker, Style,
 };
 use gbk_markdown_core::units::{ContextId, LeafId};
 
@@ -25,10 +29,19 @@ const MARKER_GAP: f64 = 0.4;
 const PARAGRAPH_GAP: f64 = 0.75;
 const TIGHT_GAP: f64 = 0.15;
 /// Padding inside a code block's background, in em.
-const CODE_PADDING: f64 = 0.6;
+pub(super) const CODE_PADDING: f64 = 0.6;
+/// A paint with more text than this is cut at a line break if it has one: code and table rows
+/// then lay out in pieces of about a millisecond each (a 200-line code chunk took 10-48 ms).
+/// A cut between lines is invisible; a cut inside a paragraph is not, so prose is only cut at
+/// `LEAF_TEXT_BYTES` (16 KiB of prose lays out in a few ms). A run this long with no space or
+/// line break is cut too: Pango wraps such a run slowly (16 KiB took ~200 ms), and it wraps
+/// at characters anyway, so the cut barely shows.
+const SPLIT_AT_LINE_BYTES: usize = 2 * 1024;
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct LeafPaint {
+    /// The index of the document leaf this paints, or part of.
+    pub(crate) source: usize,
     pub(crate) text: String,
     pub(crate) attrs: Vec<TextAttr>,
     pub(crate) font: FontRole,
@@ -43,6 +56,26 @@ pub(crate) struct LeafPaint {
     pub(crate) pad_below_em: f64,
     pub(crate) background: Option<Fill>,
     pub(crate) decorations: Vec<Decoration>,
+}
+
+impl LeafPaint {
+    /// Unstyled text in a font, with no box around it.
+    pub(crate) fn plain(text: &str, font: FontRole, attrs: Vec<TextAttr>) -> Self {
+        Self {
+            source: 0,
+            text: text.to_owned(),
+            attrs,
+            font,
+            align: Align::Start,
+            indent_em: 0.0,
+            gap_above_em: 0.0,
+            gap_below_em: 0.0,
+            pad_above_em: 0.0,
+            pad_below_em: 0.0,
+            background: None,
+            decorations: Vec::new(),
+        }
+    }
 }
 
 /// An attribute over bytes `start..end` of the paint's text.
@@ -103,11 +136,13 @@ pub(crate) enum Fill {
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) enum Decoration {
-    /// A vertical bar `x_em` from the left margin, the full height of the leaf, or down to
-    /// its text's end when this is the container's last leaf (so adjacent quotes stay apart).
+    /// A vertical bar `x_em` from the left margin, the full height of the leaf, except that it
+    /// starts below the gap above the container's first leaf and ends above the gap below its
+    /// last (so adjacent quotes stay apart).
     Bar {
         x_em: f64,
         color: BarColor,
+        first: bool,
         last: bool,
     },
     /// A list marker or footnote number, right-aligned to end at `x_em`.
@@ -124,25 +159,32 @@ pub(crate) enum BarColor {
     Alert(AlertKind),
 }
 
-/// The paint of every leaf, in order.
+/// The paints of every leaf, in order.
 pub(crate) fn paint_document(doc: &Document) -> Vec<LeafPaint> {
     let leaves: Vec<_> = doc.leaves_with_ids().collect();
     leaves
         .iter()
         .enumerate()
-        .map(|(index, &(id, leaf))| {
+        .flat_map(|(index, &(id, leaf))| {
             // The containers the next leaf is in: any other ends at this leaf.
             let next: Vec<ContextId> = leaves
                 .get(index + 1)
                 .map(|&(_id, next)| doc.containers(next).map(|(id, _)| id).collect())
                 .unwrap_or_default();
-            paint_leaf(doc, id, leaf, &next)
+            split(paint_leaf(doc, index, id, leaf, &next))
         })
         .collect()
 }
 
-fn paint_leaf(doc: &Document, id: LeafId, leaf: &Leaf, next: &[ContextId]) -> LeafPaint {
+fn paint_leaf(
+    doc: &Document,
+    source: usize,
+    id: LeafId,
+    leaf: &Leaf,
+    next: &[ContextId],
+) -> LeafPaint {
     let mut paint = LeafPaint {
+        source,
         text: String::new(),
         attrs: Vec::new(),
         font: FontRole::Body,
@@ -260,6 +302,7 @@ fn containers(
                 paint.decorations.push(Decoration::Bar {
                     x_em: paint.indent_em,
                     color: BarColor::Quote,
+                    first: starts_here,
                     last,
                 });
                 paint.indent_em += QUOTE_INDENT;
@@ -268,6 +311,7 @@ fn containers(
                 paint.decorations.push(Decoration::Bar {
                     x_em: paint.indent_em,
                     color: BarColor::Alert(*kind),
+                    first: starts_here,
                     last,
                 });
                 paint.indent_em += QUOTE_INDENT;
@@ -333,9 +377,9 @@ fn push_row(paint: &mut LeafPaint, doc: &Document, cells: &[Inlines]) {
 /// Appends styled text. Images become "[alt]" placeholders until M4 draws them.
 fn push_inlines(paint: &mut LeafPaint, doc: &Document, inlines: &Inlines) {
     let source = inlines.text();
-    let base = paint.text.len();
-    // Byte position in the paint text for each position in the source text.
-    let mut shifts: Vec<(usize, isize)> = Vec::new();
+    // Where runs of source text start, in the source and in the paint text: a placeholder
+    // replaces each image's one object character, so positions after it move.
+    let mut runs: Vec<(usize, usize)> = vec![(0, paint.text.len())];
     let mut copied = 0;
     for (offset, object) in inlines.objects() {
         let at = offset.index();
@@ -352,24 +396,20 @@ fn push_inlines(paint: &mut LeafPaint, doc: &Document, inlines: &Inlines) {
             end: paint.text.len(),
             kind: AttrKind::Muted,
         });
-        let object_len = Inlines::OBJECT.len_utf8();
-        shifts.push((
-            at + object_len,
-            isize::try_from(placeholder.len()).unwrap_or(isize::MAX)
-                - isize::try_from(object_len).unwrap_or(0),
-        ));
-        copied = at + object_len;
+        copied = at + Inlines::OBJECT.len_utf8();
+        runs.push((copied, paint.text.len()));
     }
     paint
         .text
         .push_str(source.get(copied..).unwrap_or_default());
     let map = |position: usize| {
-        let shift: isize = shifts
+        let (from, to) = runs
             .iter()
-            .filter(|&&(from, _)| from <= position)
-            .map(|&(_, shift)| shift)
-            .sum();
-        base + position.saturating_add_signed(shift)
+            .rev()
+            .find(|&&(from, _)| from <= position)
+            .copied()
+            .unwrap_or_default();
+        to + (position - from)
     };
     for span in inlines.spans() {
         let range = span.range();
@@ -403,60 +443,130 @@ fn push_inlines(paint: &mut LeafPaint, doc: &Document, inlines: &Inlines) {
     }
 }
 
-/// Lengths of a laid-out leaf, in whole logical pixels.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub(crate) struct Metrics {
-    /// The body font's em, in logical pixels.
-    pub(crate) em_px: f64,
+/// Cuts a paint whose text is too long into pieces that each lay out quickly (see
+/// `SPLIT_AT_LINE_BYTES` and `cuts`). The pieces stack into the original box: gaps, padding,
+/// markers and bar ends stay with the first or last piece.
+fn split(paint: LeafPaint) -> Vec<LeafPaint> {
+    let cuts = cuts(&paint.text);
+    if cuts.is_empty() {
+        return vec![paint];
+    }
+    let count = cuts.len() + 1;
+    let mut pieces = Vec::with_capacity(count);
+    let mut from = 0;
+    for (index, (to, next)) in cuts
+        .into_iter()
+        .chain([(paint.text.len(), paint.text.len())])
+        .enumerate()
+    {
+        let (first, last) = (index == 0, index + 1 == count);
+        let decorations = paint
+            .decorations
+            .iter()
+            .filter_map(|decoration| match decoration {
+                Decoration::Bar {
+                    x_em,
+                    color,
+                    first: starts,
+                    last: ends,
+                } => Some(Decoration::Bar {
+                    x_em: *x_em,
+                    color: *color,
+                    first: first && *starts,
+                    last: last && *ends,
+                }),
+                Decoration::Marker { .. } | Decoration::Rule => first.then(|| decoration.clone()),
+                Decoration::HeadingRule => last.then(|| decoration.clone()),
+            })
+            .collect();
+        pieces.push(LeafPaint {
+            source: paint.source,
+            text: paint.text.get(from..to).unwrap_or_default().to_owned(),
+            attrs: paint
+                .attrs
+                .iter()
+                .filter(|attr| attr.start < to && attr.end > from)
+                .map(|attr| TextAttr {
+                    start: attr.start.clamp(from, to) - from,
+                    end: attr.end.clamp(from, to) - from,
+                    kind: attr.kind,
+                })
+                .collect(),
+            font: paint.font,
+            align: paint.align,
+            indent_em: paint.indent_em,
+            gap_above_em: if first { paint.gap_above_em } else { 0.0 },
+            gap_below_em: if last { paint.gap_below_em } else { 0.0 },
+            pad_above_em: if first { paint.pad_above_em } else { 0.0 },
+            pad_below_em: if last { paint.pad_below_em } else { 0.0 },
+            background: paint.background,
+            decorations,
+        });
+        from = next;
+    }
+    pieces
 }
 
-impl Metrics {
-    pub(crate) fn px(self, em: f64) -> i64 {
-        crate::units::round_px(em * self.em_px)
-    }
-
-    /// A leaf's full height given its text's laid-out height.
-    pub(crate) fn leaf_height(self, paint: &LeafPaint, text_height: i64) -> i64 {
-        self.px(paint.gap_above_em)
-            + self.px(paint.pad_above_em)
-            + text_height
-            + self.px(paint.pad_below_em)
-            + self.px(paint.gap_below_em)
-    }
-
-    /// Space between a background's left or right edge and the text.
-    pub(crate) fn horizontal_padding(self, paint: &LeafPaint) -> i64 {
-        if paint.background.is_some() {
-            self.px(CODE_PADDING)
-        } else {
-            0
+/// Where to cut `text`: (end of a piece, start of the next). In order of preference: at a line
+/// break in the first 2 KiB; before (or 2 KiB into) an unbreakable run; at the first line
+/// break; after a space once over `LEAF_TEXT_BYTES`; else at a character boundary. A cut at a
+/// line break drops the newline, since the next piece starts on a new line anyway.
+fn cuts(text: &str) -> Vec<(usize, usize)> {
+    let mut cuts = Vec::new();
+    let mut start = 0;
+    loop {
+        let rest = text.get(start..).unwrap_or_default();
+        if rest.len() <= SPLIT_AT_LINE_BYTES {
+            return cuts;
         }
+        let near = rest
+            .get(..floor_char_boundary(rest, SPLIT_AT_LINE_BYTES))
+            .unwrap_or_default();
+        let far = rest
+            .get(..floor_char_boundary(rest, LEAF_TEXT_BYTES))
+            .unwrap_or_default();
+        let cut = if let Some(newline) = near.rfind('\n') {
+            (start + newline, start + newline + 1)
+        } else if let Some(run) = unbreakable(far) {
+            let at = if run == 0 { near.len() } else { run };
+            (start + at, start + at)
+        } else if let Some(newline) = far.find('\n') {
+            (start + newline, start + newline + 1)
+        } else if rest.len() > LEAF_TEXT_BYTES {
+            let at = far
+                .rfind(' ')
+                .map(|space| space + 1)
+                .filter(|&at| at > LEAF_TEXT_BYTES / 2)
+                .unwrap_or(far.len());
+            (start + at, start + at)
+        } else {
+            return cuts;
+        };
+        cuts.push(cut);
+        start = cut.1;
     }
+}
 
-    /// The width text is wrapped to, given the view's text width.
-    pub(crate) fn text_width(self, paint: &LeafPaint, view_text_width: i64) -> i64 {
-        (view_text_width - self.px(paint.indent_em) - 2 * self.horizontal_padding(paint)).max(1)
+/// Where the first run longer than `SPLIT_AT_LINE_BYTES` with no space or line break starts.
+fn unbreakable(text: &str) -> Option<usize> {
+    let mut start = 0;
+    for (index, _break) in text.match_indices([' ', '\n']).chain([(text.len(), "")]) {
+        if index - start > SPLIT_AT_LINE_BYTES {
+            return Some(start);
+        }
+        start = index + 1;
     }
+    None
+}
 
-    /// A leaf's height estimated without layout: characters over an average width per line.
-    pub(crate) fn estimate(self, paint: &LeafPaint, view_text_width: i64) -> i64 {
-        let scale = paint.font.scale();
-        let line = crate::units::round_px(self.em_px * scale * 1.4);
-        let char_px = self.em_px * scale * 0.5;
-        let width = crate::units::count_to_f64(
-            usize::try_from(self.text_width(paint, view_text_width)).unwrap_or(1),
-        );
-        let per_line = (width / char_px).max(1.0);
-        let lines: i64 = paint
-            .text
-            .split('\n')
-            .map(|line| {
-                let chars = crate::units::count_to_f64(line.chars().count());
-                crate::units::round_px((chars / per_line).ceil().max(1.0))
-            })
-            .sum();
-        self.leaf_height(paint, lines.max(1) * line)
+fn floor_char_boundary(text: &str, mut index: usize) -> usize {
+    if index >= text.len() {
+        return text.len();
     }
+    while index > 0 && !text.is_char_boundary(index) {
+        index -= 1;
+    }
+    index
 }
 
 #[cfg(test)]
@@ -617,19 +727,172 @@ mod tests {
         assert!(FontRole::Heading(HeadingLevel::H1).scale() > three.font.scale());
     }
 
+    fn bar_ends(paint: &LeafPaint) -> Vec<(bool, bool)> {
+        paint
+            .decorations
+            .iter()
+            .filter_map(|decoration| match decoration {
+                Decoration::Bar { first, last, .. } => Some((*first, *last)),
+                Decoration::Marker { .. } | Decoration::Rule | Decoration::HeadingRule => None,
+            })
+            .collect()
+    }
+
     #[test]
-    fn heights_add_up_and_estimates_grow_with_text() {
-        let metrics = Metrics { em_px: 16.0 };
-        let paints = paints("short\n\n```\ncode\n```\n");
-        let short = paints.first().expect("paragraph");
-        assert_eq!(metrics.leaf_height(short, 20), 20 + 12);
-        let code = paints.get(1).expect("code");
-        assert_eq!(metrics.leaf_height(code, 20), 10 + 20 + 10 + 12);
-        assert_eq!(metrics.text_width(code, 600), 600 - 20);
-        let long = LeafPaint {
-            text: "word ".repeat(400),
-            ..short.clone()
-        };
-        assert!(metrics.estimate(&long, 600) > 5 * metrics.estimate(short, 600));
+    fn bars_know_their_containers_first_and_last_leaves() {
+        let paints = paints("> one\n>\n> two\n>\n> three\n");
+        let ends: Vec<_> = paints.iter().map(bar_ends).collect();
+        assert_eq!(
+            ends,
+            vec![
+                vec![(true, false)],
+                vec![(false, false)],
+                vec![(false, true)]
+            ]
+        );
+    }
+
+    #[test]
+    fn long_code_splits_between_lines_into_quick_pieces() {
+        // One 199-line chunk in the model, 31 bytes a line: about 6 KB, in a quote.
+        let code = (0..199)
+            .map(|i| format!("{i:030}\n"))
+            .collect::<Vec<_>>()
+            .concat();
+        let quoted = code
+            .lines()
+            .map(|line| format!("> {line}\n"))
+            .collect::<Vec<_>>()
+            .concat();
+        let paints = paints(&format!("> ```\n{quoted}> ```\n"));
+        assert_eq!(paints.len(), 4);
+        assert!(
+            paints
+                .iter()
+                .all(|paint| paint.text.len() <= SPLIT_AT_LINE_BYTES)
+        );
+        assert!(paints.iter().all(|paint| paint.source == 0));
+        let joined: Vec<&str> = paints.iter().map(|paint| paint.text.as_str()).collect();
+        assert_eq!(joined.join("\n"), code.trim_end());
+        let first = paints.first().expect("first");
+        let last = paints.last().expect("last");
+        assert!((first.pad_above_em - CODE_PADDING).abs() < f64::EPSILON);
+        assert!((last.pad_below_em - CODE_PADDING).abs() < f64::EPSILON);
+        assert!((last.gap_below_em - PARAGRAPH_GAP).abs() < f64::EPSILON);
+        assert!(
+            paints
+                .iter()
+                .skip(1)
+                .all(|paint| paint.pad_above_em == 0.0 && paint.gap_above_em == 0.0)
+        );
+        assert!(
+            paints
+                .iter()
+                .rev()
+                .skip(1)
+                .all(|paint| paint.pad_below_em == 0.0 && paint.gap_below_em == 0.0)
+        );
+        assert_eq!(bar_ends(first), vec![(true, false)]);
+        assert_eq!(bar_ends(last), vec![(false, true)]);
+        assert!(
+            paints
+                .iter()
+                .all(|paint| paint.background == Some(Fill::Code))
+        );
+    }
+
+    #[test]
+    fn prose_splits_only_past_the_leaf_cap_and_unbreakable_runs_at_2_kib() {
+        let prose = "word ".repeat(LEAF_TEXT_BYTES / 5 - 10);
+        assert_eq!(paints(&prose).len(), 1);
+        let huge = "y".repeat(3 * LEAF_TEXT_BYTES + 5);
+        let pieces = paints(&format!("```\n{huge}\n```\n"));
+        assert_eq!(pieces.len(), 25);
+        assert!(
+            pieces
+                .iter()
+                .all(|paint| paint.text.len() <= SPLIT_AT_LINE_BYTES)
+        );
+        let joined: String = pieces.iter().map(|paint| paint.text.as_str()).collect();
+        assert_eq!(joined, huge);
+    }
+
+    #[test]
+    fn a_long_heading_keeps_its_rule_and_attributes_on_the_right_pieces() {
+        let words = "word ".repeat(LEAF_TEXT_BYTES / 5 * 2);
+        let heading = format!("# {} [link](x)\n", words.trim_end());
+        // 32 KiB: one cut after the last space within 16 KiB leaves exactly 16 KiB.
+        let pieces = paints(&heading);
+        assert_eq!(pieces.len(), 2);
+        assert!(
+            pieces
+                .iter()
+                .all(|paint| paint.text.len() <= LEAF_TEXT_BYTES)
+        );
+        // Cut after a space, so no word is broken.
+        assert!(
+            pieces
+                .iter()
+                .rev()
+                .skip(1)
+                .all(|paint| paint.text.ends_with(' '))
+        );
+        let last = pieces.last().expect("last");
+        assert_eq!(last.decorations, vec![Decoration::HeadingRule]);
+        assert!(
+            pieces
+                .iter()
+                .rev()
+                .skip(1)
+                .all(|paint| paint.decorations.is_empty())
+        );
+        for paint in &pieces {
+            for attr in &paint.attrs {
+                assert!(attr.start < attr.end && attr.end <= paint.text.len());
+                assert!(
+                    paint.text.is_char_boundary(attr.start)
+                        && paint.text.is_char_boundary(attr.end)
+                );
+            }
+        }
+        assert!(last.attrs.iter().any(|attr| attr.kind == AttrKind::Link));
+    }
+
+    #[test]
+    fn cuts_prefer_line_breaks_and_stay_on_character_boundaries() {
+        assert_eq!(cuts("short"), Vec::new());
+        // A line break in the first 2 KiB: cut there, dropping it; then an unbreakable run.
+        let text = format!("{}\n{}", "a".repeat(1000), "b".repeat(3000));
+        assert_eq!(cuts(&text), vec![(1000, 1001), (3049, 3049)]);
+        // Prose with its first line break past 2 KiB: cut at that line break.
+        let text = format!("{}\n{}", "ab ".repeat(1700), "c ".repeat(500));
+        assert_eq!(cuts(&text), vec![(5100, 5101)]);
+        // Prose then an unbreakable run: cut just before the run, then 2 KiB into it.
+        let text = format!("{}{}", "ab ".repeat(10), "z".repeat(3000));
+        assert_eq!(cuts(&text), vec![(30, 30), (2078, 2078)]);
+        // Prose over the cap: after the last space within it.
+        let text = "abc ".repeat(LEAF_TEXT_BYTES / 2);
+        assert_eq!(cuts(&text), vec![(LEAF_TEXT_BYTES, LEAF_TEXT_BYTES)]);
+        // Multi-byte text with no spaces: cuts land on character boundaries.
+        let text = "é".repeat(LEAF_TEXT_BYTES);
+        let found = cuts(&text);
+        assert_eq!(found.len(), 15);
+        assert!(
+            found
+                .iter()
+                .all(|&(end, next)| end == next && text.is_char_boundary(end))
+        );
+        assert_eq!(floor_char_boundary("é", 1), 0);
+        assert_eq!(floor_char_boundary("é", 9), 2);
+        assert_eq!(unbreakable("a b"), None);
+        assert_eq!(unbreakable(&format!("a\n{}", "x".repeat(2049))), Some(2));
+        assert_eq!(unbreakable(&"x".repeat(2048)), None);
+    }
+
+    #[test]
+    fn paints_record_their_source_leaf() {
+        let paints = paints("one\n\ntwo\n\nthree\n");
+        let sources: Vec<usize> = paints.iter().map(|paint| paint.source).collect();
+        assert_eq!(sources, vec![0, 1, 2]);
     }
 }

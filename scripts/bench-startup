@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Startup report (docs/plan.md §6). Runs on the host, which has the display.
 
-    scripts/bench-startup [-n RUNS] [-c NAME[:VAR=VALUE ...][:ARG ...]]... -- FILE|--spike=empty ...
+    scripts/bench-startup [-n RUNS] [-c NAME[:VAR=VALUE ...][:ARG ...]]... -- FILE|--empty-window ...
 
 Each configuration (-c) is an environment and extra arguments for the release binary; the
 default is one configuration, "default", with neither. Every configuration x target pair runs

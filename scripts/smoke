@@ -15,17 +15,20 @@ bin=${CARGO_TARGET_DIR:-target}/release/gbk-markdown
 screens=${CARGO_TARGET_DIR:-target}/screens/${GATE_TREE:-adhoc}
 mkdir -p "$screens"
 
-fixtures=(crates/core/tests/data/corpus/*/input.md target/fixtures/{readme-200kb,list-1mb,table-1mb,code-1mb}.md)
+fixtures=(crates/core/tests/data/corpus/*/input.md target/fixtures/{readme-200kb,list-1mb,table-1mb,code-1mb,huge-line,huge-cells,huge-heading}.md)
 # Scrolled end to end: steady scrolling must find every leaf laid out (plan §6).
 scrolled=(target/fixtures/readme-200kb.md target/fixtures/list-1mb.md crates/core/tests/data/corpus/_synthetic-features/input.md)
 # Height worker against main-thread layout: every height must match exactly (plan §4.5).
 checked=(crates/core/tests/data/corpus/_synthetic-features/input.md crates/core/tests/data/corpus/sharkdp__bat/input.md target/fixtures/readme-200kb.md target/fixtures/table-1mb.md)
 
 # Work before the first frame, judged independently of the view's own layout window (which
-# grading itself could never fail): the text Pango may be given for a 1000 px window and one
-# screen ahead. Two screens of dense 9 px text are under 20 KiB; a paragraph or leaf bigger
-# than the budget fails here, which is the point.
+# grading itself could never fail): the text Pango may be given for a 1000 px window. Two screens
+# of dense 9 px text are under 20 KiB; a paragraph or leaf bigger than the budget fails here,
+# which is the point.
 first_frame_byte_budget=32768
+# A first frame (since main) later than this is a freeze, not slowness (the huge-* fixtures once took 68 s
+# or never arrived); normal fixtures take well under a second here.
+first_frame_time_budget_us=5000000
 
 fail=0 n=0
 for fixture in "${fixtures[@]}"; do
@@ -38,8 +41,12 @@ for fixture in "${fixtures[@]}"; do
   fi
   report=$(grep -E '^first_frame_us=' <<<"$out" || true)
   bytes=$(grep -oE 'bytes_laid_out_before_first_frame=[0-9]+' <<<"$report" | cut -d= -f2 || true)
-  if [[ -z "$bytes" ]]; then
+  time_us=$(grep -oE 'since_main_us=[0-9]+' <<<"$report" | cut -d= -f2 || true)
+  if [[ -z "$bytes" || -z "$time_us" ]]; then
     echo "smoke: $name: no probe report in: $out" >&2
+    fail=1
+  elif ((time_us > first_frame_time_budget_us)); then
+    echo "smoke: $name: first frame after ${time_us} us; budget $first_frame_time_budget_us" >&2
     fail=1
   elif ((bytes > first_frame_byte_budget)); then
     echo "smoke: $name: gave Pango $bytes bytes before the first frame; budget $first_frame_byte_budget" >&2

@@ -49,9 +49,9 @@ contains `--no-verify` with `git`, or mentions `core.hooksPath` (except setting 
 the Edit tool. Never route around it; fix the gate.
 
 Open questions (awaiting user, see `docs/plan.md` §11):
-- Renderer: Cairo with GL disabled (70-90 ms faster first frame) vs GL (fewer dropped scroll
-  frames on prose/lists, even on code/tables; perf-baseline M2). Cairo needs `unsafe` set_var
-  or a .desktop env. Presented to the user after M2.
+- Renderer: Cairo with GL disabled (70-90 ms faster first frame) vs GL (scrolling now about
+  even after the M2 review fixes; perf-baseline "M2 review follow-up"). Cairo needs `unsafe`
+  set_var or a .desktop env. Presented to the user after M2.
 - Theme: GTK4 + light stylesheet (not yet confirmed).
 
 `docs/plan.md` is the authoritative plan; this file records decisions and state.
@@ -180,3 +180,23 @@ Not repeated here, so there is one source each (an earlier copy here drifted fro
   window fixed it); scroll benches must be interleaved, as a non-interleaved set at load 4
   reversed the GL/Cairo result. Never pass `--workspace` to clippy/test by hand: it pulls in
   the lint canary (which must fail); the gate excludes it.
+- 2026-10-11: M2 review follow-up (correctness 8 findings, performance 9, coherence 10). Fixed:
+  a single huge leaf froze first paint (2 MB code line: no frame in 120 s; 40 KB table cells:
+  68 s) -> `paint::split` caps every paint (2 KiB at line breaks or in unbreakable runs, 16 KiB
+  for prose), smoke has huge-* fixtures and a 5 s first-frame bound; anchoring moved into pure
+  `render::positions` (single writer of heights; prefetch no longer bypasses the hold while
+  scrolling; shift applied before clamping; resize keeps the reading position; own corrections
+  not taken for user scrolling); one `Typesetter::measure` and one `Metrics::geometry` shared
+  by worker, check and draw; GtkScrollbar replaced by a drawn indicator (`render::indicator`):
+  the scrollbar cost ~16 sync X round trips per scroll frame; fonts warm while waiting on the
+  loader; `--check-heights` now compares worker heights for every leaf; worker death reported;
+  settings (font/DPI/hinting) changes re-lay out; probe busy time includes the after-frame
+  prefetch; `--spike` renamed `--empty-window`; clippy config warnings (a disallowed path that
+  does not resolve only warns) now fail the gate.
+  Process lesson (recurring): exact-text Python replacements fail after `cargo fmt` reformats a
+  test. Engineer fix used: a scratchpad helper that replaces a `#[test]` fn by structure
+  (`scratchpad/tools/replace_test.py`, session-local; recreate if needed: find `#[test]\n fn
+  NAME(` and cut to the next `#[test]`), or index-based replacement between fn headers.
+  Deferred, recorded in plan §4.5: paint-to-source offset map (M3 links), estimates on the
+  loader thread, per-leaf textures for scroll, list marker baseline on `- # heading`.
+

@@ -1,15 +1,16 @@
 //! Turning a `LeafPaint` into a Pango layout (docs/plan.md §4.5).
 //!
-//! Used on the main thread by the widget and on the height worker, with the same fonts and
-//! attributes, so both measure the same height. Colours do not change a layout's size; the
-//! worker passes a default palette.
+//! Used on the main thread by the widget and on the height worker, through the same
+//! `Typesetter::measure`, so both measure the same height. Colours do not change a layout's
+//! size; the worker uses a default palette.
 
 use gtk::pango;
 use gtk::prelude::*;
 
-use super::paint::{AttrKind, FontRole, LeafPaint, Metrics};
+use super::geometry::Metrics;
+use super::paint::{AttrKind, FontRole, LeafPaint, TextAttr};
 use crate::units;
-use gbk_markdown_core::model::{AlertKind, Align};
+use gbk_markdown_core::model::{AlertKind, Align, HeadingLevel};
 
 /// Body text is sans-serif and code monospace, at the desktop font's size: the desktop font may
 /// itself be monospace (this host's is Source Code Pro), which suits a terminal, not a document.
@@ -172,9 +173,96 @@ fn rgba(red: u8, green: u8, blue: u8) -> gtk::gdk::RGBA {
     )
 }
 
-/// Lays out a leaf's text at `width` logical pixels. `counted` is told the bytes laid out: the
-/// widget's probe counts them, the worker counts its own.
-pub(crate) fn layout(
+/// Lays out text the one way the widget and the worker both use.
+#[derive(Debug, Clone)]
+pub(crate) struct Typesetter {
+    pub(crate) context: pango::Context,
+    pub(crate) setup: TextSetup,
+    pub(crate) palette: Palette,
+}
+
+impl Typesetter {
+    /// Lays out a leaf's text for a view `view_text_width` wide; returns the layout and its
+    /// height. `counted` is told the bytes laid out (the widget's probe counts them).
+    pub(crate) fn measure(
+        &self,
+        paint: &LeafPaint,
+        view_text_width: i64,
+        counted: &mut dyn FnMut(usize),
+    ) -> (pango::Layout, i64) {
+        let width = self.setup.metrics().text_width(paint, view_text_width);
+        let layout = layout(
+            &self.context,
+            self.setup,
+            self.palette,
+            paint,
+            width,
+            counted,
+        );
+        let height = i64::from(layout.pixel_size().1);
+        (layout, height)
+    }
+
+    /// A marker (list bullet, number, summary triangle) in the body font.
+    pub(crate) fn marker(&self, text: &str, counted: &mut dyn FnMut(usize)) -> pango::Layout {
+        let layout = new_layout(&self.context, text, counted);
+        layout.set_font_description(Some(&self.setup.font(FontRole::Body)));
+        layout
+    }
+}
+
+/// Loads the fonts documents use (body, bold, italic, headings, code, markers) by laying out a
+/// sample in each, until `done` (the loader has finished). A font's first use costs 3-15 ms of
+/// fontconfig matching (M2 review), which otherwise falls into the first screen's layout.
+pub(crate) fn warm_up(
+    widget: &impl IsA<gtk::Widget>,
+    done: &dyn Fn() -> bool,
+    counted: &mut dyn FnMut(usize),
+) {
+    let typesetter = Typesetter {
+        context: widget.pango_context(),
+        setup: TextSetup::of(widget),
+        palette: Palette::default(),
+    };
+    let text = "Ag 1. •◦▪☑☐▾";
+    let styled = |kind| {
+        vec![TextAttr {
+            start: 0,
+            end: text.len(),
+            kind,
+        }]
+    };
+    let samples = [
+        LeafPaint::plain(text, FontRole::Body, Vec::new()),
+        LeafPaint::plain(text, FontRole::Body, styled(AttrKind::Bold)),
+        LeafPaint::plain(text, FontRole::Code, Vec::new()),
+        LeafPaint::plain(text, FontRole::Body, styled(AttrKind::Italic)),
+        LeafPaint::plain(
+            text,
+            FontRole::Heading(HeadingLevel::H1),
+            styled(AttrKind::Bold),
+        ),
+        LeafPaint::plain(
+            text,
+            FontRole::Heading(HeadingLevel::H2),
+            styled(AttrKind::Bold),
+        ),
+        LeafPaint::plain(
+            text,
+            FontRole::Heading(HeadingLevel::H3),
+            styled(AttrKind::Bold),
+        ),
+    ];
+    for sample in &samples {
+        if done() {
+            return;
+        }
+        drop(typesetter.measure(sample, 600, counted));
+    }
+}
+
+/// Lays out a leaf's text at `width` logical pixels.
+fn layout(
     context: &pango::Context,
     setup: TextSetup,
     palette: Palette,
@@ -247,18 +335,6 @@ pub(crate) fn layout(
         }
     }
     layout.set_attributes(Some(&attrs));
-    layout
-}
-
-/// A marker (list bullet, number, summary triangle) in the body font.
-pub(crate) fn marker_layout(
-    context: &pango::Context,
-    setup: TextSetup,
-    text: &str,
-    counted: &mut dyn FnMut(usize),
-) -> pango::Layout {
-    let layout = new_layout(context, text, counted);
-    layout.set_font_description(Some(&setup.font(FontRole::Body)));
     layout
 }
 

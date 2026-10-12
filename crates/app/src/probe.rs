@@ -5,8 +5,9 @@
 //! read that report.
 //!
 //! With --bench-scroll it instead scrolls to the end of the document, one step per frame, and
-//! reports frame intervals and each frame's main-thread busy time (before-paint to after-paint,
-//! which covers tick, layout, our snapshot and GSK rendering). xfwm4 sends no presentation
+//! reports frame intervals and each frame's main-thread busy time (before-paint to the end of
+//! the view's after-frame prefetch, which covers tick, layout, our snapshot, GSK rendering and
+//! prefetch). xfwm4 sends no presentation
 //! times, so a dropped frame shows only as a gap between successive frame times; frames the
 //! compositor or GPU miss are not visible here.
 
@@ -160,6 +161,17 @@ impl Probe {
         }
     }
 
+    /// Called by the document view when its work after a frame (prefetch) is done: a scroll
+    /// frame's busy time runs from before-paint to here, so it includes that work.
+    pub(crate) fn frame_work_done(&self) {
+        if self.first_frame_done.get() && self.args.bench_scroll {
+            let mut record = self.scroll.borrow_mut();
+            if let Some(started) = record.paint_started.take() {
+                record.busy_us.push(started.elapsed().as_micros());
+            }
+        }
+    }
+
     /// Called by the document view after each draw.
     pub(crate) fn document_drawn(&self, leaves: usize) {
         if !self.document_drawn.replace(true) {
@@ -192,12 +204,6 @@ impl Probe {
     fn after_paint(self: &Rc<Self>, window: &gtk::Window) {
         self.in_frame.set(false);
         if self.first_frame_done.get() {
-            if self.args.bench_scroll {
-                let mut record = self.scroll.borrow_mut();
-                if let Some(started) = record.paint_started.take() {
-                    record.busy_us.push(started.elapsed().as_micros());
-                }
-            }
             return;
         }
         if self.expect_document && !self.document_drawn.get() {

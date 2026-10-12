@@ -179,43 +179,68 @@ Positions are still addressed as (leaf, `ByteOffset`) everywhere, so selection a
 added later without changing the model.
 
 - **Fenwick tree over leaf heights** maps scroll offset → leaf in O(log n).
-- **First paint** lays out only leaves within the viewport plus one screen. Everything else is
-  estimated.
+- **First paint** lays out only the leaves within the viewport. Everything else is estimated.
 - **Exact heights off the main thread.** Pango layouts are `!Send`, but heights are numbers. A
   worker with its own `pangocairo::FontMap` and a context matching the widget's settings
   (font description, resolution, grey antialias, hint metrics off, slight hinting, unrounded glyph
-  positions) measures every leaf and sends heights back (Substitute). An equality test asserts
-  worker heights equal main-thread heights for every fixture (Engineer). Fallback if they cannot be
-  made equal: main-thread idle slices of ≤ 4 ms.
+  positions) measures every leaf and sends heights back (Substitute). An equality check
+  (`--check-heights`) asserts worker heights equal main-thread heights for every leaf of four
+  smoke fixtures (Engineer). Fallback if they cannot be made equal: main-thread idle slices of
+  ≤ 4 ms.
 - **Scroll anchoring.** When a leaf above the viewport changes height, the offset is corrected so
   visible content does not move. GtkScrolledWindow's kinetic deceleration overwrites outside
   adjustment changes, so **height changes above the viewport are queued while scrolling is in
-  motion and committed when it stops** (Engineer: a headless test of the commit logic).
-- **Caches.** Pango layouts and `gsk::RenderNode`s are kept for about ±3 screens (LRU); heights
-  are kept for everything. Key: (width, Pango context serial, style generation), so live Xfce DPI
-  or font changes invalidate correctly.
-- **No work during scroll.** Idle work pauses while scrolling is in motion; steady-state scroll
-  frames append cached nodes only.
+  motion and committed when it stops** (Engineer: `render::positions` is pure and unit-tested).
+- **Caches.** `gsk::RenderNode`s (not layouts) are kept for leaves within ±3 screens; heights
+  are kept for everything. The cache is cleared on any change of width, palette (theme) or text
+  setup (`gtk::Settings` font, DPI or hinting changes), so live Xfce DPI or font changes
+  invalidate correctly.
+- **No layout inside scroll frames.** Steady-state scroll frames append cached nodes only; layout
+  happens between frames (an idle slice, and a 3 ms slice after each frame) for the 2 screens
+  either side of the viewport.
 
 ### As built in M2, and why
 
 - **Paint is pure data.** The loader thread turns the model into `LeafPaint`s (text, Pango-free
   attribute spans, font role, indents, gaps, decorations) while GTK starts; the widget and the
-  height worker both build layouts from them through one function (`render::text::layout`), so
-  they cannot disagree about attributes (Eliminate).
+  height worker both lay them out through one function (`Typesetter::measure`), and one pure
+  function (`Metrics::geometry`) places everything in a leaf and gives its height, so the two
+  cannot disagree (Eliminate).
+- **No paint is large.** `paint_document` cuts any paint over 2 KiB at a line break, and any
+  over 16 KiB anyway (after a space, else at a character boundary), so one layout stays around
+  a millisecond whatever the document holds: the M2 review found a 2 MB code line never reached
+  a first frame, and 200-line code chunks took 10-48 ms each (Eliminate). Paints therefore do
+  not map one to one onto leaves; each records its `source` leaf. A map from paint text offsets
+  back to the leaf's `ByteOffset`s (placeholders and table separators shift them) is needed for
+  M3's link hit-testing and is built then.
 - **Worker heights are equal, not close.** The widget's cairo font options cannot be read back
   (no pangocairo binding), so `TextSetup` derives them from `gtk::Settings` as GTK does.
-  `--check-heights` lays out every leaf on the main thread and compares; the smoke asserts 0
-  mismatches on four fixtures (Engineer). The idle-slice fallback was not needed.
+  `--check-heights` lays out every leaf on the main thread and compares it with the height the
+  worker sent for it; the smoke asserts 0 mismatches on four fixtures (Engineer). The idle-slice
+  fallback was not needed. If the worker thread dies, the view says so once and keeps estimates.
+- **One writer of heights.** `render::positions` holds heights, which are exact and which are
+  held while scrolling; every change goes through it and returns the scroll shift. Prefetch,
+  drawing, the worker and settling all use it (the first version let prefetch write heights
+  directly, bypassing the hold while scrolling). A width change keeps the leaf at the top of the
+  viewport and the fraction of it scrolled past. The view's own scroll corrections are not taken
+  for user scrolling.
+- **Own scroll indicator.** `GtkScrollbar` cost ~16 synchronous X round trips per scroll frame
+  (its slider queues an allocation, so the window re-presents itself); with it, 25-131 dropped
+  frames per run, without, 0-8. The view draws a thin indicator and handles dragging and
+  clicking on it (`render::indicator`, pure and tested) (Substitute).
+- **Fonts warm while the loader finishes.** A font's first use costs 3-15 ms; while the main
+  thread would otherwise wait for the loader, it lays out a sample in each font a document uses.
 - **No layout in scroll frames.** Idle prefetch alone lost to fast scrolling (124-1273 layouts in
   frames). A 3 ms slice after each frame plus a prefetch window of 2 screens either side brought
   every run to 0; the smoke asserts `layouts_in_scroll_frames=0` on three fixtures (Engineer).
 - **Body font.** Body text is `sans-serif` and code `monospace`, at the desktop font's size. The
   desktop font here is Source Code Pro, which suits a terminal, not prose.
 - **Not yet:** tables are text rows (M3), long code lines wrap instead of scrolling sideways,
-  images are `[alt]` placeholders (M4). The render-node cache is keyed by leaf, keeps leaves within
-  3 screens of the viewport, and is cleared on any width, palette or setup change (no LRU or
-  context serial).
+  images are `[alt]` placeholders (M4). Leaf estimates for the first width are computed on the
+  main thread (0.7-2.5 ms on 1 MiB fixtures); they could move to the loader. Rendering each leaf
+  to a texture during prefetch, so scroll frames are blits, is the next scroll experiment (GSK
+  rendering is now most of a scroll frame's 5-10 ms). A list marker before a heading (`- # x`)
+  sits at the text's top in the body font, not on the heading's baseline.
 
 ### 4.6 Deferred work
 
@@ -324,7 +349,10 @@ one counted constructor (`disallowed-methods` refuses any other path), so no lay
 uncounted. The gate's Xvfb smoke run (§8) asserts bytes before the first frame ≤ 32 KiB, a bound
 independent of the view's own layout window (the M0 review found the first version, "laid out ≤
 the view's own window", could not fail). From M2: a --bench-scroll smoke run asserts layouts
-during steady scroll = 0; render nodes built per frame is counted once nodes are cached.
+inside scroll frames = 0. A leaf's render node is built in the same step as its layout, so that
+counter covers node building too. Scroll scenarios other than steady scroll-to-end (flinging up
+into estimated leaves, resizing mid-document) are covered by `render::positions`' unit tests,
+not by bench runs.
 
 ## 7. Paranoid Rust rules
 
@@ -349,10 +377,15 @@ during steady scroll = 0; render nodes built per frame is counted once nodes are
   misspelled, renamed or unprioritised lint, and a member crate missing `workspace = true`.
 - `indexing_slicing`: iterate instead of index (Eliminate at those sites); `#[expect(..., reason)]`
   for the rest.
-- **Numeric conversions** live only in a `units` module behind the newtypes (`LogicalPx`,
-  `DevicePx`, `PangoUnits`, `ByteOffset`, `CharOffset`, `LineNo`), with one module-level
-  `#![expect(clippy::as_conversions, clippy::cast_possible_truncation, reason = ...)]`. Std has no
-  non-`as` f64 → i32 conversion, and GTK/Pango are all f64/i32 (Eliminate everywhere else).
+- **Numeric conversions** live only in a `units` module per crate, with one module-level
+  `#![expect(clippy::as_conversions, ..., reason = ...)]`. Std has no non-`as` float/integer
+  conversion, and GTK/Pango are all f64/f32/i32 (Eliminate everywhere else). Core uses index
+  newtypes (`ByteOffset`, `LineNo`, `LeafId`, ...). *As built (M2):* the app has no `LogicalPx`
+  newtype: positions and lengths are whole logical pixels in `i64` and em lengths are `f64`
+  fields named `*_em`, so the two cannot be mixed without a conversion through `Metrics::px`
+  or `units` (the types already differ). A `Px(i64)` newtype was considered (Engineer) and
+  not taken: it would add wrapping at every GTK boundary for no bug class the types do not
+  already separate. Revisit if a px/em or px/Pango-unit mix-up ever ships.
 - `clippy.toml`: `allow-unwrap-in-tests`, `allow-expect-in-tests`, `allow-panic-in-tests`,
   `allow-indexing-slicing-in-tests` (they exempt `#[test]` fns and `#[cfg(test)]` modules only).
 

@@ -2,7 +2,7 @@
 //!
 //! Pango layouts cannot cross threads, but heights are numbers. The worker has its own
 //! `pangocairo` font map and a context set up like the widget's (`TextSetup`), lays out each
-//! leaf the widget's way (`text::layout`), and sends heights back in batches. A new job (a new
+//! leaf the widget's way (`Typesetter::measure`), and sends heights back in batches. A new job (a new
 //! width) supersedes the old one at the next batch.
 
 use std::sync::Arc;
@@ -12,7 +12,7 @@ use std::thread;
 use gtk::prelude::FontMapExt as _;
 
 use super::paint::LeafPaint;
-use super::text::{self, Palette, TextSetup};
+use super::text::{Palette, TextSetup, Typesetter};
 
 /// Leaves per batch: small enough to switch jobs quickly, large enough to keep sends cheap.
 const BATCH: usize = 128;
@@ -42,6 +42,11 @@ pub(crate) struct Worker {
     batches: Receiver<Batch>,
 }
 
+/// The worker thread has ended (it panicked): heights stay estimates.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+#[error("the height worker has stopped; leaf heights stay estimated until laid out")]
+pub(crate) struct WorkerGone;
+
 impl Worker {
     pub(crate) fn spawn() -> Self {
         let (jobs, job_receiver) = mpsc::channel::<Job>();
@@ -51,14 +56,22 @@ impl Worker {
     }
 
     /// Starts measuring; any job in progress is abandoned at its next batch.
-    pub(crate) fn submit(&self, job: Job) {
-        // A send fails only if the worker thread has ended; heights then stay estimates.
-        drop(self.jobs.send(job));
+    pub(crate) fn submit(&self, job: Job) -> Result<(), WorkerGone> {
+        self.jobs.send(job).map_err(|_job| WorkerGone)
     }
 
     /// The batches ready now.
-    pub(crate) fn ready(&self) -> Vec<Batch> {
-        self.batches.try_iter().collect()
+    pub(crate) fn ready(&self) -> Result<Vec<Batch>, WorkerGone> {
+        let mut ready = Vec::new();
+        loop {
+            match self.batches.try_recv() {
+                Ok(batch) => ready.push(batch),
+                Err(TryRecvError::Empty) => return Ok(ready),
+                // Batches sent before the thread ended still count.
+                Err(TryRecvError::Disconnected) if !ready.is_empty() => return Ok(ready),
+                Err(TryRecvError::Disconnected) => return Err(WorkerGone),
+            }
+        }
     }
 }
 
@@ -69,7 +82,11 @@ fn run(jobs: &Receiver<Job>, batches: &Sender<Batch>) {
     while let Some(job) = next.take() {
         job.setup.apply(&context);
         let metrics = job.setup.metrics();
-        let palette = Palette::default();
+        let typesetter = Typesetter {
+            context: context.clone(),
+            setup: job.setup,
+            palette: Palette::default(),
+        };
         let mut first = 0;
         let total = job.paints.len();
         loop {
@@ -89,10 +106,10 @@ fn run(jobs: &Receiver<Job>, batches: &Sender<Batch>) {
                 .unwrap_or_default()
                 .iter()
                 .map(|paint| {
-                    let width = metrics.text_width(paint, job.view_text_width);
-                    let layout =
-                        text::layout(&context, job.setup, palette, paint, width, &mut |_bytes| {});
-                    metrics.leaf_height(paint, i64::from(layout.pixel_size().1))
+                    // The worker's layouts are its own; the probe counts main-thread work only.
+                    let (_layout, text_height) =
+                        typesetter.measure(paint, job.view_text_width, &mut |_bytes| {});
+                    metrics.leaf_height(paint, text_height)
                 })
                 .collect();
             let done = end >= total;

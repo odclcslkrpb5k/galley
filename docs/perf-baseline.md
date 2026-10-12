@@ -208,7 +208,44 @@ set (same day, same load) had Cairo ahead on scrolling, so that set was a load a
 The remaining drops (2-7%) are not layout; where they go (snapshot of many nodes, X server
 waits) is open.
 
-### Renderer trade-off (for the user's decision, plan §11)
+### Renderer trade-off (superseded by the review follow-up below)
 
 Cairo with GL disabled: 70-90 ms faster first frame (goal 1). GL: fewer dropped frames on
-prose and long lists (goal 2), even on code and tables.
+prose and long lists (goal 2), even on code and tables. The performance review showed both
+scroll results were dominated by GtkScrollbar's X round trips and slow large leaves, not by
+the renderer.
+
+## M2 review follow-up (2026-10-11)
+
+Changes: own scroll indicator instead of GtkScrollbar, paints capped (2 KiB at line breaks or
+unbreakable runs, 16 KiB prose), fonts warmed while waiting on the loader. Busy time now runs to
+the end of the after-frame prefetch (it used to stop before it). Load 2-3.
+
+### Scroll, `--bench-scroll`, three interleaved runs each
+
+| Fixture | Frames | GL dropped | Cairo dropped | GL / Cairo p50 busy | before (GL / Cairo dropped) |
+|---|---|---|---|---|---|
+| readme-200kb | ~1807 | 1, 2, 1 | 1, 0, 8 | 5.7-7.2 / 5.7-8.3 ms | 40-75 / 79-94 |
+| list-1mb | ~3000 | 0, 0, 0 | 1, 2, 1 | 6.6-7.0 / 5.7-5.8 ms | 41-75 / 127-173 |
+| code-1mb | ~2995 | 0, 0, 0 | 7, 7, 7 | 6.0-8.5 / 8.7-8.8 ms | 143-177 / 108-167 |
+| table-1mb | ~2982 | 15, 20, 18 | 13, 11, 18 | 5.4-6.3 / 6.0-6.1 ms | 157-217 / 165-201 |
+
+`layouts_in_scroll_frames=0` in every run. Remaining drops are mostly table-1mb on both
+renderers (its 2 KiB pieces are slow to rasterise: many short styled runs) and code-1mb on
+Cairo. Next lever for both: per-leaf textures (plan §4.5 "Not yet").
+
+### First frame of pathological inputs (host, one run each)
+
+| Fixture | Before | After |
+|---|---|---|
+| huge-line (one 2 MB code line) | no frame in 120 s | 252 ms |
+| huge-cells (50 rows, 40 KB cells) | 67.7 s | 247 ms |
+| huge-heading (1 MB) | ~1.0 s | 236 ms |
+
+All at the GTK floor; the smoke now runs them with a 5 s first-frame bound.
+
+### Renderer trade-off, revised (for the user's decision, plan §11)
+
+Scrolling no longer separates the renderers: GL drops 0-2 frames per run on prose, lists and
+code, Cairo 0-8; both drop 11-20 on table-1mb. First frame still favours Cairo by 70-90 ms
+(M2 table above). On goal order (first paint first), Cairo with GL disabled is favoured.

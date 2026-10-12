@@ -12,7 +12,7 @@ options:
   --bench-scroll            after the first frame, scroll to the end, report frame times, exit
   --t0=NS                   spawn time in CLOCK_REALTIME nanoseconds, for the startup report
   --screenshot=PATH         save the first frame as PNG
-  --spike=empty|paragraphs  an empty window (the startup floor), or the document (default)
+  --empty-window            show no document, for measuring GTK's startup floor (no FILE)
   --check-heights           when the height worker finishes, compare its heights with layouts
                             made here, report mismatches and exit
   --no-prepare              do not lay out the first screen before allocation (measurement)
@@ -21,15 +21,16 @@ options:
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Args {
     pub(crate) file: Option<PathBuf>,
-    pub(crate) spike: Spike,
+    pub(crate) mode: Mode,
     pub(crate) startup: Startup,
     pub(crate) probe: ProbeArgs,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum Spike {
-    Empty,
-    Paragraphs,
+pub(crate) enum Mode {
+    Document,
+    /// No document: GTK's startup floor (docs/perf-baseline.md).
+    EmptyWindow,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -61,8 +62,6 @@ pub(crate) enum UsageError {
     OptionNotUtf8,
     #[error("--t0 needs a whole number of nanoseconds")]
     BadT0,
-    #[error("--spike must be empty or paragraphs")]
-    BadSpike,
     #[error("no FILE given")]
     MissingFile,
     #[error("more than one FILE given")]
@@ -72,7 +71,7 @@ pub(crate) enum UsageError {
 /// Parses the arguments after the program name.
 pub(crate) fn parse(args: impl IntoIterator<Item = OsString>) -> Result<Args, UsageError> {
     let mut file = None;
-    let mut spike = Spike::Paragraphs;
+    let mut mode = Mode::Document;
     // Plain gtk::init is the default: it skips GApplication's session-bus connection, measured
     // 20-45 ms faster to first frame in M0 (docs/perf-baseline.md).
     let mut startup = Startup::PlainInit;
@@ -105,19 +104,17 @@ pub(crate) fn parse(args: impl IntoIterator<Item = OsString>) -> Result<Args, Us
                 probe.t0 = Some(Duration::from_nanos(nanos));
             }
             ("--screenshot", Some(path)) => probe.screenshot = Some(PathBuf::from(path)),
-            ("--spike", Some("empty")) => spike = Spike::Empty,
-            ("--spike", Some("paragraphs")) => spike = Spike::Paragraphs,
-            ("--spike", Some(_)) => return Err(UsageError::BadSpike),
+            ("--empty-window", None) => mode = Mode::EmptyWindow,
             _ => return Err(UsageError::UnknownOption(name.to_owned())),
         }
     }
 
-    if file.is_none() && spike == Spike::Paragraphs {
+    if file.is_none() && mode == Mode::Document {
         return Err(UsageError::MissingFile);
     }
     Ok(Args {
         file,
-        spike,
+        mode,
         startup,
         probe,
     })
@@ -135,7 +132,7 @@ mod tests {
     fn a_file_alone_uses_the_defaults() {
         let args = parse_strs(&["README.md"]).expect("valid");
         assert_eq!(args.file, Some(PathBuf::from("README.md")));
-        assert_eq!(args.spike, Spike::Paragraphs);
+        assert_eq!(args.mode, Mode::Document);
         assert_eq!(args.startup, Startup::PlainInit);
         assert_eq!(args.probe, ProbeArgs::default());
     }
@@ -163,15 +160,9 @@ mod tests {
     }
 
     #[test]
-    fn the_paragraph_spike_can_be_named() {
-        let args = parse_strs(&["--spike=empty", "--spike=paragraphs", "a.md"]).expect("valid");
-        assert_eq!(args.spike, Spike::Paragraphs);
-    }
-
-    #[test]
-    fn the_empty_spike_needs_no_file() {
-        let args = parse_strs(&["--spike=empty"]).expect("valid");
-        assert_eq!(args.spike, Spike::Empty);
+    fn the_empty_window_needs_no_file() {
+        let args = parse_strs(&["--empty-window"]).expect("valid");
+        assert_eq!(args.mode, Mode::EmptyWindow);
         assert_eq!(args.file, None);
     }
 
@@ -185,8 +176,8 @@ mod tests {
             Err(UsageError::UnknownOption("--t0".to_owned()))
         );
         assert_eq!(
-            parse_strs(&["--spike=fast", "a.md"]),
-            Err(UsageError::BadSpike)
+            parse_strs(&["--empty-window=yes"]),
+            Err(UsageError::UnknownOption("--empty-window".to_owned()))
         );
         assert_eq!(
             parse_strs(&["--verbose", "a.md"]),

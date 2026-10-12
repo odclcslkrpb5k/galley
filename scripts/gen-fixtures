@@ -7,6 +7,9 @@
 #   readme-200kb.md  corpus READMEs concatenated
 #   one-line.md  the startup floor: a window that pays the fixed cost of the first text
 #   control-words.md  scroll control: 3000 one-word paragraphs, near-zero work per frame
+#   huge-line.md  one code line of 2 MB (M2 review: never reached a first frame)
+#   huge-cells.md  a 50-row table with 40 KB cells (M2 review: first frame after 68 s)
+#   huge-heading.md  one heading of 1 MB
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
 corpus=$root/crates/core/tests/data/corpus
@@ -50,5 +53,28 @@ cap 204800 "$out/readme-200kb.md"
 echo "One line." >"$out/one-line.md"
 
 for ((i = 1; i <= 3000; i++)); do printf 'word\n\n'; done >"$out/control-words.md"
+
+# A run of N copies of a character, without a pipe that could end in SIGPIPE.
+run() { printf "%${2}s" '' | tr ' ' "$1"; }
+
+{
+  echo '```'
+  run x 2000000
+  echo
+  echo '```'
+} >"$out/huge-line.md"
+
+{
+  echo "| A | B |"
+  echo "|---|---|"
+  cell=$(run c 40000)
+  for ((i = 1; i <= 50; i++)); do echo "| $i | $cell |"; done
+} >"$out/huge-cells.md"
+
+{
+  printf '# '
+  run h 1000000
+  echo
+} >"$out/huge-heading.md"
 
 ls -l "$out"

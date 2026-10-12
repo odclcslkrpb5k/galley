@@ -8,11 +8,14 @@ use gtk::prelude::*;
 use gtk::subclass::prelude::*;
 use gtk::{glib, graphene, gsk, pango};
 
+use crate::output::report_error;
 use crate::probe::Probe;
-use crate::render::fenwick::Fenwick;
-use crate::render::heights::{Job, Worker};
-use crate::render::paint::{BarColor, Decoration, Fill, LeafPaint};
-use crate::render::text::{self, Palette, TextSetup};
+use crate::render::geometry::{LeafGeometry, Rect, Shade};
+use crate::render::heights::{Job, Worker, WorkerGone};
+use crate::render::indicator::{self, Scroll};
+use crate::render::paint::{BarColor, LeafPaint};
+use crate::render::positions::Positions;
+use crate::render::text::{Palette, TextSetup, Typesetter};
 use crate::units;
 
 /// Space around the document, in em.
@@ -30,6 +33,16 @@ const AFTER_FRAME_BUDGET: Duration = Duration::from_millis(3);
 const MOTION_SETTLE: Duration = Duration::from_millis(150);
 /// How often the height worker's results are collected while it runs.
 const POLL_INTERVAL: Duration = Duration::from_millis(16);
+/// The `gtk::Settings` properties that change how text is laid out.
+const TEXT_SETTINGS: [&str; 7] = [
+    "gtk-font-name",
+    "gtk-xft-dpi",
+    "gtk-font-rendering",
+    "gtk-xft-antialias",
+    "gtk-xft-hinting",
+    "gtk-xft-hintstyle",
+    "gtk-hint-font-metrics",
+];
 
 #[derive(Debug, glib::Properties)]
 #[properties(wrapper_type = super::DocumentView)]
@@ -44,15 +57,23 @@ pub(crate) struct DocumentView {
     vscroll_policy: Cell<gtk::ScrollablePolicy>,
     vadjustment_handler: RefCell<Option<glib::SignalHandlerId>>,
     document: RefCell<Option<Doc>>,
-    /// When the view last scrolled: height changes above the viewport wait until it settles.
+    /// When the user last scrolled: height changes above the viewport wait until it settles.
     last_scroll: Cell<Option<Instant>>,
+    /// Set while the view moves the scroll position itself, which is not the user scrolling.
+    adjusting: Cell<bool>,
     poll: RefCell<Option<glib::SourceId>>,
     prefetch: RefCell<Option<glib::SourceId>>,
     settle: RefCell<Option<glib::SourceId>>,
-    /// The viewport's height, to configure the adjustment outside of a snapshot.
+    reconfigure: RefCell<Option<glib::SourceId>>,
+    /// The allocated size, to configure the adjustment and re-wrap outside of an allocation.
     page: Cell<f64>,
+    widget_width: Cell<i64>,
     /// The after-paint handler that prefetches after each frame, while mapped.
     after_paint: RefCell<Option<(gtk::gdk::FrameClock, glib::SignalHandlerId)>>,
+    /// The scroll indicator: whether the pointer is over it, and the scroll value a drag on it
+    /// started from.
+    indicator_hover: Cell<bool>,
+    indicator_drag: Cell<Option<f64>>,
 }
 
 // By hand: gtk::ScrollablePolicy has no Default.
@@ -66,11 +87,16 @@ impl Default for DocumentView {
             vadjustment_handler: RefCell::default(),
             document: RefCell::default(),
             last_scroll: Cell::new(None),
+            adjusting: Cell::new(false),
             poll: RefCell::default(),
             prefetch: RefCell::default(),
             settle: RefCell::default(),
+            reconfigure: RefCell::default(),
             page: Cell::new(0.0),
+            widget_width: Cell::new(0),
             after_paint: RefCell::default(),
+            indicator_hover: Cell::new(false),
+            indicator_drag: Cell::new(None),
         }
     }
 }
@@ -78,26 +104,19 @@ impl Default for DocumentView {
 #[derive(Debug)]
 struct Doc {
     paints: Arc<Vec<LeafPaint>>,
-    heights: Fenwick,
-    /// Whether a leaf's height is measured (by the worker or here), not estimated.
-    exact: Vec<bool>,
+    positions: Positions,
     /// The width text is wrapped to, without margins; 0 until allocated.
     width: i64,
     generation: u64,
     setup: TextSetup,
     palette: Palette,
-    cache: HashMap<usize, Cached>,
-    worker: Worker,
-    /// Height changes for leaves above the viewport, held while scrolling is in motion:
-    /// `GtkScrolledWindow`'s kinetic scrolling overwrites outside changes to the scroll position,
-    /// so a correction made mid-fling would jump.
-    queued: Vec<(usize, i64)>,
+    /// Drawn leaves (`None`: nothing to draw), near the viewport.
+    cache: HashMap<usize, Option<gsk::RenderNode>>,
+    /// `None` once the worker has stopped.
+    worker: Option<Worker>,
+    /// For `--check-heights` only: every height the worker sent.
+    worker_heights: Vec<Option<i64>>,
     probe: Rc<Probe>,
-}
-
-#[derive(Debug)]
-struct Cached {
-    node: Option<gsk::RenderNode>,
 }
 
 #[glib::object_subclass]
@@ -109,7 +128,62 @@ impl ObjectSubclass for DocumentView {
 }
 
 #[glib::derived_properties]
-impl ObjectImpl for DocumentView {}
+impl ObjectImpl for DocumentView {
+    fn constructed(&self) {
+        self.parent_constructed();
+        let widget = self.obj();
+        let drag = gtk::GestureDrag::new();
+        drag.connect_drag_begin(glib::clone!(
+            #[weak(rename_to = view)]
+            widget,
+            move |gesture, x, y| view.imp().indicator_drag_begin(gesture, x, y)
+        ));
+        drag.connect_drag_update(glib::clone!(
+            #[weak(rename_to = view)]
+            widget,
+            move |_gesture, _dx, dy| view.imp().indicator_drag_update(dy)
+        ));
+        drag.connect_drag_end(glib::clone!(
+            #[weak(rename_to = view)]
+            widget,
+            move |_gesture, _dx, _dy| {
+                view.imp().indicator_drag.set(None);
+                view.queue_draw();
+            }
+        ));
+        widget.add_controller(drag);
+        let motion = gtk::EventControllerMotion::new();
+        motion.connect_motion(glib::clone!(
+            #[weak(rename_to = view)]
+            widget,
+            move |_controller, x, _y| view.imp().set_indicator_hover(view.imp().on_indicator(x))
+        ));
+        motion.connect_leave(glib::clone!(
+            #[weak(rename_to = view)]
+            widget,
+            move |_controller| view.imp().set_indicator_hover(false)
+        ));
+        widget.add_controller(motion);
+        let settings = widget.settings();
+        for name in TEXT_SETTINGS {
+            settings.connect_notify_local(
+                Some(name),
+                glib::clone!(
+                    #[weak(rename_to = view)]
+                    widget,
+                    // After GTK's own handlers have updated the widget's Pango context.
+                    move |_settings, _property| {
+                        glib::idle_add_local_once(glib::clone!(
+                            #[weak]
+                            view,
+                            move || view.imp().refresh_setup()
+                        ));
+                    }
+                ),
+            );
+        }
+    }
+}
 
 impl WidgetImpl for DocumentView {
     fn map(&self) {
@@ -118,9 +192,7 @@ impl WidgetImpl for DocumentView {
             let handler = clock.connect_after_paint(glib::clone!(
                 #[weak(rename_to = view)]
                 self.obj(),
-                move |_clock| {
-                    view.imp().prefetch(AFTER_FRAME_BUDGET);
-                }
+                move |_clock| view.imp().after_frame()
             ));
             self.after_paint.replace(Some((clock, handler)));
         }
@@ -139,8 +211,9 @@ impl WidgetImpl for DocumentView {
 
     fn size_allocate(&self, width: i32, height: i32, _baseline: i32) {
         self.page.set(f64::from(height));
-        self.set_width(i64::from(width));
-        self.configure_vadjustment();
+        self.widget_width.set(i64::from(width));
+        let value = self.set_width(i64::from(width));
+        self.configure_vadjustment(value);
     }
 
     fn snapshot(&self, snapshot: &gtk::Snapshot) {
@@ -154,28 +227,35 @@ impl WidgetImpl for DocumentView {
             return;
         };
         doc.sync_palette(widget.color());
-        let margin = doc.setup.metrics().px(MARGIN_EM);
-        // Lay out what is visible first (normally already cached), then draw at the positions
-        // those layouts settle.
-        let range = doc.visible(top - margin, page);
-        for leaf in range.clone() {
-            doc.ensure(&context, leaf);
+        let margin = doc.margin();
+        let anchor = doc.positions.anchor(top - margin);
+        let total = doc.positions.total();
+        // Leaves that scrolling up brought into view take their held heights; then lay out
+        // what is visible (normally already cached) and draw it where those heights put it.
+        doc.positions.release_from(anchor);
+        for leaf in doc.positions.visible(top - margin, page) {
+            doc.ensure(&context, leaf, anchor, false);
         }
-        for leaf in doc.visible(top - margin, page) {
-            let Some(Cached { node: Some(node) }) = doc.cache.get(&leaf) else {
+        for leaf in doc.positions.visible(top - margin, page) {
+            let Some(Some(node)) = doc.cache.get(&leaf) else {
                 continue;
             };
-            let y = margin + doc.heights.start(leaf) - top;
+            let y = margin + doc.positions.start(leaf) - top;
             snapshot.save();
-            snapshot.translate(&graphene::Point::new(
-                units::to_f32(units::px_to_f64(margin)),
-                units::to_f32(units::px_to_f64(y)),
-            ));
+            snapshot.translate(&point(margin, y));
             snapshot.append_node(node);
             snapshot.restore();
         }
+        let resized = doc.positions.total() != total;
+        let indicator_color = doc
+            .palette
+            .faint(if self.indicator_active() { 0.5 } else { 0.3 });
         doc.probe.document_drawn(doc.paints.len());
         drop(document);
+        self.draw_indicator(snapshot, indicator_color);
+        if resized {
+            self.schedule_reconfigure();
+        }
         self.schedule_prefetch();
     }
 }
@@ -187,17 +267,17 @@ impl DocumentView {
         let widget = self.obj();
         let setup = TextSetup::of(&*widget);
         let count = paints.len();
+        let worker = Worker::spawn();
         *self.document.borrow_mut() = Some(Doc {
             paints: Arc::new(paints),
-            heights: Fenwick::new(vec![0; count]),
-            exact: vec![false; count],
+            positions: Positions::new(vec![0; count]),
             width: 0,
             generation: 0,
             setup,
             palette: Palette::for_foreground(widget.color()),
             cache: HashMap::new(),
-            worker: Worker::spawn(),
-            queued: Vec::new(),
+            worker: Some(worker),
+            worker_heights: Vec::new(),
             probe,
         });
         widget.queue_allocate();
@@ -215,9 +295,9 @@ impl DocumentView {
         let context = widget.pango_context();
         if let Some(doc) = self.document.borrow_mut().as_mut() {
             doc.sync_palette(widget.color());
-            let margin = doc.setup.metrics().px(MARGIN_EM);
-            for leaf in doc.visible(-margin, units::round_px(height)) {
-                doc.ensure(&context, leaf);
+            let margin = doc.margin();
+            for leaf in doc.positions.visible(-margin, units::round_px(height)) {
+                doc.ensure(&context, leaf, None, false);
             }
         }
     }
@@ -230,40 +310,76 @@ impl DocumentView {
         ))
     }
 
-    /// Re-estimates every height and restarts the worker when the text width changes.
-    fn set_width(&self, widget_width: i64) {
-        let started = {
-            let mut document = self.document.borrow_mut();
-            let Some(doc) = document.as_mut() else {
-                return;
-            };
-            let metrics = doc.setup.metrics();
-            let width = (widget_width - 2 * metrics.px(MARGIN_EM)).max(1);
-            if width == doc.width {
-                return;
-            }
-            doc.probe.width_reset();
-            doc.width = width;
-            doc.generation += 1;
-            doc.cache.clear();
-            doc.queued.clear();
-            doc.exact = vec![false; doc.paints.len()];
-            doc.heights = Fenwick::new(
-                doc.paints
-                    .iter()
-                    .map(|paint| metrics.estimate(paint, width))
-                    .collect(),
-            );
-            doc.worker.submit(Job {
+    /// Re-estimates every height and restarts the worker when the text width changes. Returns
+    /// the scroll value that keeps the same content at the top of the viewport.
+    fn set_width(&self, widget_width: i64) -> Option<f64> {
+        let value = self
+            .vadjustment
+            .borrow()
+            .as_ref()
+            .map(gtk::Adjustment::value);
+        let mut document = self.document.borrow_mut();
+        let doc = document.as_mut()?;
+        let margin = doc.margin();
+        let width = (widget_width - 2 * margin).max(1);
+        if width == doc.width {
+            return None;
+        }
+        let spot = value.and_then(|value| doc.positions.spot(units::round_px(value) - margin));
+        doc.probe.width_reset();
+        doc.width = width;
+        doc.generation += 1;
+        doc.cache.clear();
+        let metrics = doc.setup.metrics();
+        doc.positions = Positions::new(
+            doc.paints
+                .iter()
+                .map(|paint| metrics.estimate(paint, width))
+                .collect(),
+        );
+        if doc.probe.checking_heights() {
+            doc.worker_heights = vec![None; doc.paints.len()];
+        }
+        let submitted = doc.worker.as_ref().map(|worker| {
+            worker.submit(Job {
                 generation: doc.generation,
                 view_text_width: width,
                 paints: Arc::clone(&doc.paints),
                 setup: doc.setup,
-            });
-            true
-        };
-        if started {
+            })
+        });
+        if let Some(Err(gone)) = submitted {
+            worker_gone(doc, gone);
+        }
+        let value = spot.map(|spot| units::px_to_f64(doc.positions.y_of(spot) + margin));
+        let polling = doc.worker.is_some();
+        drop(document);
+        if polling {
             self.start_polling();
+        }
+        value
+    }
+
+    /// Takes a new text setup (font, DPI, hinting) and lays everything out again.
+    fn refresh_setup(&self) {
+        let setup = TextSetup::of(&*self.obj());
+        {
+            let mut document = self.document.borrow_mut();
+            let Some(doc) = document.as_mut() else {
+                return;
+            };
+            if doc.setup == setup {
+                return;
+            }
+            doc.setup = setup;
+            // Forces `set_width` to start over even if the width is the same.
+            doc.width = 0;
+        }
+        let width = self.widget_width.get();
+        if width > 0 {
+            let value = self.set_width(width);
+            self.configure_vadjustment(value);
+            self.obj().queue_draw();
         }
     }
 
@@ -286,29 +402,39 @@ impl DocumentView {
 
     /// Applies the worker's heights; ends polling when its job is done.
     fn collect_heights(&self) -> glib::ControlFlow {
-        let anchor = self.anchor();
-        let in_motion = self.in_motion();
+        let top = self.viewport().map(|(top, _page)| top);
+        let scrolling = self.in_motion();
         let (done, shift) = {
             let mut document = self.document.borrow_mut();
             let Some(doc) = document.as_mut() else {
                 self.poll.replace(None);
                 return glib::ControlFlow::Break;
             };
+            let ready = match doc.worker.as_ref().map(Worker::ready) {
+                Some(Ok(ready)) => ready,
+                Some(Err(gone)) => {
+                    worker_gone(doc, gone);
+                    self.poll.replace(None);
+                    return glib::ControlFlow::Break;
+                }
+                None => {
+                    self.poll.replace(None);
+                    return glib::ControlFlow::Break;
+                }
+            };
+            let anchor = top.and_then(|top| doc.positions.anchor(top - doc.margin()));
             let mut done = false;
             let mut shift = 0;
-            for batch in doc.worker.ready() {
+            for batch in ready {
                 if batch.generation != doc.generation {
                     continue;
                 }
                 done |= batch.done;
                 for (leaf, height) in (batch.first..).zip(batch.heights) {
-                    if doc.exact.get(leaf).copied().unwrap_or(true) {
-                        continue;
+                    if let Some(slot) = doc.worker_heights.get_mut(leaf) {
+                        *slot = Some(height);
                     }
-                    if let Some(slot) = doc.exact.get_mut(leaf) {
-                        *slot = true;
-                    }
-                    shift += doc.change_height(leaf, height, anchor, in_motion);
+                    shift += doc.positions.set_measured(leaf, height, anchor, scrolling);
                 }
             }
             if done {
@@ -326,50 +452,64 @@ impl DocumentView {
         }
     }
 
-    /// The leaf at the top of the viewport: height changes above it move the scroll position
-    /// by the same amount, so what is on screen stays still.
-    fn anchor(&self) -> Option<usize> {
-        let (top, _page) = self.viewport()?;
-        let document = self.document.borrow();
-        let doc = document.as_ref()?;
-        let margin = doc.setup.metrics().px(MARGIN_EM);
-        doc.heights.leaf_at(top - margin)
-    }
-
     fn in_motion(&self) -> bool {
         self.last_scroll
             .get()
             .is_some_and(|at| at.elapsed() < MOTION_SETTLE)
+            || self.indicator_drag.get().is_some()
     }
 
-    /// After heights changed: keep the viewport on the same content and resize the scrollbar.
+    /// After heights changed: move the scroll position by `shift`, so the content on screen
+    /// stays still, and resize the scroll range.
     fn after_heights_changed(&self, shift: i64) {
-        if let Some(adjustment) = self.vadjustment.borrow().clone() {
-            self.configure_vadjustment();
-            if shift != 0 {
-                adjustment.set_value(adjustment.value() + units::px_to_f64(shift));
-            }
-        }
+        let value = self
+            .vadjustment
+            .borrow()
+            .as_ref()
+            .map(|adjustment| adjustment.value() + units::px_to_f64(shift));
+        self.configure_vadjustment(value);
         self.obj().queue_draw();
     }
 
-    fn configure_vadjustment(&self) {
+    /// Sets the scroll range from the document's height, and the scroll value to `value` (or
+    /// keeps it), within the range. The shift is applied before clamping, so a shrinking
+    /// document at its end does not move the content twice.
+    fn configure_vadjustment(&self, value: Option<f64>) {
         let Some(adjustment) = self.vadjustment.borrow().clone() else {
             return;
         };
         let page = self.page.get();
         let total = self.document.borrow().as_ref().map_or(0.0, |doc| {
-            units::px_to_f64(doc.heights.total() + 2 * doc.setup.metrics().px(MARGIN_EM))
+            units::px_to_f64(doc.positions.total() + 2 * doc.margin())
         });
         let upper = total.max(page);
+        let value = value.unwrap_or_else(|| adjustment.value());
+        self.adjusting.set(true);
         adjustment.configure(
-            adjustment.value().min(upper - page).max(0.0),
+            value.min(upper - page).max(0.0),
             0.0,
             upper,
             page * 0.1,
             page * 0.9,
             page,
         );
+        self.adjusting.set(false);
+    }
+
+    /// Resizes the scroll range after a draw changed heights (not during the draw itself).
+    fn schedule_reconfigure(&self) {
+        if self.reconfigure.borrow().is_some() {
+            return;
+        }
+        let source = glib::idle_add_local_once(glib::clone!(
+            #[weak(rename_to = view)]
+            self.obj(),
+            move || {
+                view.imp().reconfigure.replace(None);
+                view.imp().configure_vadjustment(None);
+            }
+        ));
+        self.reconfigure.replace(Some(source));
     }
 
     fn set_hadjustment(&self, adjustment: Option<gtk::Adjustment>) {
@@ -397,8 +537,10 @@ impl DocumentView {
     }
 
     fn scrolled(&self) {
-        self.last_scroll.set(Some(Instant::now()));
-        self.schedule_settle();
+        if !self.adjusting.get() {
+            self.last_scroll.set(Some(Instant::now()));
+            self.schedule_settle();
+        }
         self.obj().queue_draw();
     }
 
@@ -420,19 +562,29 @@ impl DocumentView {
 
     fn settled(&self) {
         self.settle.replace(None);
-        let anchor = self.anchor();
+        if self.indicator_drag.get().is_some() {
+            // Still dragging: wait for the next movement or the end of the drag.
+            self.schedule_settle();
+            return;
+        }
+        let top = self.viewport().map(|(top, _page)| top);
         let shift = {
             let mut document = self.document.borrow_mut();
             let Some(doc) = document.as_mut() else {
                 return;
             };
-            let queued = std::mem::take(&mut doc.queued);
-            queued
-                .into_iter()
-                .map(|(leaf, height)| doc.change_height(leaf, height, anchor, false))
-                .sum()
+            let anchor = top.and_then(|top| doc.positions.anchor(top - doc.margin()));
+            doc.positions.release(anchor)
         };
         self.after_heights_changed(shift);
+    }
+
+    /// After each frame: prefetch, then tell the probe the frame's work is done.
+    fn after_frame(&self) {
+        self.prefetch(AFTER_FRAME_BUDGET);
+        if let Some(doc) = self.document.borrow().as_ref() {
+            doc.probe.frame_work_done();
+        }
     }
 
     /// Lays out leaves near the viewport between frames, so scrolling finds them ready, and
@@ -468,21 +620,22 @@ impl DocumentView {
         };
         let started = Instant::now();
         let context = self.obj().pango_context();
-        let (more, shift) = {
+        let scrolling = self.in_motion();
+        let (more, shift, resized) = {
             let mut document = self.document.borrow_mut();
             let Some(doc) = document.as_mut() else {
                 return false;
             };
-            let margin = doc.setup.metrics().px(MARGIN_EM);
-            let start = top - margin - PREFETCH_SCREENS * page;
-            let range = doc.visible(start, (1 + 2 * PREFETCH_SCREENS) * page);
+            let margin = doc.margin();
+            let total = doc.positions.total();
+            let anchor = doc.positions.anchor(top - margin);
+            let range = doc.positions.visible(
+                top - margin - PREFETCH_SCREENS * page,
+                (1 + 2 * PREFETCH_SCREENS) * page,
+            );
             let mut more = false;
             let mut shift = 0;
-            let anchor = doc.heights.leaf_at(top - margin);
-            // Nearest the viewport first: below it, then above.
-            let below = range.clone().filter(|&leaf| Some(leaf) >= anchor);
-            let above = range.clone().rev().filter(|&leaf| Some(leaf) < anchor);
-            for leaf in below.chain(above) {
+            for leaf in Positions::nearest_first(range, anchor) {
                 if doc.cache.contains_key(&leaf) {
                     continue;
                 }
@@ -490,23 +643,18 @@ impl DocumentView {
                     more = true;
                     break;
                 }
-                let before = doc.heights.height(leaf).unwrap_or(0);
-                doc.ensure(&context, leaf);
-                let after = doc.heights.height(leaf).unwrap_or(0);
-                if Some(leaf) < anchor {
-                    shift += after - before;
-                }
+                shift += doc.ensure(&context, leaf, anchor, scrolling);
             }
             if !more {
-                let keep = doc.visible(
+                let keep = doc.positions.visible(
                     top - margin - KEEP_SCREENS * page,
                     (1 + 2 * KEEP_SCREENS) * page,
                 );
                 doc.cache.retain(|leaf, _| keep.contains(leaf));
             }
-            (more, shift)
+            (more, shift, doc.positions.total() != total)
         };
-        if shift != 0 {
+        if shift != 0 || resized {
             self.after_heights_changed(shift);
         }
         more
@@ -514,7 +662,6 @@ impl DocumentView {
 
     /// For `--check-heights`: lays out every leaf here and compares with the worker's heights.
     fn check_heights(&self) {
-        let context = self.obj().pango_context();
         let document = self.document.borrow();
         let Some(doc) = document.as_ref() else {
             return;
@@ -522,24 +669,119 @@ impl DocumentView {
         if !doc.probe.checking_heights() {
             return;
         }
+        let typesetter = doc.typesetter(self.obj().pango_context());
         let metrics = doc.setup.metrics();
         let mismatches = doc
             .paints
             .iter()
-            .enumerate()
-            .filter(|&(leaf, paint)| {
-                let width = metrics.text_width(paint, doc.width);
-                let layout =
-                    text::layout(&context, doc.setup, doc.palette, paint, width, &mut |_| {});
-                let height = metrics.leaf_height(paint, i64::from(layout.pixel_size().1));
-                doc.heights.height(leaf) != Some(height)
+            .zip(&doc.worker_heights)
+            .filter(|&(paint, worker)| {
+                let (_layout, text_height) = typesetter.measure(paint, doc.width, &mut |_| {});
+                *worker != Some(metrics.leaf_height(paint, text_height))
             })
             .count();
         doc.probe.heights_checked(mismatches, doc.paints.len());
     }
+
+    // The scroll indicator.
+
+    fn scroll(&self) -> Option<Scroll> {
+        let adjustment = self.vadjustment.borrow().clone()?;
+        Some(Scroll {
+            value: adjustment.value(),
+            page: adjustment.page_size(),
+            upper: adjustment.upper(),
+        })
+    }
+
+    fn on_indicator(&self, x: f64) -> bool {
+        x >= f64::from(self.obj().width()) - indicator::HIT_WIDTH
+    }
+
+    fn indicator_active(&self) -> bool {
+        self.indicator_hover.get() || self.indicator_drag.get().is_some()
+    }
+
+    fn set_indicator_hover(&self, hover: bool) {
+        if self.indicator_hover.replace(hover) != hover {
+            self.obj().queue_draw();
+        }
+    }
+
+    fn draw_indicator(&self, snapshot: &gtk::Snapshot, color: gtk::gdk::RGBA) {
+        let Some(thumb) = self.scroll().and_then(Scroll::thumb) else {
+            return;
+        };
+        let width = if self.indicator_active() {
+            indicator::ACTIVE_WIDTH
+        } else {
+            indicator::WIDTH
+        };
+        let x = f64::from(self.obj().width()) - indicator::INSET - width;
+        snapshot.append_color(
+            &color,
+            &graphene::Rect::new(
+                units::to_f32(x),
+                units::to_f32(thumb.top),
+                units::to_f32(width),
+                units::to_f32(thumb.length),
+            ),
+        );
+    }
+
+    /// A press at the right edge grabs the indicator; in its track off the thumb, it first
+    /// jumps there. Any other press is left to other handlers.
+    fn indicator_drag_begin(&self, gesture: &gtk::GestureDrag, x: f64, y: f64) {
+        let (Some(scroll), Some(adjustment)) = (self.scroll(), self.vadjustment.borrow().clone())
+        else {
+            return;
+        };
+        if !self.on_indicator(x) || scroll.thumb().is_none() {
+            gesture.set_state(gtk::EventSequenceState::Denied);
+            return;
+        }
+        gesture.set_state(gtk::EventSequenceState::Claimed);
+        let start = if scroll.on_thumb(y) {
+            scroll.value
+        } else {
+            scroll.centred_on(y)
+        };
+        self.indicator_drag.set(Some(start));
+        adjustment.set_value(start);
+    }
+
+    fn indicator_drag_update(&self, dy: f64) {
+        let (Some(start), Some(scroll), Some(adjustment)) = (
+            self.indicator_drag.get(),
+            self.scroll(),
+            self.vadjustment.borrow().clone(),
+        ) else {
+            return;
+        };
+        adjustment.set_value(scroll.dragged(start, dy));
+    }
+}
+
+/// Reports, once, that heights will stay estimates.
+fn worker_gone(doc: &mut Doc, gone: WorkerGone) {
+    if doc.worker.take().is_some() {
+        report_error(gone);
+    }
 }
 
 impl Doc {
+    fn margin(&self) -> i64 {
+        self.setup.metrics().px(MARGIN_EM)
+    }
+
+    fn typesetter(&self, context: pango::Context) -> Typesetter {
+        Typesetter {
+            context,
+            setup: self.setup,
+            palette: self.palette,
+        }
+    }
+
     /// Follows the widget's foreground colour (it is only known once the widget is styled, and
     /// changes with the theme); cached leaves were drawn in the old colours.
     fn sync_palette(&mut self, foreground: gtk::gdk::RGBA) {
@@ -549,157 +791,81 @@ impl Doc {
         }
     }
 
-    /// The leaves overlapping `[top, top + height)` in document coordinates.
-    fn visible(&self, top: i64, height: i64) -> std::ops::Range<usize> {
-        let Some(first) = self.heights.leaf_at(top.max(0)) else {
-            return 0..0;
-        };
-        let bottom = top + height;
-        let mut end = first;
-        while end < self.heights.len() && self.heights.start(end) < bottom {
-            end += 1;
-        }
-        first..end
-    }
-
-    /// Lays out and draws a leaf if it is not cached; its measured height replaces the
-    /// estimate.
-    fn ensure(&mut self, context: &pango::Context, leaf: usize) {
-        if self.cache.contains_key(&leaf) {
-            return;
-        }
-        let Some(paint) = self.paints.get(leaf) else {
-            return;
-        };
-        let metrics = self.setup.metrics();
-        let width = metrics.text_width(paint, self.width);
-        let probe = Rc::clone(&self.probe);
-        let mut counted = |bytes: usize| probe.layout_created(bytes);
-        let layout = text::layout(
-            context,
-            self.setup,
-            self.palette,
-            paint,
-            width,
-            &mut counted,
-        );
-        let text_height = i64::from(layout.pixel_size().1);
-        let node = draw_leaf(
-            context,
-            self.setup,
-            self.palette,
-            paint,
-            &layout,
-            text_height,
-            self.width,
-            &mut counted,
-        );
-        self.cache.insert(leaf, Cached { node });
-        if let Some(slot) = self.exact.get_mut(leaf) {
-            *slot = true;
-        }
-        self.heights
-            .set(leaf, metrics.leaf_height(paint, text_height));
-    }
-
-    /// Sets a leaf's height. Returns how far the scroll position must move to keep the content
-    /// on screen still: the change, for a leaf above the anchor; while scrolling, such changes
-    /// are held instead (0).
-    fn change_height(
+    /// Lays out and draws a leaf if it is not cached, and takes its exact height. Returns the
+    /// scroll shift that keeps the anchor still (see `Positions::set`).
+    fn ensure(
         &mut self,
+        context: &pango::Context,
         leaf: usize,
-        height: i64,
         anchor: Option<usize>,
-        in_motion: bool,
+        scrolling: bool,
     ) -> i64 {
-        let above = anchor.is_some_and(|anchor| leaf < anchor);
-        if above && in_motion {
-            self.queued.push((leaf, height));
+        if self.cache.contains_key(&leaf) {
             return 0;
         }
-        let delta = self.heights.set(leaf, height).unwrap_or(0);
-        if above { delta } else { 0 }
+        let typesetter = self.typesetter(context.clone());
+        let Some(paint) = self.paints.get(leaf) else {
+            return 0;
+        };
+        let probe = Rc::clone(&self.probe);
+        let mut counted = |bytes: usize| probe.layout_created(bytes);
+        let (layout, text_height) = typesetter.measure(paint, self.width, &mut counted);
+        let geometry = self
+            .setup
+            .metrics()
+            .geometry(paint, text_height, self.width);
+        let node = draw_leaf(&typesetter, &layout, &geometry, &mut counted);
+        self.cache.insert(leaf, node);
+        self.positions.set(leaf, geometry.height, anchor, scrolling)
     }
 }
 
-/// Draws one leaf, at the origin, the full text width wide.
-#[expect(
-    clippy::too_many_arguments,
-    reason = "the leaf's paint, layout and the setup to draw it with; a struct would only rename them"
-)]
+/// Draws one leaf at the origin, as its geometry places it.
 fn draw_leaf(
-    context: &pango::Context,
-    setup: TextSetup,
-    palette: Palette,
-    paint: &LeafPaint,
+    typesetter: &Typesetter,
     layout: &pango::Layout,
-    text_height: i64,
-    width: i64,
+    geometry: &LeafGeometry,
     counted: &mut dyn FnMut(usize),
 ) -> Option<gsk::RenderNode> {
-    let metrics = setup.metrics();
+    let palette = typesetter.palette;
     let snapshot = gtk::Snapshot::new();
-    let height = metrics.leaf_height(paint, text_height);
-    let gap_above = metrics.px(paint.gap_above_em);
-    let pad_above = metrics.px(paint.pad_above_em);
-    let indent = metrics.px(paint.indent_em);
-    let rect = |x: i64, y: i64, w: i64, h: i64| {
-        graphene::Rect::new(
-            units::to_f32(units::px_to_f64(x)),
-            units::to_f32(units::px_to_f64(y)),
-            units::to_f32(units::px_to_f64(w.max(0))),
-            units::to_f32(units::px_to_f64(h.max(0))),
-        )
-    };
-    if paint.background == Some(Fill::Code) {
-        let box_height = pad_above + text_height + metrics.px(paint.pad_below_em);
-        snapshot.append_color(
-            &palette.faint(0.06),
-            &rect(indent, gap_above, width - indent, box_height),
-        );
+    for (rect, shade) in &geometry.fills {
+        let color = match shade {
+            Shade::CodeBackground => palette.faint(0.06),
+            Shade::Bar(BarColor::Quote) => palette.faint(0.25),
+            Shade::Bar(BarColor::Alert(kind)) => palette.alert(*kind),
+            Shade::Rule => palette.faint(0.2),
+            Shade::HeadingRule => palette.faint(0.15),
+        };
+        snapshot.append_color(&color, &graphene_rect(*rect));
     }
-    let bar_width = metrics.px(0.25).max(3);
-    for decoration in &paint.decorations {
-        match decoration {
-            Decoration::Bar { x_em, color, last } => {
-                let color = match color {
-                    BarColor::Quote => palette.faint(0.25),
-                    BarColor::Alert(kind) => palette.alert(*kind),
-                };
-                let bar_height = if *last {
-                    height - metrics.px(paint.gap_below_em)
-                } else {
-                    height
-                };
-                snapshot.append_color(&color, &rect(metrics.px(*x_em), 0, bar_width, bar_height));
-            }
-            Decoration::Marker { x_em, text: marker } => {
-                let marker = text::marker_layout(context, setup, marker, counted);
-                let marker_width = i64::from(marker.pixel_size().0);
-                snapshot.save();
-                snapshot.translate(&graphene::Point::new(
-                    units::to_f32(units::px_to_f64(metrics.px(*x_em) - marker_width)),
-                    units::to_f32(units::px_to_f64(gap_above + pad_above)),
-                ));
-                snapshot.append_layout(&marker, &palette.foreground);
-                snapshot.restore();
-            }
-            Decoration::Rule => {
-                let y = gap_above + text_height / 2;
-                snapshot.append_color(&palette.faint(0.2), &rect(indent, y, width - indent, 2));
-            }
-            Decoration::HeadingRule => {
-                let y = gap_above + text_height + metrics.px(0.25);
-                snapshot.append_color(&palette.faint(0.15), &rect(indent, y, width - indent, 1));
-            }
-        }
+    for (text, right, top) in &geometry.markers {
+        let marker = typesetter.marker(text, counted);
+        let marker_width = i64::from(marker.pixel_size().0);
+        snapshot.save();
+        snapshot.translate(&point(right - marker_width, *top));
+        snapshot.append_layout(&marker, &palette.foreground);
+        snapshot.restore();
     }
     snapshot.save();
-    snapshot.translate(&graphene::Point::new(
-        units::to_f32(units::px_to_f64(indent + metrics.horizontal_padding(paint))),
-        units::to_f32(units::px_to_f64(gap_above + pad_above)),
-    ));
+    snapshot.translate(&point(geometry.text_x, geometry.text_y));
     snapshot.append_layout(layout, &palette.foreground);
     snapshot.restore();
     snapshot.to_node()
+}
+
+fn point(x: i64, y: i64) -> graphene::Point {
+    graphene::Point::new(
+        units::to_f32(units::px_to_f64(x)),
+        units::to_f32(units::px_to_f64(y)),
+    )
+}
+
+fn graphene_rect(rect: Rect) -> graphene::Rect {
+    graphene::Rect::new(
+        units::to_f32(units::px_to_f64(rect.x)),
+        units::to_f32(units::px_to_f64(rect.y)),
+        units::to_f32(units::px_to_f64(rect.width.max(0))),
+        units::to_f32(units::px_to_f64(rect.height.max(0))),
+    )
 }

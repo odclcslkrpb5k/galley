@@ -1,13 +1,14 @@
-//! Numeric conversions between our logical pixels (f64) and what GTK and Pango take.
+//! Numeric conversions. Positions and lengths are whole logical pixels in `i64`; em arithmetic
+//! and GTK's adjustments use `f64`; graphene takes `f32` and Pango `i32` units and `u16` colours.
 //!
-//! This is the only module where `as` is allowed (docs/plan.md §7): std has no conversion from
-//! f64 to f32 or i32 without `as`.
+//! This is the only module where `as` is allowed (docs/plan.md §7): std has no conversion
+//! between floats and integers (or from f64 to f32) without `as`.
 #![expect(
     clippy::as_conversions,
     clippy::cast_possible_truncation,
     clippy::cast_precision_loss,
     clippy::cast_sign_loss,
-    reason = "GTK takes f32 and Pango takes i32; std offers no other conversion from f64"
+    reason = "float/integer conversions (f64 to i64, i32 and f32; i64 and usize to f64; f32 to u16) have no std alternative"
 )]
 
 use gtk::pango;

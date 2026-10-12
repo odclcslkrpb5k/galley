@@ -12,4 +12,6 @@ disallowed-methods = [
     { path = "std::io::stderr", reason = "write through crates/app/src/output.rs" },
     { path = "gtk4::prelude::WidgetExt::create_pango_layout", reason = "create layouts through the counted constructor" },
     { path = "gtk4::pango::Layout::new", reason = "create layouts through the counted constructor" },
+    { path = "gtk4::pango::Layout::copy", reason = "create layouts through the counted constructor" },
+    { path = "pangocairo::functions::create_layout", reason = "create layouts through the counted constructor" },
 ]

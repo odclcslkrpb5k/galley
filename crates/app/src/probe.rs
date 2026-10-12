@@ -20,6 +20,7 @@ use gtk::prelude::*;
 use gtk::{gdk, glib};
 
 use crate::args::ProbeArgs;
+use crate::images::ImageCounts;
 use crate::output::{print_line, report_error};
 use crate::units;
 
@@ -79,7 +80,7 @@ pub(crate) struct ViewProbe {
     /// The document's height and the paint at the top of the view.
     pub(crate) state: Box<dyn Fn() -> (i64, usize)>,
     /// Images shown, failed, and still loading.
-    pub(crate) images: Box<dyn Fn() -> (usize, usize, usize)>,
+    pub(crate) images: Box<dyn Fn() -> ImageCounts>,
 }
 
 impl std::fmt::Debug for ViewProbe {
@@ -165,6 +166,11 @@ impl Probe {
         self.args.check_heights
     }
 
+    /// Whether `--wait-images` was given: images load even while checking heights.
+    pub(crate) fn waits_for_images(&self) -> bool {
+        self.args.wait_images
+    }
+
     /// For --check-heights: reports how many leaf heights the worker got wrong, and exits.
     pub(crate) fn heights_checked(&self, mismatches: usize, leaves: usize) {
         let report = format!(
@@ -240,7 +246,7 @@ impl Probe {
                 .as_ref()
                 .map(|view| (view.images)())
                 .unwrap_or_default();
-            if self.args.wait_images && images.2 > 0 {
+            if self.args.wait_images && images.loading > 0 {
                 return;
             }
             let Some(mut report) = self.deferred.take() else {
@@ -251,7 +257,11 @@ impl Probe {
                 report = format!("{report} document_height={height} top_leaf={top}");
             }
             if self.args.wait_images {
-                let (loaded, failed, loading) = images;
+                let ImageCounts {
+                    loaded,
+                    failed,
+                    loading,
+                } = images;
                 report = format!(
                     "{report} images_loaded={loaded} images_failed={failed} images_loading={loading}"
                 );

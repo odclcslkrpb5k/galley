@@ -19,9 +19,9 @@ mkdir -p "$screens"
 
 fixtures=(crates/core/tests/data/corpus/*/input.md target/fixtures/{readme-200kb,list-1mb,table-1mb,wide-table,code-1mb,huge-line,huge-cells,huge-heading}.md)
 # Scrolled end to end: steady scrolling must find every leaf laid out (plan §6).
-scrolled=(target/fixtures/readme-200kb.md target/fixtures/list-1mb.md target/fixtures/table-1mb.md target/fixtures/wide-table.md crates/core/tests/data/corpus/_synthetic-features/input.md)
+scrolled=(target/fixtures/images.md target/fixtures/readme-200kb.md target/fixtures/list-1mb.md target/fixtures/table-1mb.md target/fixtures/wide-table.md crates/core/tests/data/corpus/_synthetic-features/input.md)
 # Height worker against main-thread layout: every height must match exactly (plan §4.5).
-checked=(target/fixtures/images.md crates/core/tests/data/corpus/_synthetic-features/input.md crates/core/tests/data/corpus/sharkdp__bat/input.md target/fixtures/readme-200kb.md target/fixtures/table-1mb.md)
+checked=(crates/core/tests/data/corpus/_synthetic-features/input.md crates/core/tests/data/corpus/sharkdp__bat/input.md target/fixtures/readme-200kb.md target/fixtures/table-1mb.md)
 
 # Work before the first frame, judged independently of the view's own layout window (which
 # grading itself could never fail): the text Pango may be given for a 1000 px window. Two screens
@@ -164,8 +164,10 @@ if ! grep -q 'layouts_in_scroll_frames=0' <<<"$out"; then
 fi
 n=$((n + 2))
 
-for fixture in "${checked[@]}"; do
-  out=$(timeout 300 "$bin" --offline --check-heights "$fixture" 2>&1 || true)
+# images.md is checked once its images have loaded: worker and view must agree with them in.
+for fixture in "${checked[@]}" "--wait-images target/fixtures/images.md"; do
+  # shellcheck disable=SC2086 # the extra entry is an option and a file
+  out=$(timeout 300 "$bin" --offline --check-heights $fixture 2>&1 || true)
   mismatches=$(grep -oE 'height_mismatches=[0-9]+' <<<"$out" | cut -d= -f2 || true)
   if [[ "$mismatches" != 0 ]]; then
     echo "smoke: heights $fixture: ${mismatches:-no report} mismatches between worker and layout: $out" >&2

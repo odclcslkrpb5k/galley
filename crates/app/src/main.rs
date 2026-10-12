@@ -252,10 +252,7 @@ fn show(
                     .as_deref()
                     .map(|file| std::path::absolute(file).unwrap_or_else(|_| file.to_path_buf())),
                 start,
-                loading: images::Loading {
-                    remote: !*offline,
-                    enabled: true,
-                },
+                offline: *offline,
             },
             Rc::clone(probe),
         );

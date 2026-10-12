@@ -151,5 +151,10 @@ Inline ![small](images/blue.png) in text, a badge <img src="images/badge.svg" al
 
 ![remote](https://example.com/x.png) and ![not an image](images/notes.txt)
 MD
+# Long enough to scroll, with images further down (requested only once scrolling stops).
+for ((i = 1; i <= 120; i++)); do
+  printf 'Filler paragraph %d.\n\n' "$i"
+  if ((i % 30 == 0)); then printf '![later %d](images/blue.png)\n\n' "$i"; fi
+done >>"$out/images.md"
 
 ls -l "$out"

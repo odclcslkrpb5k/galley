@@ -11,7 +11,7 @@
 use std::sync::Arc;
 
 use gbk_markdown_core::model::Align;
-use gbk_markdown_core::units::TableId;
+use gbk_markdown_core::units::{ImageId, TableId};
 
 use super::geometry::{Rect, Shade};
 use super::paint::{LinkSpan, TextAttr};
@@ -43,6 +43,8 @@ pub(crate) struct ColumnSample {
     /// Each column's longest sampled line, in characters: for estimating heights before any
     /// layout.
     pub(crate) chars: Vec<usize>,
+    /// The images in the sampled rows: one arriving may widen a column.
+    pub(crate) images: Vec<ImageId>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -218,6 +220,7 @@ mod tests {
                 count: 2,
                 rows: rows.clone(),
                 chars: vec![1, 1],
+                images: Vec::new(),
             }),
             rows,
             last,

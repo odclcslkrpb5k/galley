@@ -12,7 +12,7 @@ use std::rc::Rc;
 use gtk::glib;
 use gtk::subclass::prelude::*;
 
-use crate::images::Loading;
+use crate::images::ImageCounts;
 use crate::probe::Probe;
 use crate::render::image::ImageInfo;
 use crate::render::paint::LeafPaint;
@@ -32,7 +32,8 @@ pub(crate) struct Opened {
     pub(crate) path: Option<PathBuf>,
     /// The leaf to show at the top first (`--anchor`).
     pub(crate) start: Option<LeafId>,
-    pub(crate) loading: Loading,
+    /// Fetch no remote images.
+    pub(crate) offline: bool,
 }
 
 glib::wrapper! {
@@ -68,7 +69,7 @@ impl DocumentView {
     }
 
     /// Images shown, failed, and still loading.
-    pub(crate) fn probe_images(&self) -> (usize, usize, usize) {
+    pub(crate) fn probe_images(&self) -> ImageCounts {
         self.imp().probe_images()
     }
 

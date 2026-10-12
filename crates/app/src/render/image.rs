@@ -43,13 +43,16 @@ pub(crate) enum ImageSource {
     Path(String),
 }
 
+/// An image's natural size, and the table's version when it arrived.
+type Arrived = ((i64, i64), u64);
+
 /// The document's images and the sizes of those decoded so far, shared by the widget and the
 /// height worker.
 #[derive(Debug, Default)]
 pub(crate) struct ImageTable {
     infos: Vec<ImageInfo>,
-    /// Natural size, in pixels, of each image decoded.
-    natural: RwLock<Vec<Option<(i64, i64)>>>,
+    /// Natural size, in pixels, of each image decoded, and the version its size arrived at.
+    natural: RwLock<Vec<Option<Arrived>>>,
     /// Bumped whenever a size arrives: measurements made before it may be out of date.
     version: AtomicU64,
 }
@@ -75,7 +78,26 @@ impl ImageTable {
             .natural
             .read()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
-        natural.get(id.index()).copied().flatten()
+        natural
+            .get(id.index())
+            .copied()
+            .flatten()
+            .map(|(size, _version)| size)
+    }
+
+    /// The latest version at which any of `images` got its size (0 if none has): measurements
+    /// of something showing them made at an earlier version are out of date.
+    pub(crate) fn arrived(&self, images: &[ImageId]) -> u64 {
+        let natural = self
+            .natural
+            .read()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        images
+            .iter()
+            .filter_map(|id| natural.get(id.index()).copied().flatten())
+            .map(|(_size, version)| version)
+            .max()
+            .unwrap_or(0)
     }
 
     /// Records an image's decoded size.
@@ -84,11 +106,11 @@ impl ImageTable {
             .natural
             .write()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
+        // Bumped under the lock, so a reader never sees a size without its version.
+        let version = self.version.fetch_add(1, Ordering::AcqRel) + 1;
         if let Some(slot) = natural.get_mut(id.index()) {
-            *slot = Some(size);
+            *slot = Some((size, version));
         }
-        drop(natural);
-        self.version.fetch_add(1, Ordering::Release);
     }
 
     /// Changes whenever a size arrives.
@@ -123,8 +145,8 @@ pub(crate) fn display_size(
     let natural = natural.filter(|&(width, height)| width > 0 && height > 0);
     let (width, height) = match (attr(info.width), attr(info.height), natural) {
         (Some(width), Some(height), _) => (width, height),
-        (Some(width), None, Some((nw, nh))) => (width, width * nh / nw),
-        (None, Some(height), Some((nw, nh))) => (height * nw / nh, height),
+        (Some(width), None, Some((nw, nh))) => (width, scale(nh, nh, width, nw).0),
+        (None, Some(height), Some((nw, nh))) => (scale(nw, nw, height, nh).0, height),
         (None, None, Some(size)) => size,
         (width, height, None) => {
             let (pw, ph) = placeholder(&info.alt, metrics);
@@ -132,6 +154,60 @@ pub(crate) fn display_size(
         }
     };
     fit(width.max(1), height.max(1), max_width)
+}
+
+/// Images are decoded no larger than this on their longer side (wider than any view).
+pub(crate) const MAX_SIDE: i64 = 2048;
+/// Most pixels a raster image may declare: more is not decoded (a decompression bomb).
+pub(crate) const MAX_PIXELS: i64 = 40_000_000;
+
+/// Whether a raster image declaring `width` × `height` is too big to decode.
+pub(crate) fn too_many_pixels(width: i64, height: i64) -> bool {
+    width.saturating_mul(height) > MAX_PIXELS
+}
+
+/// The size to decode an image of `width` × `height` at, if not its own: the longer side
+/// scaled down to `MAX_SIDE`.
+pub(crate) fn decode_size(width: i64, height: i64) -> Option<(i64, i64)> {
+    let longer = width.max(height);
+    (longer > MAX_SIDE).then(|| scale(width, height, MAX_SIDE, longer))
+}
+
+/// `width` × `height` scaled by `to / from`, at least 1 × 1.
+fn scale(width: i64, height: i64, to: i64, from: i64) -> (i64, i64) {
+    let side = |length: i64| {
+        i64::try_from(i128::from(length) * i128::from(to) / i128::from(from.max(1)))
+            .unwrap_or(to)
+            .max(1)
+    };
+    (side(width), side(height))
+}
+
+/// RGB or RGBA pixel rows as premultiplied BGRA (Cairo's own format, so a texture is drawn
+/// without converting it each frame).
+pub(crate) fn premultiplied_bgra(
+    pixels: &[u8],
+    (width, height): (usize, usize),
+    stride: usize,
+    alpha: bool,
+) -> Vec<u8> {
+    let channels = if alpha { 4 } else { 3 };
+    let mut out = Vec::with_capacity(width * height * 4);
+    for row in pixels.chunks(stride.max(1)).take(height) {
+        for pixel in row.chunks_exact(channels).take(width) {
+            let [red, green, blue] = [0, 1, 2].map(|at| pixel.get(at).copied().unwrap_or(0));
+            let opacity = if alpha {
+                pixel.get(3).copied().unwrap_or(u8::MAX)
+            } else {
+                u8::MAX
+            };
+            let times = |channel: u8| {
+                u8::try_from(u16::from(channel) * u16::from(opacity) / 255).unwrap_or(u8::MAX)
+            };
+            out.extend([times(blue), times(green), times(red), opacity]);
+        }
+    }
+    out
 }
 
 /// A placeholder's size for alt text: about as wide as the text, a line high.
@@ -144,7 +220,7 @@ fn placeholder(alt: &str, metrics: Metrics) -> (i64, i64) {
 /// Scaled down to `max_width` if wider, keeping proportions.
 fn fit(width: i64, height: i64, max_width: Option<i64>) -> (i64, i64) {
     match max_width {
-        Some(max) if width > max && max > 0 => (max, (height * max / width).max(1)),
+        Some(max) if width > max && max > 0 => scale(width, height, max, width),
         _ => (width, height),
     }
 }
@@ -244,6 +320,43 @@ pub(crate) mod tests {
     }
 
     #[test]
+    fn decoding_scales_the_longer_side_and_bombs_are_too_big() {
+        assert_eq!(decode_size(100, 50), None);
+        assert_eq!(decode_size(2048, 2048), None);
+        assert_eq!(decode_size(4096, 1024), Some((2048, 512)));
+        assert_eq!(decode_size(1000, 8192), Some((250, 2048)));
+        assert_eq!(decode_size(100_000, 1), Some((2048, 1)));
+        assert!(!too_many_pixels(8000, 5000));
+        assert!(too_many_pixels(40_000_001, 1));
+        assert!(too_many_pixels(i64::MAX, i64::MAX));
+    }
+
+    #[test]
+    fn pixels_become_premultiplied_bgra() {
+        // Two RGBA pixels (half-transparent red, opaque blue) in a row padded to 12 bytes.
+        let rgba = [255, 0, 0, 128, 0, 0, 255, 255, 9, 9, 9, 9];
+        assert_eq!(
+            premultiplied_bgra(&rgba, (2, 1), 12, true),
+            vec![0, 0, 128, 128, 255, 0, 0, 255]
+        );
+        // RGB: opaque.
+        let rgb = [10, 20, 30, 40, 50, 60];
+        assert_eq!(
+            premultiplied_bgra(&rgb, (1, 2), 3, false),
+            vec![30, 20, 10, 255, 60, 50, 40, 255]
+        );
+    }
+
+    #[test]
+    fn huge_attributes_do_not_overflow() {
+        let big = info(Some(u32::MAX), None);
+        assert_eq!(
+            display_size(&big, Some((1, i64::from(u32::MAX))), Some(800), METRICS),
+            (800, 800)
+        );
+    }
+
+    #[test]
     fn the_table_shares_sizes_and_counts_arrivals() {
         let ids = image_ids("![a](x.png) ![b](y.png)");
         let (first, second) = (ids[0], ids[1]);
@@ -251,8 +364,11 @@ pub(crate) mod tests {
         assert_eq!(table.version(), 0);
         assert_eq!(table.natural(first), None);
         assert_eq!(table.display_size(second, None, METRICS), (10, 20));
+        assert_eq!(table.arrived(&[first, second]), 0);
         table.set_natural(second, (100, 50));
         assert_eq!(table.version(), 1);
+        assert_eq!(table.arrived(&[first, second]), 1);
+        assert_eq!(table.arrived(&[first]), 0);
         assert_eq!(table.natural(second), Some((100, 50)));
         assert_eq!(table.display_size(second, None, METRICS), (10, 5));
         assert_eq!(table.natural(first), None);

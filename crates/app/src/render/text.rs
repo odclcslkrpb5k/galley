@@ -227,9 +227,9 @@ impl Measured {
 /// up. Whoever measures keeps one, and clears it when the text setup changes.
 #[derive(Debug, Default)]
 pub(crate) struct ColumnWidths {
-    natural: HashMap<TableId, Vec<i64>>,
-    /// The image table's version they were measured at: an image arriving can widen a column.
-    images: u64,
+    /// Each table's natural widths, and the image table's version they were measured at: an
+    /// image in the table's sample arriving after that can widen a column.
+    natural: HashMap<TableId, (Vec<i64>, u64)>,
 }
 
 impl ColumnWidths {
@@ -276,15 +276,23 @@ impl Typesetter {
     ) -> Measured {
         let metrics = self.setup.metrics();
         let (pad_x, pad_y) = (metrics.px(CELL_PAD_X_EM), metrics.px(CELL_PAD_Y_EM));
-        let version = self.images.version();
-        if columns.images != version {
-            columns.natural.clear();
-            columns.images = version;
+        let arrived = self.images.arrived(&table.columns.images);
+        let stale = columns
+            .natural
+            .get(&table.columns.table)
+            .is_none_or(|(_widths, measured)| *measured < arrived);
+        if stale {
+            let version = self.images.version();
+            let natural = self.natural_widths(&table.columns, pad_x, counted);
+            columns
+                .natural
+                .insert(table.columns.table, (natural, version));
         }
         let natural = columns
             .natural
-            .entry(table.columns.table)
-            .or_insert_with(|| self.natural_widths(&table.columns, pad_x, counted));
+            .get(&table.columns.table)
+            .map(|(widths, _version)| widths.as_slice())
+            .unwrap_or_default();
         let widths = table::column_widths(natural, width, metrics.px(MIN_COLUMN_EM));
         let mut cells = Vec::with_capacity(table.rows.len());
         let mut heights = Vec::with_capacity(table.rows.len());
@@ -472,19 +480,7 @@ impl Typesetter {
 pub(crate) fn image_boxes(layout: &pango::Layout, attrs: &[TextAttr]) -> Vec<(ImageId, Rect)> {
     let images: Vec<(usize, ImageId)> = attrs
         .iter()
-        .filter_map(|attr| match attr.kind {
-            AttrKind::Image(image) => Some((attr.start, image)),
-            AttrKind::Bold
-            | AttrKind::Italic
-            | AttrKind::Strikethrough
-            | AttrKind::Underline
-            | AttrKind::Code
-            | AttrKind::Link
-            | AttrKind::Subscript
-            | AttrKind::Superscript
-            | AttrKind::Highlight
-            | AttrKind::AlertTitle(_) => None,
-        })
+        .filter_map(|attr| attr.kind.image().map(|image| (attr.start, image)))
         .collect();
     let mut boxes = Vec::with_capacity(images.len());
     if images.is_empty() {
@@ -738,9 +734,13 @@ mod tests {
 
     /// Lays out every paint of `markdown` at 600 px.
     fn laid_out(markdown: &str) -> Vec<(LeafPaint, Measured, LeafGeometry)> {
-        let typesetter = typesetter();
+        let doc = gbk_markdown_core::load(markdown.as_bytes());
+        let typesetter = Typesetter {
+            images: Arc::new(ImageTable::new(crate::render::paint::image_infos(&doc))),
+            ..typesetter()
+        };
         let mut columns = ColumnWidths::default();
-        crate::render::paint::paint_document(&gbk_markdown_core::load(markdown.as_bytes()))
+        crate::render::paint::paint_document(&doc)
             .into_iter()
             .map(|paint| {
                 let measured = typesetter.measure(&paint, 600, &mut columns, &mut |_| {});
@@ -871,6 +871,28 @@ mod tests {
                 &mut |_| {}
             ),
             None
+        );
+    }
+
+    #[test]
+    fn each_image_gets_its_own_box_even_side_by_side() {
+        let leaves = laid_out("a ![x](x.png)![y](y.png) b\n");
+        let (paint, measured, geometry) = leaves.first().expect("paragraph");
+        let Content::Text(layout) = &measured.content else {
+            panic!("text");
+        };
+        let boxes = image_boxes(layout, &paint.attrs);
+        assert_eq!(boxes.len(), 2);
+        let (first, second) = (boxes[0].1, boxes[1].1);
+        // Placeholders for one-letter alt text: 1 × 8 + 32 = 40 px wide, 20 high, on one line,
+        // the second starting where the first ends.
+        assert_eq!((first.width, first.height), (40, 20));
+        assert_eq!(second.x, first.x + first.width);
+        assert_eq!(second.y, first.y);
+        assert_eq!(paint.images, vec![boxes[0].0, boxes[1].0]);
+        assert_eq!(
+            Typesetter::image_at(paint, measured, geometry, (first.x + 1, first.y + 1)),
+            Some(boxes[0].0)
         );
     }
 

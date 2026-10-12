@@ -167,6 +167,25 @@ pub(crate) enum Target {
     },
 }
 
+impl AttrKind {
+    /// The image, for an `Image` attribute.
+    pub(crate) fn image(self) -> Option<ImageId> {
+        match self {
+            Self::Image(image) => Some(image),
+            Self::Bold
+            | Self::Italic
+            | Self::Strikethrough
+            | Self::Underline
+            | Self::Code
+            | Self::Link
+            | Self::Subscript
+            | Self::Superscript
+            | Self::Highlight
+            | Self::AlertTitle(_) => None,
+        }
+    }
+}
+
 impl Target {
     /// A one-word description, for the probe's report: `leaf:3`, `uri:https://...`.
     pub(crate) fn label(&self) -> String {
@@ -284,17 +303,22 @@ pub(crate) fn anchor_leaves(doc: &Document) -> HashMap<String, LeafId> {
     anchors
 }
 
+/// The largest `width` or `height` attribute taken, in pixels.
+const MAX_ATTRIBUTE_PX: u32 = 16_384;
+
 /// The document's images: alt text, size attributes, and where each comes from (only http,
 /// https and relative paths are ever loaded).
 pub(crate) fn image_infos(doc: &Document) -> Vec<ImageInfo> {
     doc.images()
         .iter()
         .map(|image| {
+            // Clamped: a width of four billion would overflow Pango's line heights.
+            let clamp = |side: Option<u32>| side.map(|side| side.min(MAX_ATTRIBUTE_PX));
             let (width, height) = image.size();
             ImageInfo {
                 alt: image.alt().to_owned(),
-                width,
-                height,
+                width: clamp(width),
+                height: clamp(height),
                 source: image.source().and_then(|source| match source {
                     LinkTarget::Absolute(url) => Some(ImageSource::Url(url.clone())),
                     LinkTarget::Relative { path, .. } if !path.is_empty() => {
@@ -622,11 +646,17 @@ impl Painter<'_> {
                     *longest = (*longest).max(line.unwrap_or(0));
                 }
             }
+            let images = rows
+                .iter()
+                .flat_map(|row| row.cells.iter())
+                .flat_map(|cell| cell.attrs.iter().filter_map(|attr| attr.kind.image()))
+                .collect();
             let sample = Arc::new(ColumnSample {
                 table: table_id,
                 count,
                 rows,
                 chars,
+                images,
             });
             self.samples.insert(table_id, Arc::clone(&sample));
             sample
@@ -868,19 +898,7 @@ fn images_in(paint: &LeafPaint) -> Vec<ImageId> {
         .attrs
         .iter()
         .chain(cells)
-        .filter_map(|attr| match attr.kind {
-            AttrKind::Image(image) => Some(image),
-            AttrKind::Bold
-            | AttrKind::Italic
-            | AttrKind::Strikethrough
-            | AttrKind::Underline
-            | AttrKind::Code
-            | AttrKind::Link
-            | AttrKind::Subscript
-            | AttrKind::Superscript
-            | AttrKind::Highlight
-            | AttrKind::AlertTitle(_) => None,
-        })
+        .filter_map(|attr| attr.kind.image())
         .collect()
 }
 

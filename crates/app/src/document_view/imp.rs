@@ -9,7 +9,7 @@ use gtk::prelude::*;
 use gtk::subclass::prelude::*;
 use gtk::{gio, glib, graphene, gsk, pango};
 
-use crate::images::{Gallery, ImageState, Loading};
+use crate::images::{Gallery, ImageCounts, ImageState, TEXTURE_BUDGET};
 use crate::links::{self, Opening};
 use crate::output::report_error;
 use crate::probe::Probe;
@@ -21,7 +21,7 @@ use crate::render::paint::{self, BarColor, LeafPaint, Target};
 use crate::render::positions::{Positions, Spot};
 use crate::render::text::{self, ColumnWidths, Content, Measured, Palette, TextSetup, Typesetter};
 use crate::units;
-use gbk_markdown_core::units::{DetailsId, ImageId, LeafId};
+use gbk_markdown_core::units::{DetailsId, ImageId, LeafId, TableId};
 
 /// A summary's marker while its `<details>` is open, and closed.
 const OPEN_MARKER: &str = "▾";
@@ -39,6 +39,9 @@ const IDLE_BUDGET: Duration = Duration::from_millis(4);
 const AFTER_FRAME_BUDGET: Duration = Duration::from_millis(3);
 /// Scrolling counts as stopped this long after the last movement.
 const MOTION_SETTLE: Duration = Duration::from_millis(150);
+/// How often finished image loads are collected while any are in flight: a row of badges
+/// arriving within it is laid out again once, not once per badge.
+const IMAGE_POLL: Duration = Duration::from_millis(100);
 /// How often the height worker's results are collected while it runs.
 const POLL_INTERVAL: Duration = Duration::from_millis(16);
 /// The `gtk::Settings` properties that change how text is laid out.
@@ -72,6 +75,8 @@ pub(crate) struct DocumentView {
     poll: RefCell<Option<glib::SourceId>>,
     /// Collects finished image loads while any are in flight.
     image_poll: RefCell<Option<glib::SourceId>>,
+    /// Images were wanted in the last frame: send them after it.
+    images_wanted: Cell<bool>,
     prefetch: RefCell<Option<glib::SourceId>>,
     settle: RefCell<Option<glib::SourceId>>,
     reconfigure: RefCell<Option<glib::SourceId>>,
@@ -108,6 +113,7 @@ impl Default for DocumentView {
             adjusting: Cell::new(false),
             poll: RefCell::default(),
             image_poll: RefCell::default(),
+            images_wanted: Cell::new(false),
             prefetch: RefCell::default(),
             settle: RefCell::default(),
             reconfigure: RefCell::default(),
@@ -147,6 +153,12 @@ struct Doc {
     natural: Vec<Option<i64>>,
     /// The document's images and their loading.
     gallery: Gallery,
+    /// Each table's pieces (paints), to lay out again together when an image in its column
+    /// sample arrives (its columns may widen).
+    tables: HashMap<TableId, Vec<usize>>,
+    /// The image table's version when the height worker's job began (`--check-heights`
+    /// compares only heights measured with every image's size in).
+    job_images: u64,
     /// `None` once the worker has stopped.
     worker: Option<Worker>,
     /// For `--check-heights` only: every height the worker sent.
@@ -297,6 +309,8 @@ impl WidgetImpl for DocumentView {
         };
         let widget = self.obj();
         let context = widget.pango_context();
+        let still = !self.in_motion();
+        let mut wanted = false;
         let mut document = self.document.borrow_mut();
         let Some(doc) = document.as_mut() else {
             return;
@@ -320,12 +334,12 @@ impl WidgetImpl for DocumentView {
             snapshot.translate(&point(margin, y));
             snapshot.append_node(node);
             snapshot.restore();
-            // Its placeholders are drawn: now its images may load.
-            if let Some(paint) = doc.paints.get(leaf) {
-                doc.gallery.request(paint);
+            // Its placeholders are drawn: now its images may load, unless the view is moving
+            // (a fling would queue every image it passed); settling draws again.
+            if still && let Some(paint) = doc.paints.get(leaf) {
+                wanted |= doc.gallery.want(paint);
             }
         }
-        let loading = doc.gallery.outstanding() > 0;
         let resized = doc.positions.total() != total;
         let indicator_color = doc
             .palette
@@ -336,8 +350,8 @@ impl WidgetImpl for DocumentView {
         if resized {
             self.schedule_reconfigure();
         }
-        if loading {
-            self.start_image_polling();
+        if wanted {
+            self.images_wanted.set(true);
         }
         self.schedule_prefetch();
     }
@@ -354,14 +368,12 @@ impl DocumentView {
             images,
             path,
             start,
-            loading,
+            offline,
         } = document;
-        // While --check-heights compares layouts, no image arrives to change them.
-        let loading = Loading {
-            enabled: loading.enabled && !probe.checking_heights(),
-            ..loading
-        };
-        let gallery = Gallery::new(images, &paints, path.clone(), loading);
+        // While --check-heights compares layouts, images load only if it waits for them.
+        let images_enabled = !probe.checking_heights() || probe.waits_for_images();
+        let tables = table_pieces(&paints);
+        let gallery = Gallery::new(images, &paints, path.clone(), offline, images_enabled);
         let start = start.and_then(|leaf| paint::first_paint_of(&paints, leaf.index()));
         let mut open = details;
         // Opening inside a closed `<details>` opens it.
@@ -394,6 +406,8 @@ impl DocumentView {
             open,
             natural: vec![None; count],
             gallery,
+            tables,
+            job_images: 0,
             worker: Some(worker),
             worker_heights: Vec::new(),
             probe,
@@ -451,6 +465,7 @@ impl DocumentView {
         doc.probe.width_reset();
         doc.width = width;
         doc.generation += 1;
+        doc.job_images = doc.gallery.table().version();
         doc.cache.clear();
         doc.hit = None;
         doc.natural = vec![None; doc.paints.len()];
@@ -521,7 +536,7 @@ impl DocumentView {
             return;
         }
         let source = glib::timeout_add_local(
-            POLL_INTERVAL,
+            IMAGE_POLL,
             glib::clone!(
                 #[weak(rename_to = view)]
                 self.obj(),
@@ -533,31 +548,52 @@ impl DocumentView {
         self.image_poll.replace(Some(source));
     }
 
-    /// Takes finished image loads: the paints showing them are drawn again, and laid out
-    /// again (an image changes its paint's height) when next on screen or near it.
+    /// Takes finished image loads. The paints showing them (and every piece of a table whose
+    /// columns they may widen) are laid out again now, between frames, if near the view, so
+    /// their new heights shift the view as anchoring says; others when they next come near.
     fn collect_images(&self) -> glib::ControlFlow {
-        let more = {
+        let viewport = self.viewport();
+        let scrolling = self.in_motion();
+        let context = self.obj().pango_context();
+        let (changed, busy, shift) = {
             let mut document = self.document.borrow_mut();
             let Some(doc) = document.as_mut() else {
                 self.image_poll.replace(None);
                 return glib::ControlFlow::Break;
             };
-            let changed = doc.gallery.collect();
-            if !changed.is_empty() {
+            let arrived = doc.gallery.collect(Instant::now());
+            let mut shift = 0;
+            if !arrived.is_empty() {
                 doc.hit = None;
+                let mut paints = doc.affected_by(&arrived);
+                paints.sort_unstable();
+                paints.dedup();
+                for paint in &paints {
+                    doc.cache.remove(paint);
+                }
+                if let Some((top, page)) = viewport {
+                    let margin = doc.margin();
+                    let anchor = doc.positions.anchor(top - margin);
+                    let near = doc.positions.visible(
+                        top - margin - PREFETCH_SCREENS * page,
+                        (1 + 2 * PREFETCH_SCREENS) * page,
+                    );
+                    for paint in paints.into_iter().filter(|paint| near.contains(paint)) {
+                        shift += doc.ensure(&context, paint, anchor, scrolling);
+                    }
+                }
             }
-            for paint in changed {
-                doc.cache.remove(&paint);
-            }
-            doc.gallery.outstanding() > 0
+            (!arrived.is_empty(), doc.gallery.busy(), shift)
         };
-        self.obj().queue_draw();
-        if more {
-            glib::ControlFlow::Continue
-        } else {
-            self.image_poll.replace(None);
-            glib::ControlFlow::Break
+        if changed {
+            self.after_heights_changed(shift);
         }
+        if busy {
+            return glib::ControlFlow::Continue;
+        }
+        self.image_poll.replace(None);
+        self.check_heights_when_settled();
+        glib::ControlFlow::Break
     }
 
     fn start_polling(&self) {
@@ -622,8 +658,9 @@ impl DocumentView {
         };
         self.after_heights_changed(shift);
         if done {
-            self.check_heights();
+            // First: the check waits while the worker is still being polled.
             self.poll.replace(None);
+            self.check_heights_when_settled();
             glib::ControlFlow::Break
         } else {
             glib::ControlFlow::Continue
@@ -759,6 +796,14 @@ impl DocumentView {
 
     /// After each frame: prefetch, then tell the probe the frame's work is done.
     fn after_frame(&self) {
+        // Images the frame wanted are sent now, after it: never inside a frame (the first
+        // frame's thread start included).
+        if self.images_wanted.replace(false) {
+            if let Some(doc) = self.document.borrow_mut().as_mut() {
+                doc.gallery.dispatch(Instant::now());
+            }
+            self.start_image_polling();
+        }
         self.prefetch(AFTER_FRAME_BUDGET);
         if let Some(doc) = self.document.borrow().as_ref() {
             doc.probe.frame_work_done();
@@ -829,6 +874,15 @@ impl DocumentView {
                     (1 + 2 * KEEP_SCREENS) * page,
                 );
                 doc.cache.retain(|leaf, _| keep.contains(leaf));
+                let paints = Arc::clone(&doc.paints);
+                let kept: std::collections::HashSet<ImageId> = paints
+                    .get(keep)
+                    .unwrap_or_default()
+                    .iter()
+                    .flat_map(|paint| paint.images.iter().copied())
+                    .collect();
+                doc.gallery
+                    .trim(TEXTURE_BUDGET, &|image| kept.contains(&image));
             }
             (more, shift, doc.positions.total() != total)
         };
@@ -836,6 +890,31 @@ impl DocumentView {
             self.after_heights_changed(shift);
         }
         more
+    }
+
+    /// For `--check-heights`: compares once the worker is done and, with `--wait-images`, no
+    /// image is loading; if an image arrived after the worker began, it measures again first.
+    fn check_heights_when_settled(&self) {
+        let remeasure = {
+            let document = self.document.borrow();
+            let Some(doc) = document.as_ref() else {
+                return;
+            };
+            if !doc.probe.checking_heights() || doc.gallery.busy() || self.poll.borrow().is_some() {
+                return;
+            }
+            doc.job_images != doc.gallery.table().version()
+        };
+        if remeasure {
+            // Forces `set_width` to start the worker over.
+            if let Some(doc) = self.document.borrow_mut().as_mut() {
+                doc.width = 0;
+            }
+            let value = self.set_width(self.widget_width.get());
+            self.configure_vadjustment(value);
+            return;
+        }
+        self.check_heights();
     }
 
     /// For `--check-heights`: lays out every leaf here and compares with the worker's heights.
@@ -900,11 +979,11 @@ impl DocumentView {
         label
     }
 
-    pub(super) fn probe_images(&self) -> (usize, usize, usize) {
+    pub(super) fn probe_images(&self) -> ImageCounts {
         self.document
             .borrow()
             .as_ref()
-            .map_or((0, 0, 0), |doc| doc.gallery.counts())
+            .map_or_else(ImageCounts::default, |doc| doc.gallery.counts())
     }
 
     /// The document's height, and the leaf whose paint is at the top of the view.
@@ -1277,9 +1356,12 @@ fn image_note(gallery: &Gallery, image: ImageId) -> Option<String> {
         .unwrap_or("image");
     match gallery.state(image)? {
         ImageState::Ready(_) => None,
-        ImageState::Waiting | ImageState::Loading => Some(format!("{alt}: loading")),
+        ImageState::Waiting | ImageState::Wanted | ImageState::Loading { .. } => {
+            Some(format!("{alt}: loading"))
+        }
         ImageState::Failed(error) => Some(format!("{alt}: {error}")),
-        ImageState::NotLoaded => Some(format!("{alt}: not loaded (remote images are off)")),
+        ImageState::Offline => Some(format!("{alt}: not fetched (--offline)")),
+        ImageState::NoSource => Some(format!("{alt}: nothing to load it from")),
     }
 }
 
@@ -1304,6 +1386,17 @@ enum OpenError {
     NoViewer(PathBuf, std::io::ErrorKind),
     #[error("cannot open {0}: {1}")]
     Launch(String, String),
+}
+
+/// Each table's pieces.
+fn table_pieces(paints: &[LeafPaint]) -> HashMap<TableId, Vec<usize>> {
+    let mut tables: HashMap<TableId, Vec<usize>> = HashMap::new();
+    for (index, paint) in paints.iter().enumerate() {
+        if let Some(table) = paint.table.as_ref() {
+            tables.entry(table.columns.table).or_default().push(index);
+        }
+    }
+    tables
 }
 
 /// What a link's tooltip says: where it goes, when that is not this document. A relative path
@@ -1412,6 +1505,28 @@ impl Doc {
     /// so it stays there while heights above and below it become exact.
     fn top_of(&self, paint: usize) -> i64 {
         self.positions.start(paint) + self.margin()
+    }
+
+    /// The paints to lay out again when `images` arrive: those showing them, and every piece
+    /// of a table whose column sample shows one.
+    fn affected_by(&self, images: &[ImageId]) -> Vec<usize> {
+        let mut paints = Vec::new();
+        for &image in images {
+            for &paint in self.gallery.paints_of(image) {
+                paints.push(paint);
+                let sample = self
+                    .paints
+                    .get(paint)
+                    .and_then(|paint| paint.table.as_ref())
+                    .map(|table| &table.columns);
+                if let Some(sample) = sample
+                    && sample.images.contains(&image)
+                {
+                    paints.extend(self.tables.get(&sample.table).into_iter().flatten());
+                }
+            }
+        }
+        paints
     }
 
     /// Whether a paint is shown: every `<details>` it is inside is open.

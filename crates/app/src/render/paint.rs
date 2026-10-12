@@ -807,7 +807,8 @@ fn is_display_math(inlines: &Inlines) -> bool {
         }
         at = range.end.index();
     }
-    at > 0 && at == inlines.text().len()
+    // No spans: plain text (an empty paragraph is never painted).
+    !inlines.spans().is_empty() && at == inlines.text().len()
 }
 
 /// Cuts a cell's text to `max` bytes, with an ellipsis.
@@ -1510,9 +1511,20 @@ mod tests {
 
     #[test]
     fn display_math_is_centred_and_math_blocks_are_not_boxed() {
-        let paints = paints("$$\nx^2\n$$\n\nText $$y$$ inline.\n\n```math\nE = mc^2\n```\n");
+        let paints = paints(
+            "$$\nx^2\n$$\n\nText $$y$$ inline.\n\nText $$y$$\n\n$$y$$ text\n\n```math\nE = mc^2\n```\n",
+        );
         let aligns: Vec<Align> = paints.iter().map(|paint| paint.align).collect();
-        assert_eq!(aligns, vec![Align::Center, Align::Start, Align::Center]);
+        assert_eq!(
+            aligns,
+            vec![
+                Align::Center,
+                Align::Start,
+                Align::Start,
+                Align::Start,
+                Align::Center
+            ]
+        );
         let math = paints.last().expect("math block");
         assert_eq!(math.background, None);
         assert_eq!(math.font, FontRole::Code);
@@ -1582,6 +1594,22 @@ mod tests {
                 .map(|text| text.len()),
             Some(2048 + 3)
         );
+    }
+
+    #[test]
+    fn samples_keep_a_row_that_brings_them_to_exactly_8_kib() {
+        // A 163-byte header and rows of 256 + 3 bytes: 163 + 31 × 259 = 8192.
+        let rows = (0..40)
+            .map(|_| format!("| {} |\n", "w".repeat(1000)))
+            .collect::<Vec<_>>()
+            .concat();
+        let pieces = paints(&format!("| {} |\n|---|\n{rows}", "h".repeat(163)));
+        let sample = &pieces
+            .first()
+            .and_then(|p| p.table.as_ref())
+            .expect("table")
+            .columns;
+        assert_eq!(sample.rows.len(), 1 + 31);
     }
 
     #[test]

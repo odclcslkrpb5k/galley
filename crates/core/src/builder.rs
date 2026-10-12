@@ -517,7 +517,6 @@ impl Builder {
             "table" => self.open_html_table(),
             "tr" => self.html_table_row(),
             "td" | "th" => self.html_table_cell(name == "th", token),
-            "thead" | "tbody" | "tfoot" if self.html_table.is_some() => {}
             "template" => self.push_html(name, Effect::Hidden, Scope::Block),
             "video" | "audio" => {
                 let link = self.media_link(token);
@@ -537,11 +536,14 @@ impl Builder {
 
     fn html_end(&mut self, name: &str) {
         match name {
-            "summary" if !self.in_cell() => self.flush_summary(),
-            "table" if self.html_table.is_some() => self.close_html_table(),
-            "tr" if self.html_table.is_some() => self.end_html_table_row(),
-            "td" | "th" if self.html_table.is_some() => self.end_html_table_cell(),
-            "thead" | "tbody" | "tfoot" if self.html_table.is_some() => {}
+            "summary" => {
+                self.flush_summary();
+                // In a table cell, `<summary>` was opened as a line of the cell.
+                self.close_html(name);
+            }
+            "table" => self.close_html_table(),
+            "tr" => self.end_html_table_row(),
+            "td" | "th" => self.end_html_table_cell(),
             "pre" => {}
             name => {
                 let block = is_block(name)
@@ -788,14 +790,14 @@ impl Builder {
         self.html_table = Some(HtmlTable::default());
     }
 
+    /// `</table>`: ends a nested table, or the table; with no table open, ends the text before
+    /// it, as any block tag does.
     fn close_html_table(&mut self) {
-        if let Some(table) = self.html_table.as_mut()
-            && table.nested > 0
-        {
-            table.nested -= 1;
-            return;
+        match self.html_table.as_mut() {
+            None => self.flush_pending(),
+            Some(table) if table.nested > 0 => table.nested -= 1,
+            Some(_) => self.finish_html_table(),
         }
-        self.finish_html_table();
     }
 
     fn html_table_row(&mut self) {
@@ -878,13 +880,15 @@ impl Builder {
         }
     }
 
+    /// `</tr>`: ends the row; with no table open, ends the text before it, as a block tag.
     fn end_html_table_row(&mut self) {
-        if self
-            .html_table
-            .as_ref()
-            .is_none_or(|table| table.nested > 0)
-        {
-            return;
+        match self.html_table.as_ref().map(|table| table.nested) {
+            None => {
+                self.flush_pending();
+                return;
+            }
+            Some(0) => {}
+            Some(_nested) => return,
         }
         self.end_html_table_cell();
         if let Some(table) = self.html_table.as_mut()
@@ -2026,6 +2030,52 @@ mod tests {
         assert_eq!(texts(&doc), vec!["Details", "body"]);
         assert_eq!(doc.anchor_leaf("inside"), Some(LeafId::new(1)));
         assert_eq!(doc.anchor_leaf("bottom"), Some(LeafId::new(1)));
+    }
+
+    #[test]
+    fn rows_need_no_closing_tags_and_nested_tables_close_before_more_cells() {
+        let mut builder = builder();
+        builder.html_block("<table><tr><td>a<tr><td>b</table>");
+        builder.html_block(
+            "<table><tr><td><table><tr><td>in</td></tr></table></td><td>x</td></tr></table>",
+        );
+        builder.html_block("text</tr>more</table>end");
+        let doc = builder.finish();
+        let tables: Vec<Vec<Vec<&str>>> = doc
+            .tables
+            .iter()
+            .map(|table| {
+                table
+                    .rows
+                    .iter()
+                    .map(|row| row.iter().map(|cell| cell.text.as_str()).collect())
+                    .collect()
+            })
+            .collect();
+        assert_eq!(
+            tables,
+            vec![vec![vec!["a"], vec!["b"]], vec![vec!["in", "x"]]]
+        );
+        // With no table open, </tr> and </table> end the text before them.
+        assert_eq!(texts(&doc), vec!["<table>", "<table>", "text", "more", "end"]);
+    }
+
+    #[test]
+    fn a_break_drops_styled_spaces_before_it_entirely() {
+        let mut builder = builder();
+        builder.html_block("<b>a</b><i> </i><br>b");
+        let doc = builder.finish();
+        let LeafKind::Paragraph(inlines) = &doc.leaves.first().expect("paragraph").kind else {
+            panic!("a paragraph");
+        };
+        assert_eq!(inlines.text, "a\nb");
+        assert!(
+            inlines
+                .spans
+                .iter()
+                .all(|span| span.range.start < span.range.end)
+        );
+        assert_eq!(inlines.spans.len(), 1);
     }
 
     #[test]

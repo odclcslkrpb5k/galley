@@ -1524,7 +1524,7 @@ impl InlineBuilder {
                 span.range.end = ByteOffset::new(kept);
             }
         }
-        self.spans.retain(|span| span.range.start < span.range.end);
+        // A span left empty here is dropped with the others when the inlines end (`trim_end`).
         self.text("\n");
     }
 

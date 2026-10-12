@@ -89,6 +89,27 @@ for case in "|leaf:" "--anchor=end|uri:https://example.com/end"; do
   n=$((n + 1))
 done
 
+# Clicks: a link inside the document scrolls its target to the top (paint 401 is the anchored
+# paragraph); a summary opens its <details>, so the document is taller than after a click on
+# nothing.
+out=$(timeout 60 "$bin" --exit-after-first-frame --click-at=120,44 "$links" 2>&1 || true)
+if ! grep -q "clicked=leaf:401 document_height=[0-9]* top_paint=401" <<<"$out"; then
+  echo "smoke: clicking the link at the top did not show its target: $out" >&2
+  fail=1
+fi
+details=target/fixtures/details.md
+height_after() {
+  timeout 60 "$bin" --exit-after-first-frame --click-at="$1" "$details" 2>&1 |
+    grep -oE "clicked=$2 document_height=[0-9]+" | cut -d= -f3 || true
+}
+opened=$(height_after 120,44 summary:0)
+missed=$(height_after 120,900 none)
+if [[ -z "$opened" || -z "$missed" ]] || ((opened <= missed)); then
+  echo "smoke: clicking the summary did not open its details (heights ${opened:-?} vs ${missed:-?})" >&2
+  fail=1
+fi
+n=$((n + 3))
+
 # The GL fallback (--renderer=gl): it must really be GL, reach a first frame and scroll without
 # layout in frames.
 gl_fixture=target/fixtures/readme-200kb.md

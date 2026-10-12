@@ -103,6 +103,22 @@ impl Positions {
             self.held.push((leaf, height));
             return 0;
         }
+        self.apply(leaf, height, above)
+    }
+
+    /// Gives a leaf an estimated height again: its height changed for a reason other than
+    /// layout (a `<details>` opened or closed), and it is measured again when next laid out.
+    /// Never held: it answers a click, not scrolling. Returns the shift, as `set`.
+    pub(crate) fn estimate(&mut self, leaf: usize, height: i64, anchor: Option<usize>) -> i64 {
+        if let Some(slot) = self.exact.get_mut(leaf) {
+            *slot = false;
+        }
+        self.apply(leaf, height, anchor.is_some_and(|anchor| leaf < anchor))
+    }
+
+    /// Sets a height now, dropping any held for the same leaf (it is out of date).
+    fn apply(&mut self, leaf: usize, height: i64, above: bool) -> i64 {
+        self.held.retain(|&(held, _height)| held != leaf);
         let delta = self.heights.set(leaf, height).unwrap_or(0);
         if above { delta } else { 0 }
     }
@@ -243,6 +259,31 @@ mod tests {
         assert!(positions.is_exact(0));
         assert!(!positions.is_exact(4));
         assert!(positions.is_exact(99));
+    }
+
+    #[test]
+    fn estimates_shift_like_heights_and_can_be_measured_again() {
+        let mut positions = positions();
+        positions.set(1, 120, None, false);
+        assert_eq!(positions.estimate(1, 0, Some(3)), -120);
+        assert!(!positions.is_exact(1));
+        assert_eq!(positions.estimate(4, 0, Some(3)), 0);
+        assert_eq!(positions.set_measured(1, 70, None, false), 0);
+        assert_eq!(positions.height(1), Some(70));
+    }
+
+    #[test]
+    fn a_height_set_now_replaces_one_held_for_the_same_leaf() {
+        let mut positions = positions();
+        positions.set(0, 160, Some(2), true);
+        assert_eq!(positions.estimate(0, 0, Some(2)), -100);
+        // Nothing held is left to undo it.
+        assert_eq!(positions.release(Some(2)), 0);
+        assert_eq!(positions.height(0), Some(0));
+        positions.set(1, 160, Some(2), true);
+        assert_eq!(positions.set(1, 50, Some(2), false), -50);
+        assert_eq!(positions.release(Some(2)), 0);
+        assert_eq!(positions.height(1), Some(50));
     }
 
     #[test]

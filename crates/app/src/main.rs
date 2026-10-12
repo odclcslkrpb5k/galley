@@ -45,6 +45,8 @@ struct Loaded {
     paints: Vec<render::paint::LeafPaint>,
     /// Anchor names and the paints they name.
     anchors: HashMap<String, usize>,
+    /// Whether each `<details>` starts open.
+    details: Vec<bool>,
 }
 
 type Loader = JoinHandle<Result<Loaded, LoadError>>;
@@ -106,7 +108,12 @@ fn load(path: &Path) -> Result<Loaded, LoadError> {
     let doc = gbk_markdown_core::load(&bytes);
     let paints = render::paint::paint_document(&doc);
     let anchors = render::paint::anchors(&doc, &paints);
-    Ok(Loaded { paints, anchors })
+    let details = render::paint::details_open(&doc);
+    Ok(Loaded {
+        paints,
+        anchors,
+        details,
+    })
 }
 
 fn run_application(args: &Args, loader: Option<Loader>, probe: Rc<Probe>) -> ExitCode {
@@ -209,6 +216,7 @@ fn show(
         let view = DocumentView::new(
             document.paints,
             document.anchors,
+            document.details,
             file.map(Path::to_path_buf),
             start,
             Rc::clone(probe),
@@ -220,10 +228,12 @@ fn show(
             .child(&view)
             .build();
         probe.set_scroll_target(scrolled.vadjustment());
-        let reporter = view.clone();
-        probe.set_link_reporter(probe::LinkReporter(Box::new(move |x, y| {
-            reporter.link_label_at(x, y)
-        })));
+        let (looking, clicking, stating) = (view.clone(), view.clone(), view.clone());
+        probe.set_view(probe::ViewProbe {
+            link_at: Box::new(move |x, y| looking.link_label_at(x, y)),
+            click_at: Box::new(move |x, y| clicking.probe_click(x, y)),
+            state: Box::new(move || stating.probe_state()),
+        });
         window.set_child(Some(&scrolled));
         if probe.prepare_enabled() {
             view.prepare(f64::from(DEFAULT_WIDTH), f64::from(DEFAULT_HEIGHT));

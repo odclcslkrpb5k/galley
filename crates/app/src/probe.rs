@@ -63,16 +63,25 @@ pub(crate) struct Probe {
     /// The vertical adjustment --bench-scroll drives.
     scroll_target: RefCell<Option<gtk::Adjustment>>,
     scroll: RefCell<ScrollRecord>,
-    /// For --link-at: what is at a point of the view.
-    link_reporter: RefCell<Option<LinkReporter>>,
+    /// For --link-at and --click-at: the document view, once there is one.
+    view: RefCell<Option<ViewProbe>>,
+    /// For --click-at: the startup report and what the click did, printed after the next frame.
+    after_click: RefCell<Option<String>>,
 }
 
-/// Describes the link at a point of the view.
-pub(crate) struct LinkReporter(pub(crate) Box<dyn Fn(f64, f64) -> String>);
+/// What the probe asks of the document view.
+pub(crate) struct ViewProbe {
+    /// Describes the link at a point.
+    pub(crate) link_at: Box<dyn Fn(f64, f64) -> String>,
+    /// Clicks at a point; describes what the click did.
+    pub(crate) click_at: Box<dyn Fn(f64, f64) -> String>,
+    /// The document's height and the paint at the top of the view.
+    pub(crate) state: Box<dyn Fn() -> (i64, usize)>,
+}
 
-impl std::fmt::Debug for LinkReporter {
+impl std::fmt::Debug for ViewProbe {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str("LinkReporter")
+        f.write_str("ViewProbe")
     }
 }
 
@@ -108,7 +117,8 @@ impl Probe {
             heights_measured: Cell::new(None),
             scroll_target: RefCell::new(None),
             scroll: RefCell::new(ScrollRecord::default()),
-            link_reporter: RefCell::new(None),
+            view: RefCell::new(None),
+            after_click: RefCell::new(None),
         })
     }
 
@@ -130,8 +140,8 @@ impl Probe {
         self.loader_wait.set(Some(waited));
     }
 
-    pub(crate) fn set_link_reporter(&self, reporter: LinkReporter) {
-        self.link_reporter.replace(Some(reporter));
+    pub(crate) fn set_view(&self, view: ViewProbe) {
+        self.view.replace(Some(view));
     }
 
     pub(crate) fn set_scroll_target(&self, adjustment: gtk::Adjustment) {
@@ -220,6 +230,15 @@ impl Probe {
     fn after_paint(self: &Rc<Self>, window: &gtk::Window) {
         self.in_frame.set(false);
         if self.first_frame_done.get() {
+            // The frame after a --click-at click: report what it shows.
+            if let Some(report) = self.after_click.take() {
+                let state = self.view.borrow().as_ref().map(|view| (view.state)());
+                let (height, top) = state.unwrap_or_default();
+                self.finish(
+                    window,
+                    format!("{report} document_height={height} top_paint={top}"),
+                );
+            }
             return;
         }
         if self.expect_document && !self.document_drawn.get() {
@@ -235,6 +254,22 @@ impl Probe {
         }
         // Measure first: the screenshot and report are not part of startup.
         let report = self.startup_report(window);
+        if let Some((x, y)) = self.args.click_at {
+            let clicked = self.view.borrow().as_ref().map_or_else(
+                || "no-view".to_owned(),
+                |view| (view.click_at)(f64::from(x), f64::from(y)),
+            );
+            self.after_click
+                .replace(Some(format!("{report} clicked={clicked}")));
+            // A click that changes nothing would otherwise leave no next frame.
+            window.queue_draw();
+            return;
+        }
+        self.finish(window, report);
+    }
+
+    /// Saves the screenshot, prints the report and exits.
+    fn finish(&self, window: &gtk::Window, report: String) {
         let screenshot_ok = self
             .args
             .screenshot
@@ -262,9 +297,9 @@ impl Probe {
             },
         );
         let link = self.args.link_at.map_or_else(String::new, |(x, y)| {
-            let label = self.link_reporter.borrow().as_ref().map_or_else(
+            let label = self.view.borrow().as_ref().map_or_else(
                 || "no-view".to_owned(),
-                |report| (report.0)(f64::from(x), f64::from(y)),
+                |view| (view.link_at)(f64::from(x), f64::from(y)),
             );
             format!(" link_at={label}")
         });

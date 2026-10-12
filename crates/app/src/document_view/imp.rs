@@ -82,8 +82,8 @@ pub(crate) struct DocumentView {
     start: Cell<Option<usize>>,
     /// Where the view was before each jump to a link inside the document, for going back.
     history: RefCell<Vec<Spot>>,
-    /// The link under the pointer.
-    hovered: RefCell<Option<Target>>,
+    /// The link or summary under the pointer.
+    hovered: RefCell<Option<Pointed>>,
 }
 
 // By hand: gtk::ScrollablePolicy has no Default.
@@ -132,6 +132,10 @@ struct Doc {
     anchors: HashMap<String, usize>,
     /// The leaf last hit-tested for links, laid out (the pointer moves over one leaf at a time).
     hit: Option<(usize, Measured, LeafGeometry)>,
+    /// Whether each `<details>` is open; paints inside a closed one have no height.
+    open: Vec<bool>,
+    /// Each paint's laid-out height, open or not, once known at this width.
+    natural: Vec<Option<i64>>,
     /// `None` once the worker has stopped.
     worker: Option<Worker>,
     /// For `--check-heights` only: every height the worker sent.
@@ -271,7 +275,7 @@ impl WidgetImpl for DocumentView {
             self.document
                 .borrow()
                 .as_ref()
-                .map(|doc| units::px_to_f64(doc.positions.start(paint)))
+                .map(|doc| units::px_to_f64(doc.top_of(paint)))
         });
         self.configure_vadjustment(value);
     }
@@ -327,10 +331,22 @@ impl DocumentView {
         &self,
         paints: Vec<LeafPaint>,
         anchors: HashMap<String, usize>,
+        details: Vec<bool>,
         path: Option<PathBuf>,
         start: Option<usize>,
         probe: Rc<Probe>,
     ) {
+        let mut open = details;
+        // Opening inside a closed `<details>` opens it.
+        for id in start
+            .and_then(|start| paints.get(start))
+            .map(|paint| paint.details.clone())
+            .unwrap_or_default()
+        {
+            if let Some(slot) = open.get_mut(id) {
+                *slot = true;
+            }
+        }
         self.path.replace(path);
         self.start.set(start);
         let widget = self.obj();
@@ -348,6 +364,8 @@ impl DocumentView {
             columns: ColumnWidths::default(),
             anchors,
             hit: None,
+            open,
+            natural: vec![None; count],
             worker: Some(worker),
             worker_heights: Vec::new(),
             probe,
@@ -371,7 +389,7 @@ impl DocumentView {
             let top = self
                 .start
                 .get()
-                .map_or(-margin, |paint| doc.positions.start(paint) - margin);
+                .map_or(-margin, |paint| doc.positions.start(paint));
             for leaf in doc.positions.visible(top, units::round_px(height)) {
                 doc.ensure(&context, leaf, None, false);
             }
@@ -408,11 +426,18 @@ impl DocumentView {
         doc.cache.clear();
         doc.columns.clear();
         doc.hit = None;
+        doc.natural = vec![None; doc.paints.len()];
         let metrics = doc.setup.metrics();
         doc.positions = Positions::new(
             doc.paints
                 .iter()
-                .map(|paint| metrics.estimate(paint, width))
+                .map(|paint| {
+                    if doc.shown(paint) {
+                        metrics.estimate(paint, width)
+                    } else {
+                        0
+                    }
+                })
                 .collect(),
         );
         if doc.probe.checking_heights() {
@@ -512,6 +537,7 @@ impl DocumentView {
                     if let Some(slot) = doc.worker_heights.get_mut(leaf) {
                         *slot = Some(height);
                     }
+                    let height = doc.record_height(leaf, height);
                     shift += doc.positions.set_measured(leaf, height, anchor, scrolling);
                 }
             }
@@ -777,29 +803,74 @@ impl DocumentView {
         doc.link_in(&context, leaf, local)
     }
 
-    /// The pointer moved to `at` (or left): show a hand over a link, and where it goes.
+    pub(super) fn probe_click(&self, x: f64, y: f64) -> String {
+        match self.pointed_at(x, y) {
+            Some(Pointed::Link(target)) => {
+                let label = target.label();
+                if matches!(target, Target::Leaf(_)) {
+                    self.open(target);
+                }
+                label
+            }
+            Some(Pointed::Summary(details)) => {
+                self.toggle(details);
+                format!("summary:{details}")
+            }
+            None => "none".to_owned(),
+        }
+    }
+
+    pub(super) fn probe_state(&self) -> (i64, usize) {
+        let top = self.viewport().map_or(0, |(top, _page)| top);
+        self.document.borrow().as_ref().map_or((0, 0), |doc| {
+            (
+                doc.positions.total(),
+                doc.positions.anchor(top - doc.margin()).unwrap_or(0),
+            )
+        })
+    }
+
+    /// What a click at a point would do: follow a link, or open or close a `<details>`.
+    fn pointed_at(&self, x: f64, y: f64) -> Option<Pointed> {
+        if let Some(target) = self.link_at(x, y) {
+            return Some(Pointed::Link(target));
+        }
+        let (top, _page) = self.viewport()?;
+        let document = self.document.borrow();
+        let doc = document.as_ref()?;
+        let y = top - doc.margin() + units::round_px(y);
+        let leaf = doc.positions.visible(y, 1).next()?;
+        let paint = doc.paints.get(leaf)?;
+        // Not past the end of the document.
+        let inside = y < doc.positions.start(leaf + 1);
+        paint.summary_of.filter(|_| inside).map(Pointed::Summary)
+    }
+
+    /// The pointer moved to `at` (or left): a hand over a link or summary, and where a link
+    /// goes.
     fn hover(&self, at: Option<(f64, f64)>) {
-        let target = at.and_then(|(x, y)| self.link_at(x, y));
-        if *self.hovered.borrow() == target {
+        let pointed = at.and_then(|(x, y)| self.pointed_at(x, y));
+        if *self.hovered.borrow() == pointed {
             return;
         }
         let widget = self.obj();
-        widget.set_cursor_from_name(target.is_some().then_some("pointer"));
+        widget.set_cursor_from_name(pointed.is_some().then_some("pointer"));
         let path = self.path.borrow();
-        widget.set_tooltip_text(
-            target
-                .as_ref()
-                .and_then(|target| describe(target, path.as_deref()))
-                .as_deref(),
-        );
-        self.hovered.replace(target);
+        let tooltip = match &pointed {
+            Some(Pointed::Link(target)) => describe(target, path.as_deref()),
+            Some(Pointed::Summary(_)) | None => None,
+        };
+        widget.set_tooltip_text(tooltip.as_deref());
+        self.hovered.replace(pointed);
     }
 
     fn clicked(&self, button: u32, presses: i32, x: f64, y: f64) {
         match button {
             gtk::gdk::BUTTON_PRIMARY if presses == 1 && !self.on_indicator(x) => {
-                if let Some(target) = self.link_at(x, y) {
-                    self.open(target);
+                match self.pointed_at(x, y) {
+                    Some(Pointed::Link(target)) => self.open(target),
+                    Some(Pointed::Summary(details)) => self.toggle(details),
+                    None => {}
                 }
             }
             // The "back" side button.
@@ -821,14 +892,74 @@ impl DocumentView {
         glib::Propagation::Proceed
     }
 
+    /// Opens or closes a `<details>`: its content's heights become their laid-out heights (or
+    /// estimates) or nothing, keeping the content at the top of the view still.
+    fn toggle(&self, details: usize) {
+        let top = self.viewport().map(|(top, _page)| top);
+        let shift = {
+            let mut document = self.document.borrow_mut();
+            let Some(doc) = document.as_mut() else {
+                return;
+            };
+            let Some(slot) = doc.open.get_mut(details) else {
+                return;
+            };
+            *slot = !*slot;
+            let anchor = top.and_then(|top| doc.positions.anchor(top - doc.margin()));
+            doc.hit = None;
+            let paints = Arc::clone(&doc.paints);
+            let metrics = doc.setup.metrics();
+            let mut shift = 0;
+            for (index, paint) in paints.iter().enumerate() {
+                let inside = paint.details.contains(&details);
+                if inside || paint.summary_of == Some(details) {
+                    // Redrawn: content laid out again, the summary's marker turned.
+                    doc.cache.remove(&index);
+                }
+                if inside {
+                    let height = if doc.shown(paint) {
+                        doc.natural
+                            .get(index)
+                            .copied()
+                            .flatten()
+                            .unwrap_or_else(|| metrics.estimate(paint, doc.width))
+                    } else {
+                        0
+                    };
+                    shift += doc.positions.estimate(index, height, anchor);
+                }
+            }
+            shift
+        };
+        self.after_heights_changed(shift);
+    }
+
     fn open(&self, target: Target) {
         match target {
             Target::Leaf(leaf) => {
-                let paint = self
-                    .document
-                    .borrow()
-                    .as_ref()
-                    .and_then(|doc| paint::first_paint_of(&doc.paints, leaf));
+                let (paint, closed) = {
+                    let document = self.document.borrow();
+                    let Some(doc) = document.as_ref() else {
+                        return;
+                    };
+                    let paint = paint::first_paint_of(&doc.paints, leaf);
+                    // Any `<details>` closed around it opens first.
+                    let closed: Vec<usize> = paint
+                        .and_then(|paint| doc.paints.get(paint))
+                        .map(|paint| {
+                            paint
+                                .details
+                                .iter()
+                                .copied()
+                                .filter(|&id| doc.open.get(id) == Some(&false))
+                                .collect()
+                        })
+                        .unwrap_or_default();
+                    (paint, closed)
+                };
+                for details in closed {
+                    self.toggle(details);
+                }
                 if let Some(paint) = paint {
                     self.jump_to(paint);
                 }
@@ -866,7 +997,7 @@ impl DocumentView {
             };
             (
                 doc.positions.spot(top - doc.margin()),
-                units::px_to_f64(doc.positions.start(paint)),
+                units::px_to_f64(doc.top_of(paint)),
             )
         };
         if let Some(spot) = top {
@@ -1018,6 +1149,14 @@ impl DocumentView {
     }
 }
 
+/// What a click at a point does.
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum Pointed {
+    Link(Target),
+    /// The summary of the `<details>` with this id: opens or closes it.
+    Summary(usize),
+}
+
 /// What a link's tooltip says: where it goes, when that is not this document.
 fn describe(target: &Target, document: Option<&Path>) -> Option<String> {
     match target {
@@ -1120,6 +1259,30 @@ impl Doc {
         typesetter.link_at(paint, measured, geometry, (x, y))
     }
 
+    /// The scroll value that puts a paint's top at the top of the view. It is then the anchor,
+    /// so it stays there while heights above and below it become exact.
+    fn top_of(&self, paint: usize) -> i64 {
+        self.positions.start(paint) + self.margin()
+    }
+
+    /// Whether a paint is shown: every `<details>` it is inside is open.
+    fn shown(&self, paint: &LeafPaint) -> bool {
+        paint
+            .details
+            .iter()
+            .all(|&id| self.open.get(id).copied().unwrap_or(true))
+    }
+
+    /// Keeps a paint's laid-out height; returns the height it takes in the document (none if
+    /// it is in a closed `<details>`).
+    fn record_height(&mut self, leaf: usize, height: i64) -> i64 {
+        if let Some(slot) = self.natural.get_mut(leaf) {
+            *slot = Some(height);
+        }
+        let shown = self.paints.get(leaf).is_none_or(|paint| self.shown(paint));
+        if shown { height } else { 0 }
+    }
+
     /// Lays out and draws a leaf if it is not cached, and takes its exact height. Returns the
     /// scroll shift that keeps the anchor still (see `Positions::set`).
     fn ensure(
@@ -1133,8 +1296,24 @@ impl Doc {
             return 0;
         }
         let typesetter = self.typesetter(context.clone());
-        let Some(paint) = self.paints.get(leaf) else {
+        let paints = Arc::clone(&self.paints);
+        let Some(paint) = paints.get(leaf) else {
             return 0;
+        };
+        if !self.shown(paint) {
+            // In a closed `<details>`: nothing to draw, and no height.
+            self.cache.insert(leaf, None);
+            return 0;
+        }
+        let closed_summary = paint
+            .summary_of
+            .is_some_and(|id| self.open.get(id) == Some(&false));
+        let closed;
+        let paint = if closed_summary {
+            closed = paint.closed_summary();
+            &closed
+        } else {
+            paint
         };
         let probe = Rc::clone(&self.probe);
         let mut counted = |bytes: usize| probe.layout_created(bytes);
@@ -1145,7 +1324,8 @@ impl Doc {
                 .geometry(paint, measured.height, measured.grid(), self.width);
         let node = draw_leaf(&typesetter, &measured, &geometry, &mut counted);
         self.cache.insert(leaf, node);
-        self.positions.set(leaf, geometry.height, anchor, scrolling)
+        let height = self.record_height(leaf, geometry.height);
+        self.positions.set(leaf, height, anchor, scrolling)
     }
 }
 

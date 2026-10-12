@@ -18,6 +18,9 @@ options:
   --t0=NS                   spawn time in CLOCK_REALTIME nanoseconds, for the startup report
   --screenshot=PATH         save the first frame as PNG
   --link-at=X,Y             with --exit-after-first-frame, report the link at that point
+  --click-at=X,Y            with --exit-after-first-frame, click there after the first frame
+                            (links outside the document are reported, not opened), then
+                            report and screenshot the next frame
   --empty-window            show no document, for measuring GTK's startup floor (no FILE)
   --check-heights           when the height worker finishes, compare its heights with layouts
                             made here, report mismatches and exit
@@ -64,6 +67,8 @@ pub(crate) struct ProbeArgs {
     pub(crate) screenshot: Option<PathBuf>,
     /// A point of the window, in whole pixels, to report the link at after the first frame.
     pub(crate) link_at: Option<(i32, i32)>,
+    /// A point to click after the first frame.
+    pub(crate) click_at: Option<(i32, i32)>,
 }
 
 #[derive(Debug, PartialEq, Eq, thiserror::Error)]
@@ -74,7 +79,7 @@ pub(crate) enum UsageError {
     OptionNotUtf8,
     #[error("--t0 needs a whole number of nanoseconds")]
     BadT0,
-    #[error("--link-at needs X,Y in pixels")]
+    #[error("--link-at and --click-at need X,Y in whole pixels")]
     BadPoint,
     #[error("--renderer must be cairo or gl")]
     BadRenderer,
@@ -128,15 +133,8 @@ pub(crate) fn parse(args: impl IntoIterator<Item = OsString>) -> Result<Args, Us
             }
             ("--screenshot", Some(path)) => probe.screenshot = Some(PathBuf::from(path)),
             ("--anchor", Some(name)) => anchor = Some(name.to_owned()),
-            ("--link-at", Some(point)) => {
-                let (x, y) = point.split_once(',').ok_or(UsageError::BadPoint)?;
-                let number = |text: &str| {
-                    text.trim()
-                        .parse::<i32>()
-                        .map_err(|_nan| UsageError::BadPoint)
-                };
-                probe.link_at = Some((number(x)?, number(y)?));
-            }
+            ("--link-at", Some(point)) => probe.link_at = Some(parse_point(point)?),
+            ("--click-at", Some(point)) => probe.click_at = Some(parse_point(point)?),
             ("--empty-window", None) => mode = Mode::EmptyWindow,
             ("--renderer", Some("cairo")) => renderer = Some(Renderer::Cairo),
             ("--renderer", Some("gl")) => renderer = Some(Renderer::Gl),
@@ -156,6 +154,17 @@ pub(crate) fn parse(args: impl IntoIterator<Item = OsString>) -> Result<Args, Us
         startup,
         probe,
     })
+}
+
+/// `X,Y` in whole pixels.
+fn parse_point(point: &str) -> Result<(i32, i32), UsageError> {
+    let (x, y) = point.split_once(',').ok_or(UsageError::BadPoint)?;
+    let number = |text: &str| {
+        text.trim()
+            .parse::<i32>()
+            .map_err(|_nan| UsageError::BadPoint)
+    };
+    Ok((number(x)?, number(y)?))
 }
 
 #[cfg(test)]
@@ -197,8 +206,9 @@ mod tests {
         assert!(args.probe.exit_after_first_frame);
         assert_eq!(args.probe.screenshot, Some(PathBuf::from("/tmp/a.png")));
         assert_eq!(args.startup, Startup::Application);
-        let args = parse_strs(&["--link-at=10,20", "x.md"]).expect("valid");
+        let args = parse_strs(&["--link-at=10,20", "--click-at=3, 4", "x.md"]).expect("valid");
         assert_eq!(args.probe.link_at, Some((10, 20)));
+        assert_eq!(args.probe.click_at, Some((3, 4)));
         for bad in [
             "--link-at=10",
             "--link-at=a,1",

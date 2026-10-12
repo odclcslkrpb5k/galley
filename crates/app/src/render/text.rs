@@ -413,7 +413,7 @@ pub(crate) fn warm_up(
         setup: TextSetup::of(widget),
         palette: Palette::default(),
     };
-    let text = "Ag 1. •◦▪☑☐▾";
+    let text = "Ag 1. •◦▪☑☐▾▸";
     let styled = |kind| {
         vec![TextAttr {
             start: 0,

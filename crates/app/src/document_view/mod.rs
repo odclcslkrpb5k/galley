@@ -22,17 +22,19 @@ glib::wrapper! {
 }
 
 impl DocumentView {
-    /// A view of `paints`, the document at `path` (for its relative links), scrolled to paint
-    /// `start` if given.
+    /// A view of `paints`, the document at `path` (for its relative links), with each
+    /// `<details>` open or not as `details` says, scrolled to paint `start` if given.
     pub(crate) fn new(
         paints: Vec<LeafPaint>,
         anchors: HashMap<String, usize>,
+        details: Vec<bool>,
         path: Option<PathBuf>,
         start: Option<usize>,
         probe: Rc<Probe>,
     ) -> Self {
         let view: Self = glib::Object::new();
-        view.imp().set_document(paints, anchors, path, start, probe);
+        view.imp()
+            .set_document(paints, anchors, details, path, start, probe);
         view
     }
 
@@ -41,6 +43,18 @@ impl DocumentView {
         self.imp()
             .link_at(x, y)
             .map_or_else(|| "none".to_owned(), |target| target.label())
+    }
+
+    /// For --click-at: clicks at a point as the pointer would, except that links leaving the
+    /// document are not opened. Describes what the click did: a link's label, `summary:N`, or
+    /// "none".
+    pub(crate) fn probe_click(&self, x: f64, y: f64) -> String {
+        self.imp().probe_click(x, y)
+    }
+
+    /// The document's height and the paint at the top of the view.
+    pub(crate) fn probe_state(&self) -> (i64, usize) {
+        self.imp().probe_state()
     }
 
     /// Lays out the first screen for an expected widget size; see `imp::DocumentView::prepare`.

@@ -11,6 +11,7 @@
 #   huge-cells.md  a 50-row table with 40 KB cells (M2 review: first frame after 68 s)
 #   huge-heading.md  one heading of 1 MB
 #   links.md  a link filling the first lines, and far down an anchored one (smoke: --link-at)
+#   details.md  a closed <details> whose summary is the first line (smoke: --click-at)
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
 corpus=$root/crates/core/tests/data/corpus
@@ -92,5 +93,16 @@ run() { printf "%${2}s" '' | tr ' ' "$1"; }
   # Enough after it that it can scroll to the top.
   for ((i = 1; i <= 100; i++)); do printf 'Trailing paragraph %d.\n\n' "$i"; done
 } >"$out/links.md"
+
+# A closed <details> first: clicking its summary must open it.
+{
+  echo '<details>'
+  echo '<summary>Open me: a summary long enough to fill the start of the first line</summary>'
+  echo
+  for ((i = 1; i <= 50; i++)); do printf 'Hidden paragraph %d.\n\n' "$i"; done
+  echo '</details>'
+  echo
+  echo 'After.'
+} >"$out/details.md"
 
 ls -l "$out"

@@ -46,6 +46,9 @@ const SPLIT_AT_LINE_BYTES: usize = 2 * 1024;
 /// Most text in one table cell: a cell is laid out whole, and no README needs more. Longer
 /// cells are cut short with an ellipsis (a listed deviation, plan §5).
 const CELL_TEXT_BYTES: usize = 2 * 1024;
+/// A summary's marker while its `<details>` is open, and closed.
+const OPEN_MARKER: &str = "▾";
+const CLOSED_MARKER: &str = "▸";
 /// Body rows a table's column widths are measured from (`table::ColumnSample`).
 const SAMPLE_ROWS: usize = 50;
 
@@ -70,6 +73,11 @@ pub(crate) struct LeafPaint {
     pub(crate) pad_below_em: f64,
     pub(crate) background: Option<Fill>,
     pub(crate) decorations: Vec<Decoration>,
+    /// The `<details>` this is inside (by id), shown only while all of them are open; a
+    /// summary is not inside its own.
+    pub(crate) details: Vec<usize>,
+    /// The `<details>` whose summary this is: clicking it opens or closes them.
+    pub(crate) summary_of: Option<usize>,
 }
 
 impl LeafPaint {
@@ -90,6 +98,8 @@ impl LeafPaint {
             pad_below_em: 0.0,
             background: None,
             decorations: Vec::new(),
+            details: Vec::new(),
+            summary_of: None,
         }
     }
 }
@@ -241,6 +251,27 @@ pub(crate) fn anchors(doc: &Document, paints: &[LeafPaint]) -> HashMap<String, u
     anchors
 }
 
+/// Whether each `<details>` (by id) starts open: those written `<details open>`.
+pub(crate) fn details_open(doc: &Document) -> Vec<bool> {
+    let mut open = Vec::new();
+    for (_id, context) in doc.contexts_with_ids() {
+        if let Container::Details {
+            id,
+            open: starts_open,
+        } = context.container()
+        {
+            let index = id.index();
+            if open.len() <= index {
+                open.resize(index + 1, false);
+            }
+            if let Some(slot) = open.get_mut(index) {
+                *slot = *starts_open;
+            }
+        }
+    }
+    open
+}
+
 /// The paints of every leaf, in order.
 pub(crate) fn paint_document(doc: &Document) -> Vec<LeafPaint> {
     let leaves: Vec<_> = doc.leaves_with_ids().collect();
@@ -333,6 +364,8 @@ impl Painter<'_> {
             pad_below_em: 0.0,
             background: None,
             decorations: Vec::new(),
+            details: Vec::new(),
+            summary_of: None,
         };
         let tight = self.containers(&mut paint, id, leaf, next);
         match leaf.kind() {
@@ -340,6 +373,10 @@ impl Painter<'_> {
                 self.push_inlines(&mut paint.styled(), inlines);
                 if tight {
                     paint.gap_below_em = TIGHT_GAP;
+                }
+                // A formula on a line of its own (`$$...$$`) is centred, as GitHub shows it.
+                if is_display_math(inlines) {
+                    paint.align = Align::Center;
                 }
             }
             LeafKind::Heading { level, inlines, .. } => {
@@ -358,12 +395,17 @@ impl Painter<'_> {
                     .unwrap_or_default()
                     .clone_into(&mut paint.text);
                 paint.font = FontRole::Code;
-                paint.background = Some(Fill::Code);
                 let first = lines.start.index() == 0;
                 let last = code.is_none_or(|code| lines.end.index() >= code.line_count());
-                paint.pad_above_em = if first { CODE_PADDING } else { 0.0 };
-                paint.pad_below_em = if last { CODE_PADDING } else { 0.0 };
                 paint.gap_below_em = if last { PARAGRAPH_GAP } else { 0.0 };
+                if code.is_some_and(|code| code.info() == "math") {
+                    // GitHub shows a ```math block as a formula: centred, not boxed.
+                    paint.align = Align::Center;
+                } else {
+                    paint.background = Some(Fill::Code);
+                    paint.pad_above_em = if first { CODE_PADDING } else { 0.0 };
+                    paint.pad_below_em = if last { CODE_PADDING } else { 0.0 };
+                }
             }
             LeafKind::TableRows {
                 table,
@@ -388,11 +430,12 @@ impl Painter<'_> {
                 paint.attrs.push(whole(&paint.text, AttrKind::Bold));
                 paint.gap_below_em = TIGHT_GAP;
             }
-            LeafKind::DetailsSummary { inlines, .. } => {
+            LeafKind::DetailsSummary { details, inlines } => {
+                paint.summary_of = Some(details.index());
                 self.push_inlines(&mut paint.styled(), inlines);
                 paint.decorations.push(Decoration::Marker {
                     x_em: paint.indent_em - MARKER_GAP,
-                    text: "▾".to_owned(),
+                    text: OPEN_MARKER.to_owned(),
                     link: None,
                 });
                 paint.gap_below_em = PARAGRAPH_GAP / 2.0;
@@ -461,7 +504,16 @@ impl Painter<'_> {
                         });
                     }
                 }
-                Container::Details { .. } => paint.indent_em += DETAILS_INDENT,
+                Container::Details { id: details, .. } => {
+                    paint.indent_em += DETAILS_INDENT;
+                    let own_summary = matches!(
+                        leaf.kind(),
+                        LeafKind::DetailsSummary { details: of, .. } if of == details
+                    );
+                    if !own_summary {
+                        paint.details.push(details.index());
+                    }
+                }
             }
         }
         tight
@@ -692,6 +744,19 @@ impl Painter<'_> {
 }
 
 impl LeafPaint {
+    /// This summary as drawn while its `<details>` is closed: its marker points right.
+    pub(crate) fn closed_summary(&self) -> Self {
+        let mut closed = self.clone();
+        for decoration in &mut closed.decorations {
+            if let Decoration::Marker { text, .. } = decoration
+                && text == OPEN_MARKER
+            {
+                CLOSED_MARKER.clone_into(text);
+            }
+        }
+        closed
+    }
+
     fn styled(&mut self) -> Styled<'_> {
         Styled {
             text: &mut self.text,
@@ -699,6 +764,21 @@ impl LeafPaint {
             links: &mut self.links,
         }
     }
+}
+
+/// Whether inline content is display math and nothing else: its spans are all display math
+/// and cover the whole text.
+fn is_display_math(inlines: &Inlines) -> bool {
+    let spans = inlines.spans();
+    let covered: usize = spans
+        .iter()
+        .map(|span| span.range().end.index() - span.range().start.index())
+        .sum();
+    !spans.is_empty()
+        && spans
+            .iter()
+            .all(|span| span.style().contains(Style::DISPLAY_MATH))
+        && covered == inlines.text().len()
 }
 
 /// Cuts a cell's text to `CELL_TEXT_BYTES`, with an ellipsis.
@@ -845,6 +925,8 @@ fn piece(paint: &LeafPaint, first: bool, last: bool) -> LeafPaint {
         pad_below_em: if last { paint.pad_below_em } else { 0.0 },
         background: paint.background,
         decorations,
+        details: paint.details.clone(),
+        summary_of: paint.summary_of,
     }
 }
 
@@ -1342,6 +1424,62 @@ mod tests {
             .expect("the big cell");
         assert_eq!(cell.text.len(), CELL_TEXT_BYTES + '…'.len_utf8());
         assert!(cell.attrs.iter().all(|attr| attr.end <= CELL_TEXT_BYTES));
+    }
+
+    #[test]
+    fn details_hide_their_content_but_not_their_summary() {
+        let paints = paints(
+            "<details open>\n<summary>Outer</summary>\n\nouter body\n\n<details>\n<summary>Inner</summary>\n\ninner body\n\n</details>\n</details>\n\nafter\n",
+        );
+        let shape: Vec<(&str, Vec<usize>, Option<usize>)> = paints
+            .iter()
+            .map(|paint| (paint.text.as_str(), paint.details.clone(), paint.summary_of))
+            .collect();
+        assert_eq!(
+            shape,
+            vec![
+                ("Outer", vec![], Some(0)),
+                ("outer body", vec![0], None),
+                ("Inner", vec![0], Some(1)),
+                ("inner body", vec![0, 1], None),
+                ("after", vec![], None),
+            ]
+        );
+        let summary = paints.first().expect("summary");
+        assert_eq!(
+            markers(summary),
+            vec![(DETAILS_INDENT - MARKER_GAP, OPEN_MARKER.to_owned())]
+        );
+        let closed = summary.closed_summary();
+        assert_eq!(
+            markers(&closed),
+            vec![(DETAILS_INDENT - MARKER_GAP, CLOSED_MARKER.to_owned())]
+        );
+        assert_eq!(closed.text, summary.text);
+        // Only the summary's marker turns.
+        let item = paints_of_list();
+        assert_eq!(markers(&item.closed_summary()), markers(&item));
+        let doc = gbk_markdown_core::load(b"<details open></details><details></details>x");
+        assert_eq!(details_open(&doc), vec![true, false]);
+        assert_eq!(
+            details_open(&gbk_markdown_core::load(b"x")),
+            Vec::<bool>::new()
+        );
+    }
+
+    fn paints_of_list() -> LeafPaint {
+        paints("- item\n").into_iter().next().expect("item")
+    }
+
+    #[test]
+    fn display_math_is_centred_and_math_blocks_are_not_boxed() {
+        let paints = paints("$$\nx^2\n$$\n\nText $$y$$ inline.\n\n```math\nE = mc^2\n```\n");
+        let aligns: Vec<Align> = paints.iter().map(|paint| paint.align).collect();
+        assert_eq!(aligns, vec![Align::Center, Align::Start, Align::Center]);
+        let math = paints.last().expect("math block");
+        assert_eq!(math.background, None);
+        assert_eq!(math.font, FontRole::Code);
+        assert!(math.pad_above_em.abs() < f64::EPSILON);
     }
 
     #[test]

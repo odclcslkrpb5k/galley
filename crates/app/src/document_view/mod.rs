@@ -12,7 +12,7 @@ use std::rc::Rc;
 use gtk::glib;
 use gtk::subclass::prelude::*;
 
-use crate::highlighter::HighlightCounts;
+use crate::highlighting::HighlightCounts;
 use crate::images::ImageCounts;
 use crate::probe::Probe;
 use crate::render::highlight::CodeSource;

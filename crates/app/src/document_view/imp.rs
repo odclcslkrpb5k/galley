@@ -1,5 +1,5 @@
 use std::cell::{Cell, RefCell};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::sync::Arc;
@@ -9,7 +9,7 @@ use gtk::prelude::*;
 use gtk::subclass::prelude::*;
 use gtk::{gio, glib, graphene, gsk, pango};
 
-use crate::highlighter::{HighlightCounts, Highlighting};
+use crate::highlighting::{HighlightCounts, Highlighting};
 use crate::images::{Gallery, ImageCounts, ImageState, TEXTURE_BUDGET};
 use crate::links::{self, Opening};
 use crate::output::report_error;
@@ -137,6 +137,15 @@ impl Default for DocumentView {
     }
 }
 
+/// A drawn leaf (`node` is `None` when there is nothing to draw).
+#[derive(Debug)]
+struct Cached {
+    node: Option<gsk::RenderNode>,
+    /// Drawn before its code's colours arrived: prefetch draws it again, between frames (never
+    /// inside one), nearest first. Dropping the entry drops the mark with it.
+    stale: bool,
+}
+
 #[derive(Debug)]
 struct Doc {
     paints: Arc<Vec<LeafPaint>>,
@@ -146,11 +155,8 @@ struct Doc {
     generation: u64,
     setup: TextSetup,
     palette: Palette,
-    /// Drawn leaves (`None`: nothing to draw), near the viewport.
-    cache: HashMap<usize, Option<gsk::RenderNode>>,
-    /// Cached leaves drawn before their code's colours arrived: drawn again by prefetch,
-    /// between frames (never inside one), nearest first.
-    stale: HashSet<usize>,
+    /// Drawn leaves near the viewport.
+    cache: HashMap<usize, Cached>,
     /// Tables' column widths at this width and text setup.
     columns: ColumnWidths,
     /// Anchor names and the leaves they name (`paint::anchor_leaves`).
@@ -338,7 +344,10 @@ impl WidgetImpl for DocumentView {
             doc.ensure(&context, leaf, anchor, false);
         }
         for leaf in doc.positions.visible(top - margin, page) {
-            let Some(Some(node)) = doc.cache.get(&leaf) else {
+            let Some(Cached {
+                node: Some(node), ..
+            }) = doc.cache.get(&leaf)
+            else {
                 continue;
             };
             let y = margin + doc.positions.start(leaf) - top;
@@ -422,7 +431,6 @@ impl DocumentView {
             setup,
             palette: Palette::for_foreground(widget.color()),
             cache: HashMap::new(),
-            stale: HashSet::new(),
             columns: ColumnWidths::default(),
             anchors,
             hit: None,
@@ -491,7 +499,6 @@ impl DocumentView {
         doc.generation += 1;
         doc.job_images = doc.gallery.table().version();
         doc.cache.clear();
-        doc.stale.clear();
         doc.hit = None;
         doc.natural = vec![None; doc.paints.len()];
         let metrics = doc.setup.metrics();
@@ -829,7 +836,7 @@ impl DocumentView {
             }
             self.start_image_polling();
         }
-        self.dispatch_highlights();
+        // Prefetch sends the code it and the frame asked for.
         self.prefetch(AFTER_FRAME_BUDGET);
         if let Some(doc) = self.document.borrow().as_ref() {
             doc.probe.frame_work_done();
@@ -885,17 +892,16 @@ impl DocumentView {
             let mut more = false;
             let mut shift = 0;
             let mut recoloured = false;
-            for leaf in Positions::nearest_first(range, anchor) {
-                let stale = doc.stale.contains(&leaf);
-                if doc.cache.contains_key(&leaf) && !stale {
+            for leaf in Positions::nearest_first(range.clone(), anchor) {
+                let stale = doc.cache.get(&leaf).map(|cached| cached.stale);
+                if stale == Some(false) {
                     continue;
                 }
                 if started.elapsed() > budget {
                     more = true;
                     break;
                 }
-                if stale {
-                    doc.stale.remove(&leaf);
+                if stale == Some(true) {
                     doc.cache.remove(&leaf);
                     doc.probe.recoloured();
                     recoloured = true;
@@ -907,9 +913,11 @@ impl DocumentView {
                     top - margin - KEEP_SCREENS * page,
                     (1 + 2 * KEEP_SCREENS) * page,
                 );
-                doc.cache.retain(|leaf, _| keep.contains(leaf));
-                let cache = &doc.cache;
-                doc.stale.retain(|leaf| cache.contains_key(leaf));
+                // Stale leaves prefetch will not reach are dropped too: kept, they would show
+                // plain when next scrolled to.
+                doc.cache.retain(|leaf, cached| {
+                    keep.contains(leaf) && (range.contains(leaf) || !cached.stale)
+                });
                 let paints = Arc::clone(&doc.paints);
                 let kept: std::collections::HashSet<ImageId> = paints
                     .get(keep)
@@ -938,7 +946,9 @@ impl DocumentView {
     /// never inside a frame.
     fn dispatch_highlights(&self) {
         let busy = self.document.borrow_mut().as_mut().is_some_and(|doc| {
-            doc.highlighting.dispatch();
+            if doc.highlighting.dispatch() {
+                doc.probe.highlights_sent();
+            }
             doc.highlighting.busy()
         });
         if busy && self.highlight_poll.borrow().is_none() {
@@ -976,11 +986,11 @@ impl DocumentView {
             });
             let mut stale = false;
             for paint in doc.highlighting.collect() {
-                if !doc.cache.contains_key(&paint) {
-                    continue;
-                }
                 if near.as_ref().is_some_and(|near| near.contains(&paint)) {
-                    stale |= doc.stale.insert(paint);
+                    if let Some(cached) = doc.cache.get_mut(&paint) {
+                        cached.stale = true;
+                        stale = true;
+                    }
                 } else {
                     doc.cache.remove(&paint);
                 }
@@ -1050,7 +1060,11 @@ impl DocumentView {
                 *worker != Some(metrics.leaf_height(paint, measured.height))
             })
             .count();
-        doc.probe.heights_checked(mismatches, doc.paints.len());
+        doc.probe.heights_checked(
+            mismatches,
+            doc.paints.len(),
+            doc.highlighting.counts().highlighted,
+        );
     }
 
     // Links and <details>.
@@ -1096,11 +1110,7 @@ impl DocumentView {
             .borrow()
             .as_ref()
             .map_or_else(Default::default, |doc| {
-                let recolouring = doc
-                    .stale
-                    .iter()
-                    .filter(|leaf| doc.cache.contains_key(leaf))
-                    .count();
+                let recolouring = doc.cache.values().filter(|cached| cached.stale).count();
                 (doc.highlighting.counts(), recolouring)
             })
     }
@@ -1600,7 +1610,6 @@ impl Doc {
         if self.palette.foreground != foreground {
             self.palette = Palette::for_foreground(foreground);
             self.cache.clear();
-            self.stale.clear();
         }
     }
 
@@ -1723,7 +1732,13 @@ impl Doc {
         };
         if !self.shown(paint) {
             // In a closed `<details>`: nothing to draw, and no height.
-            self.cache.insert(leaf, None);
+            self.cache.insert(
+                leaf,
+                Cached {
+                    node: None,
+                    stale: false,
+                },
+            );
             return 0;
         }
         // Its code is asked for now (sent after the frame): it is drawn plain until it comes.
@@ -1755,7 +1770,7 @@ impl Doc {
             },
             &mut counted,
         );
-        self.cache.insert(leaf, node);
+        self.cache.insert(leaf, Cached { node, stale: false });
         let height = self.record_height(leaf, geometry.height);
         self.positions.set(leaf, height, anchor, scrolling)
     }

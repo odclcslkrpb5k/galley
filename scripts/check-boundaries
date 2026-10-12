@@ -33,8 +33,8 @@ confined() {
   done < <(cut -d: -f1 <<<"$code_matches" | sort -u)
 }
 confined comrak crates/core/src/parse/
-confined syntect crates/app/src/highlighter.rs
-confined two_face crates/app/src/highlighter.rs
+confined syntect crates/app/src/highlighting.rs
+confined two_face crates/app/src/highlighting.rs
 
 # One `unsafe` exception in the program: main.rs sets GTK's renderer through the environment
 # (docs/plan.md §4.4). `unsafe_code` is deny, so any other unsafe needs its own lint exception;

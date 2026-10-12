@@ -1,14 +1,16 @@
-//! Syntax highlighting on its own thread (docs/plan.md §4.6). The only module that uses syntect
-//! (`scripts/check-boundaries`).
+//! Syntax highlighting (docs/plan.md §4.5, "As built in M5"): the main thread's record of what
+//! each code block needs and has, and the thread that reads blocks with syntect. The only module
+//! that uses syntect (`scripts/check-boundaries`).
 //!
-//! The thread starts after the first frame, when the first code is drawn: loading the grammars
-//! and compiling a language's patterns (20-40 ms) never delays it. A grammar reads a block from
-//! its start, line by line, so a chunk deep in a block is highlighted only once everything
-//! before it is; the view asks for the code it lays out (the viewport and the screens either
-//! side), and the thread works on the request with least left to read first, in chunks of
-//! `CHUNK_LINES`, so visible code comes first and no request waits behind a whole long block.
-//! Each block is read once, as far as it has been asked for. Tokens come back to the main
-//! thread as data (`render::highlight`), which colours them; no layout is made here.
+//! The thread starts after the first frame, when the first code has been drawn: loading the
+//! grammars and compiling a language's patterns (20-40 ms) never delays it. A grammar reads a
+//! block from its start, line by line, so a chunk deep in a block is highlighted only once
+//! everything before it is. The view asks for the code it lays out (the viewport and the screens
+//! either side), and `READ_AHEAD` beyond, so colours are usually there before a paint is laid
+//! out. The thread works on the request with least left to read first, a step of at most
+//! `CHUNK_LINES` lines or `STEP_TIME` at a time, so no request waits behind a whole long block.
+//! Each block is read once, as far as it has been asked for. Tokens come back to the main thread
+//! as data (`render::highlight`), which colours them; no layout is made here.
 
 use std::borrow::Cow;
 use std::collections::HashMap;
@@ -16,6 +18,7 @@ use std::collections::hash_map::Entry;
 use std::rc::Rc;
 use std::sync::mpsc::{self, Receiver, Sender, TryRecvError};
 use std::thread;
+use std::time::{Duration, Instant};
 
 use gbk_markdown_core::units::CodeBlockId;
 use syntect::parsing::{ParseState, Scope, ScopeStack, SyntaxReference, SyntaxSet};
@@ -23,11 +26,23 @@ use syntect::parsing::{ParseState, Scope, ScopeStack, SyntaxReference, SyntaxSet
 use crate::render::highlight::{CodeSource, Highlights, Token, TokenClass};
 use crate::render::paint::LeafPaint;
 
-/// Lines read before the thread looks for newer requests and sends what it found: about 15 ms
-/// of work at the slowest measured rate (7 000 lines a second, Rust, M5).
+/// Code asked for beyond the end of a paint being laid out: about 400 lines, several screens.
+/// Asking only for what prefetch lays out had every scrolled-to code paint laid out twice,
+/// plain and then coloured (M5 review: 1148 layouts in a code-1mb scroll against 573).
+const READ_AHEAD: usize = 16 * 1024;
+/// Lines read, at most, before the thread looks for newer requests and sends what it found...
 const CHUNK_LINES: usize = 100;
-/// A block is highlighted no further than a line longer than this: a grammar's patterns can
-/// take very long over one long line (minified code), and nobody reads such a line.
+/// ...or this long, whichever comes first: lines of a few KiB take 20 ms each (M5 review).
+const STEP_TIME: Duration = Duration::from_millis(15);
+/// A block whose reading has taken longer than `SLOW_BASE`, plus `SLOW_PER_KIB` for each KiB
+/// read, stops there: some grammars backtrack for hundreds of milliseconds on lines of ordinary
+/// length (Perl alternations, M5 review), and every other block would wait behind them. Not a
+/// limit per line: a language's first lines include compiling its patterns (20-40 ms). Ordinary
+/// code reads at about 3 ms a KiB (code-1mb).
+const SLOW_BASE: Duration = Duration::from_millis(500);
+const SLOW_PER_KIB: Duration = Duration::from_millis(10);
+/// A block is highlighted no further than a line longer than this (minified code): nobody
+/// reads such a line, and a grammar's patterns can take very long over it.
 const MAX_LINE_BYTES: usize = 4096;
 /// The prompts that start a command in a shell session (` ```console `).
 const PROMPTS: [&str; 2] = ["$ ", "% "];
@@ -68,27 +83,52 @@ const CLASSES: [(&str, TokenClass); 31] = [
     ("markup.changed", TokenClass::Type),
 ];
 
-/// Blocks fully highlighted, shown plain (no grammar, or stopped at a long line), and still
-/// being read, for the probe.
+/// Why a block is shown plain.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Plain {
+    /// No grammar for its language (PowerShell).
+    NoGrammar,
+    /// Stopped at a line over `MAX_LINE_BYTES`.
+    LongLine,
+    /// Stopped where reading it had taken too long (`SLOW_BASE`).
+    TooSlow,
+    /// The grammar failed on a line (a pattern it cannot run, an unbalanced scope).
+    Unparsed,
+    /// The thread could not start, or stopped.
+    ThreadGone,
+}
+
+/// Blocks highlighted to the end, with no grammar, stopped before the end, and being read, for
+/// the probe.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub(crate) struct HighlightCounts {
     pub(crate) highlighted: usize,
-    pub(crate) plain: usize,
+    pub(crate) no_grammar: usize,
+    pub(crate) stopped: usize,
     pub(crate) pending: usize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum State {
+    /// More may come, as far as it is asked for.
+    Reading,
+    /// Highlighted to the end.
+    Highlighted,
+    /// Plain from `done` on, and nothing more will come.
+    Plain(Plain),
 }
 
 /// The main thread's record of one block.
 #[derive(Debug)]
 struct Block {
     len: usize,
+    state: State,
     /// Bytes highlighted, from the start.
     done: usize,
-    /// Bytes asked for.
+    /// Bytes asked for, sent or still to send.
     asked: usize,
-    /// Nothing more will come: highlighted to the end, or stopped.
-    finished: bool,
-    /// Stopped before the end, or never started: no grammar, a long line, or the thread gone.
-    plain: bool,
+    /// Bytes asked of the thread.
+    sent: usize,
     /// The paints showing it: index, and the bytes of the block each shows.
     paints: Vec<(usize, usize, usize)>,
 }
@@ -121,14 +161,13 @@ struct Request {
     until: usize,
 }
 
-/// Tokens of `block` found up to byte `until`; `stopped` if nothing more will come before its
-/// end.
+/// Tokens of `block` found up to byte `until`, and why nothing more will come, if so.
 #[derive(Debug)]
 struct Reply {
     block: CodeBlockId,
     until: usize,
     tokens: Vec<Token>,
-    stopped: bool,
+    stopped: Option<Plain>,
 }
 
 impl Highlighting {
@@ -140,12 +179,18 @@ impl Highlighting {
         let mut blocks: HashMap<CodeBlockId, Block> = sources
             .iter()
             .map(|(&id, source)| {
+                let len = source.text.len();
                 let block = Block {
-                    len: source.text.len(),
+                    len,
+                    // An empty block has nothing to read.
+                    state: if len == 0 {
+                        State::Highlighted
+                    } else {
+                        State::Reading
+                    },
                     done: 0,
                     asked: 0,
-                    finished: false,
-                    plain: false,
+                    sent: 0,
                     paints: Vec::new(),
                 };
                 (id, block)
@@ -170,30 +215,30 @@ impl Highlighting {
         }
     }
 
-    /// The tokens found so far.
+    /// The tokens found so far. `collect` adds to them through `Rc::make_mut`, which copies the
+    /// whole table if anything else holds it: typesetters hold it only while laying out.
     pub(crate) fn table(&self) -> &Rc<Highlights> {
         &self.table
     }
 
-    /// Asks for a paint's code to be highlighted, if it is not already (sent at the next
-    /// `dispatch`). Returns whether anything was asked for.
-    pub(crate) fn want(&mut self, paint: &LeafPaint) -> bool {
+    /// Asks for a paint's code, and `READ_AHEAD` beyond, unless already asked for (sent at the
+    /// next `dispatch`).
+    pub(crate) fn want(&mut self, paint: &LeafPaint) {
         let Some(code) = paint.code else {
-            return false;
+            return;
         };
         let Some(block) = self.blocks.get_mut(&code.block) else {
-            return false;
+            return;
         };
-        let until = code.start + paint.text.len();
-        if !self.enabled || block.finished || until <= block.done || until <= block.asked {
-            return false;
+        let end = code.start + paint.text.len();
+        if !self.enabled || block.state != State::Reading || end <= block.asked {
+            return;
         }
-        block.asked = until;
+        block.asked = (end + READ_AHEAD).min(block.len);
         self.wanted.push(Request {
             block: code.block,
-            until,
+            until: block.asked,
         });
-        true
     }
 
     /// Asks for every block in full (`--wait-highlights`).
@@ -202,7 +247,7 @@ impl Highlighting {
             return;
         }
         for (&id, block) in &mut self.blocks {
-            if !block.finished && block.asked < block.len {
+            if block.state == State::Reading && block.asked < block.len {
                 block.asked = block.len;
                 self.wanted.push(Request {
                     block: id,
@@ -212,34 +257,43 @@ impl Highlighting {
         }
     }
 
-    /// Sends what was asked for, starting the thread the first time. Never call this inside a
-    /// frame: starting a thread is not free.
-    pub(crate) fn dispatch(&mut self) {
+    /// Sends what was asked for, starting the thread the first time. Returns whether anything
+    /// was sent. Never call this inside a frame: starting a thread is not free (the probe counts
+    /// sends inside frames, and the smoke requires none).
+    pub(crate) fn dispatch(&mut self) -> bool {
         if self.wanted.is_empty() {
-            return;
+            return false;
         }
         if self.thread.is_none() {
             let Some(sources) = self.sources.take() else {
                 // The thread started once and is gone.
                 self.wanted.clear();
-                return;
+                return false;
             };
             match start(sources) {
                 Ok(thread) => self.thread = Some(thread),
                 Err(_no_thread) => {
                     self.gone();
-                    return;
+                    return false;
                 }
             }
         }
+        let wanted = std::mem::take(&mut self.wanted);
         let sent = self.thread.as_ref().is_some_and(|thread| {
-            self.wanted
-                .drain(..)
-                .all(|request| thread.requests.send(request).is_ok())
+            wanted
+                .iter()
+                .all(|&request| thread.requests.send(request).is_ok())
         });
         if !sent {
             self.gone();
+            return false;
         }
+        for request in wanted {
+            if let Some(block) = self.blocks.get_mut(&request.block) {
+                block.sent = block.sent.max(request.until);
+            }
+        }
+        true
     }
 
     /// Takes the tokens found since the last call. Returns the paints showing them.
@@ -259,11 +313,10 @@ impl Highlighting {
             };
             let from = block.done;
             block.done = block.done.max(reply.until);
-            if reply.stopped {
-                block.finished = true;
-                block.plain = true;
+            if let Some(why) = reply.stopped {
+                block.state = State::Plain(why);
             } else if block.done >= block.len {
-                block.finished = true;
+                block.state = State::Highlighted;
             }
             affected.extend(
                 block
@@ -279,7 +332,7 @@ impl Highlighting {
         affected
     }
 
-    /// Whether anything asked for has not come back yet.
+    /// Whether anything sent to the thread has not come back yet.
     pub(crate) fn busy(&self) -> bool {
         self.blocks.values().any(Block::pending)
     }
@@ -287,12 +340,14 @@ impl Highlighting {
     pub(crate) fn counts(&self) -> HighlightCounts {
         let mut counts = HighlightCounts::default();
         for block in self.blocks.values() {
-            if block.pending() {
-                counts.pending += 1;
-            } else if block.finished && block.plain {
-                counts.plain += 1;
-            } else if block.finished {
-                counts.highlighted += 1;
+            match block.state {
+                State::Reading if block.pending() => counts.pending += 1,
+                State::Reading => {}
+                State::Highlighted => counts.highlighted += 1,
+                State::Plain(Plain::NoGrammar) => counts.no_grammar += 1,
+                State::Plain(
+                    Plain::LongLine | Plain::TooSlow | Plain::Unparsed | Plain::ThreadGone,
+                ) => counts.stopped += 1,
             }
         }
         counts
@@ -304,9 +359,8 @@ impl Highlighting {
         self.wanted.clear();
         self.enabled = false;
         for block in self.blocks.values_mut() {
-            if !block.finished {
-                block.finished = true;
-                block.plain = true;
+            if block.state == State::Reading {
+                block.state = State::Plain(Plain::ThreadGone);
             }
         }
     }
@@ -314,7 +368,7 @@ impl Highlighting {
 
 impl Block {
     fn pending(&self) -> bool {
-        !self.finished && self.asked > self.done
+        self.state == State::Reading && self.sent > self.done
     }
 }
 
@@ -327,7 +381,7 @@ fn start(sources: HashMap<CodeBlockId, CodeSource>) -> std::io::Result<Thread> {
     Ok(Thread { requests, replies })
 }
 
-/// The thread: takes requests, reads blocks a chunk at a time, nearest-to-done first.
+/// The thread: takes requests, reads blocks a step at a time, least left to read first.
 fn run(
     sources: &HashMap<CodeBlockId, CodeSource>,
     requests: &Receiver<Request>,
@@ -364,7 +418,7 @@ fn run(
         let Some((block, job)) = next.and_then(|block| Some((block, jobs.get_mut(&block)?))) else {
             continue;
         };
-        let (tokens, stopped) = job.step(&syntaxes, &classes);
+        let (tokens, stopped) = job.step(&syntaxes, &classes, &Instant::now);
         let reply = Reply {
             block,
             until: job.at,
@@ -398,7 +452,7 @@ fn take<'a>(
                         block: request.block,
                         until: 0,
                         tokens: Vec::new(),
-                        stopped: true,
+                        stopped: Some(Plain::NoGrammar),
                     })
                     .is_ok();
             };
@@ -407,6 +461,12 @@ fn take<'a>(
     };
     job.until = job.until.max(request.until.min(job.text.len()));
     true
+}
+
+/// Whether `took` is too long for reading the first `read` bytes of a block.
+fn too_slow(took: Duration, read: usize) -> bool {
+    let kib = u32::try_from(read / 1024).unwrap_or(u32::MAX);
+    took > SLOW_BASE.saturating_add(SLOW_PER_KIB.saturating_mul(kib))
 }
 
 /// The block with least left to read; the first in the document of those with as little.
@@ -434,7 +494,8 @@ fn class_of(stack: &ScopeStack, classes: &[(Scope, TokenClass)]) -> Option<Token
     })
 }
 
-/// A grammar failed on a line (a pattern it cannot run, or an unbalanced scope).
+/// A grammar failed on a line (a pattern it cannot run, or an unbalanced scope; fancy-regex
+/// also gives up on a pattern past its backtracking limit). The block is plain from there.
 #[derive(Debug)]
 struct Unparsed;
 
@@ -448,8 +509,10 @@ struct Job<'a> {
     /// The next line starts here.
     at: usize,
     until: usize,
-    /// Stopped before the end.
-    stopped: bool,
+    /// Why it stopped before the end, if it did.
+    stopped: Option<Plain>,
+    /// Time spent reading it so far.
+    took: Duration,
 }
 
 impl std::fmt::Debug for Job<'_> {
@@ -473,29 +536,32 @@ impl<'a> Job<'a> {
             stack: ScopeStack::new(),
             at: 0,
             until: 0,
-            stopped: false,
+            stopped: None,
+            took: Duration::ZERO,
         })
     }
 
     /// Nothing more to do until asked for more.
     fn idle(&self) -> bool {
-        self.stopped || self.at >= self.until
+        self.stopped.is_some() || self.at >= self.until
     }
 
-    /// Reads up to `CHUNK_LINES` lines towards `until`. Returns the tokens found, and whether
-    /// it stopped for good.
+    /// Reads towards `until`: up to `CHUNK_LINES` lines, or until `STEP_TIME` has passed by
+    /// `now`. Returns the tokens found, and why it stopped for good, if it did.
     fn step(
         &mut self,
         syntaxes: &SyntaxSet,
         classes: &[(Scope, TokenClass)],
-    ) -> (Vec<Token>, bool) {
+        now: &dyn Fn() -> Instant,
+    ) -> (Vec<Token>, Option<Plain>) {
         let mut tokens = Vec::new();
         let mut lines = 0;
-        while self.at < self.until && lines < CHUNK_LINES {
+        let started = now();
+        while self.at < self.until && lines < CHUNK_LINES && self.stopped.is_none() {
             let rest = self.text.get(self.at..).unwrap_or_default();
             let line = rest.split_inclusive('\n').next().unwrap_or_default();
-            if line.is_empty() || line.len() > MAX_LINE_BYTES {
-                self.stopped = true;
+            if line.len() > MAX_LINE_BYTES {
+                self.stopped = Some(Plain::LongLine);
                 break;
             }
             // The grammars match line ends: a block's last line, which has none, is read with
@@ -505,6 +571,7 @@ impl<'a> Job<'a> {
             } else {
                 Cow::Owned(format!("{line}\n"))
             };
+            let line_started = now();
             let read = if self.session {
                 self.read_session_line(&ended, syntaxes, classes, &mut tokens)
             } else {
@@ -518,11 +585,20 @@ impl<'a> Job<'a> {
                 )
             };
             if read.is_err() {
-                self.stopped = true;
+                self.stopped = Some(Plain::Unparsed);
                 break;
             }
             self.at += line.len();
             lines += 1;
+            let ended_at = now();
+            self.took += ended_at.duration_since(line_started);
+            // The line is kept; the rest of the block is not read.
+            if too_slow(self.took, self.at) {
+                self.stopped = Some(Plain::TooSlow);
+            }
+            if ended_at.duration_since(started) > STEP_TIME {
+                break;
+            }
         }
         let end = self.at;
         for token in &mut tokens {
@@ -609,10 +685,10 @@ fn push(tokens: &mut Vec<Token>, start: usize, end: usize, class: Option<TokenCl
 
 #[cfg(test)]
 mod tests {
-    use std::time::{Duration, Instant};
+    use std::cell::Cell;
 
     use super::*;
-    use crate::render::highlight::{Language, code_sources, language};
+    use crate::render::highlight::{ALIASES, Language, SESSIONS, code_sources, language};
 
     fn source(name: &str, text: &str) -> CodeSource {
         CodeSource {
@@ -621,21 +697,40 @@ mod tests {
         }
     }
 
-    /// Reads all of `source`, as the thread would.
-    fn read_all(source: &CodeSource) -> Option<(Vec<Token>, bool)> {
+    /// Reads all of `source`, as the thread would, on `now`'s clock.
+    fn read_with(
+        source: &CodeSource,
+        now: &dyn Fn() -> Instant,
+    ) -> Option<(Vec<Token>, Option<Plain>)> {
         let syntaxes = two_face::syntax::extra_newlines();
         let mut job = Job::new(source, &syntaxes)?;
         job.until = source.text.len();
-        let (mut tokens, mut stopped) = (Vec::new(), false);
+        let (mut tokens, mut stopped) = (Vec::new(), None);
         while !job.idle() {
-            let (found, stop) = job.step(&syntaxes, &classes());
+            let (found, stop) = job.step(&syntaxes, &classes(), now);
             tokens.extend(found);
             stopped = stop;
         }
         Some((tokens, stopped))
     }
 
-    /// The class of the token covering exactly `text`'s first occurrence in `source`.
+    /// Reads all of `source` with time standing still: no time limit applies.
+    fn read_all(source: &CodeSource) -> Option<(Vec<Token>, Option<Plain>)> {
+        let frozen = Instant::now();
+        read_with(source, &move || frozen)
+    }
+
+    /// A clock that moves on by `tick` each time it is read.
+    fn ticking(tick: Duration) -> impl Fn() -> Instant {
+        let start = Instant::now();
+        let reads = Cell::new(0_u32);
+        move || {
+            reads.set(reads.get() + 1);
+            start + tick * reads.get()
+        }
+    }
+
+    /// The class of the token covering `text`'s first occurrence in `source`.
     fn class_at(source: &CodeSource, tokens: &[Token], text: &str) -> Option<TokenClass> {
         let start = source.text.find(text)?;
         let end = start + text.len();
@@ -651,33 +746,24 @@ mod tests {
     }
 
     #[test]
-    fn every_language_alias_has_a_grammar() {
+    fn every_alias_and_common_name_has_a_grammar() {
         let syntaxes = two_face::syntax::extra_newlines();
-        for info in [
+        let common = [
             "rust",
             "bash",
             "sh",
-            "shell",
-            "console",
             "zsh",
             "fish",
             "toml",
             "yaml",
             "json",
-            "jsonc",
             "python",
-            "python3",
             "js",
             "ts",
-            "jsx",
             "tsx",
             "go",
-            "golang",
             "c",
             "cpp",
-            "objc",
-            "csharp",
-            "fsharp",
             "java",
             "kotlin",
             "swift",
@@ -687,22 +773,26 @@ mod tests {
             "css",
             "diff",
             "dockerfile",
-            "docker",
             "makefile",
             "sql",
             "nix",
             "lua",
-            "erb",
-            "html+erb",
-            "batch",
             "markdown",
             "xml",
-        ] {
+        ];
+        let infos = ALIASES
+            .iter()
+            .map(|(alias, _)| *alias)
+            .chain(SESSIONS)
+            .chain(common);
+        for info in infos {
             let name = language(info).map(|language| language.name).expect("named");
             assert!(syntaxes.find_syntax_by_token(&name).is_some(), "{info}");
         }
     }
 
+    // These depend on two-face's grammars naming scopes as they do (Cargo.lock pins it). If a
+    // version bump breaks one, check the mapping against GitHub again; do not loosen the test.
     #[test]
     fn rust_tokens_take_github_classes() {
         let rust = source(
@@ -710,7 +800,7 @@ mod tests {
             "// note\nstruct Point;\nfn main() {\n    let s = \"hi\\n\";\n    let n: u32 = 42;\n}",
         );
         let (tokens, stopped) = read_all(&rust).expect("a grammar");
-        assert!(!stopped);
+        assert_eq!(stopped, None);
         let class = |text| class_at(&rust, &tokens, text);
         assert_eq!(class("// note"), Some(TokenClass::Comment));
         assert_eq!(class("fn"), Some(TokenClass::Keyword));
@@ -721,7 +811,6 @@ mod tests {
         assert_eq!(class("Point"), Some(TokenClass::Type));
         // The last line has no newline: tokens end at the text's end.
         assert!(tokens.iter().all(|token| token.end <= rust.text.len()));
-        assert_eq!(rust.text.get(rust.text.len() - 1..), Some("}"));
         // Tokens are in order, do not overlap, and are joined where they touch and match.
         assert!(tokens.windows(2).all(|pair| match pair {
             [a, b] => a.end <= b.start && !(a.end == b.start && a.class == b.class),
@@ -734,7 +823,7 @@ mod tests {
         // The comment pattern needs a line end; core drops a block's last newline.
         let rust = source("rust", "let a = 1; // the end");
         let (tokens, stopped) = read_all(&rust).expect("a grammar");
-        assert!(!stopped);
+        assert_eq!(stopped, None);
         assert_eq!(
             class_at(&rust, &tokens, "// the end"),
             Some(TokenClass::Comment)
@@ -761,7 +850,12 @@ mod tests {
                 .iter()
                 .all(|token| token.end <= output || token.start >= output + 14)
         );
-        assert!(tokens.iter().all(|token| token.start != 0));
+        let second = session.text.find('%').expect("second prompt");
+        assert!(
+            tokens
+                .iter()
+                .all(|token| token.start != 0 && token.start != second)
+        );
     }
 
     #[test]
@@ -772,7 +866,7 @@ mod tests {
         );
         let rust = source("rust", &long);
         let (tokens, stopped) = read_all(&rust).expect("a grammar");
-        assert!(stopped);
+        assert_eq!(stopped, Some(Plain::LongLine));
         assert!(tokens.iter().all(|token| token.end <= 11));
         assert_eq!(class_at(&rust, &tokens, "let"), Some(TokenClass::Keyword));
         // A line of exactly the limit is read.
@@ -780,8 +874,51 @@ mod tests {
         assert_eq!(edge.len(), MAX_LINE_BYTES);
         assert_eq!(
             read_all(&source("rust", &edge)).map(|(_, stopped)| stopped),
-            Some(false)
+            Some(None)
         );
+    }
+
+    #[test]
+    fn a_block_too_slow_to_read_stops_there() {
+        let rust = source("rust", "let a = 1;\nlet b = 2;\nlet c = 3;\nlet d = 4;\n");
+        // Lines of 250 ms: 500 ms after two is not over the limit, 750 after three is. The
+        // third line is kept; the fourth is not read.
+        let (tokens, stopped) =
+            read_with(&rust, &ticking(Duration::from_millis(250))).expect("a grammar");
+        assert_eq!(stopped, Some(Plain::TooSlow));
+        assert!(tokens.iter().all(|token| token.end <= 33));
+        assert_eq!(tokens.last().map(|token| token.start >= 22), Some(true));
+        // Every KiB read allows 10 ms more.
+        assert!(!too_slow(SLOW_BASE + SLOW_PER_KIB * 3, 3 * 1024));
+        assert!(too_slow(SLOW_BASE + SLOW_PER_KIB * 3, 3 * 1024 - 1));
+        assert!(!too_slow(SLOW_BASE, 0));
+        assert!(too_slow(SLOW_BASE + Duration::from_nanos(1), 1023));
+    }
+
+    #[test]
+    fn a_step_ends_after_its_time_or_its_lines() {
+        let text = "let x = 1;\n".repeat(CHUNK_LINES * 2 + 5);
+        let rust = source("rust", &text);
+        let syntaxes = two_face::syntax::extra_newlines();
+        let mut job = Job::new(&rust, &syntaxes).expect("a grammar");
+        let frozen = Instant::now();
+        let still = move || frozen;
+        // Up to what was asked.
+        job.until = 15 * 11;
+        let (first, _) = job.step(&syntaxes, &classes(), &still);
+        assert_eq!(job.at, 15 * 11);
+        assert!(job.idle());
+        assert!(first.iter().all(|token| token.end <= 15 * 11));
+        // At most CHUNK_LINES lines.
+        job.until = text.len();
+        job.step(&syntaxes, &classes(), &still);
+        assert_eq!(job.at, (15 + CHUNK_LINES) * 11);
+        assert!(!job.idle());
+        // A clock that moves 2 ms a read, read once at the start and twice a line: the step is
+        // 16 ms in after the fourth line, past STEP_TIME, and stops there.
+        let at = job.at;
+        job.step(&syntaxes, &classes(), &ticking(Duration::from_millis(2)));
+        assert_eq!(job.at, at + 4 * 11);
     }
 
     #[test]
@@ -798,24 +935,7 @@ mod tests {
     }
 
     #[test]
-    fn steps_are_chunks_of_lines_up_to_what_was_asked() {
-        let text = "let x = 1;\n".repeat(CHUNK_LINES * 2 + 5);
-        let rust = source("rust", &text);
-        let syntaxes = two_face::syntax::extra_newlines();
-        let mut job = Job::new(&rust, &syntaxes).expect("a grammar");
-        job.until = 15 * 11;
-        let (first, _) = job.step(&syntaxes, &classes());
-        assert_eq!(job.at, 15 * 11);
-        assert!(job.idle());
-        assert!(first.iter().all(|token| token.end <= 15 * 11));
-        job.until = text.len();
-        job.step(&syntaxes, &classes());
-        assert_eq!(job.at, (15 + CHUNK_LINES) * 11);
-        assert!(!job.idle());
-    }
-
-    #[test]
-    fn the_nearest_request_goes_first() {
+    fn the_request_with_least_left_goes_first() {
         let doc = gbk_markdown_core::load(b"```a\nx\n```\n\n```b\ny\n```\n");
         let ids = crate::render::highlight::tests::block_ids(&doc);
         let (a, b) = (*ids.first().expect("a"), *ids.get(1).expect("b"));
@@ -824,7 +944,8 @@ mod tests {
         assert_eq!(nearest(std::iter::empty()), None);
     }
 
-    /// Collects until nothing is pending, or fails after 20 s.
+    /// Collects until nothing is pending, or fails after 20 s. Returns the paints named, once
+    /// each (a block may come back in several steps, as fast as the clock allows).
     fn settle(highlighting: &mut Highlighting) -> Vec<usize> {
         let deadline = Instant::now() + Duration::from_secs(20);
         let mut affected = Vec::new();
@@ -833,24 +954,31 @@ mod tests {
             affected.extend(highlighting.collect());
             thread::sleep(Duration::from_millis(5));
         }
+        affected.sort_unstable();
+        affected.dedup();
         affected
     }
 
     #[test]
     fn wanted_code_is_highlighted_and_its_paints_named() {
         let markdown = "```rust\nfn a() {}\n```\n\n```nonesuch\nx\n```\n\n```\nplain\n```\n\n\
-                        ```toml\n[x]\ny = 1\n```\n";
+                        ```toml\n[x]\ny = 1\n```\n\n```rust\n```\n";
         let doc = gbk_markdown_core::load(markdown.as_bytes());
         let paints = crate::render::paint::paint_document(&doc);
         let mut highlighting = Highlighting::new(code_sources(&doc), &paints, true);
+        // The empty block is done before anything is asked.
+        assert_eq!(highlighting.counts().highlighted, 1);
         let rust = paints.first().expect("rust");
-        assert!(highlighting.want(rust));
-        // Asked once.
-        assert!(!highlighting.want(rust));
-        // Unnamed code is never asked for.
-        assert!(!highlighting.want(paints.get(2).expect("plain")));
-        assert!(highlighting.want(paints.get(1).expect("nonesuch")));
-        highlighting.dispatch();
+        highlighting.want(rust);
+        // Asked once; unnamed code is never asked for.
+        highlighting.want(rust);
+        highlighting.want(paints.get(2).expect("plain"));
+        assert_eq!(highlighting.wanted.len(), 1);
+        highlighting.want(paints.get(1).expect("nonesuch"));
+        // Nothing is in flight until it is sent.
+        assert!(!highlighting.busy());
+        assert!(highlighting.dispatch());
+        assert!(!highlighting.dispatch());
         let affected = settle(&mut highlighting);
         assert_eq!(affected, vec![0]);
         let code = rust.code.expect("a span");
@@ -859,17 +987,125 @@ mod tests {
         assert_eq!(
             highlighting.counts(),
             HighlightCounts {
-                highlighted: 1,
-                plain: 1,
+                highlighted: 2,
+                no_grammar: 1,
+                stopped: 0,
                 pending: 0
             }
         );
         // Done: not asked again. The rest, all at once.
-        assert!(!highlighting.want(rust));
+        highlighting.want(rust);
+        assert_eq!(highlighting.wanted.len(), 0);
         highlighting.want_all();
         highlighting.dispatch();
         assert_eq!(settle(&mut highlighting), vec![3]);
-        assert_eq!(highlighting.counts().highlighted, 2);
+        assert_eq!(highlighting.counts().highlighted, 3);
+    }
+
+    #[test]
+    fn a_paint_asks_for_code_ahead_of_it() {
+        let code = "let x = 1;\n".repeat(5000);
+        let doc = gbk_markdown_core::load(format!("```rust\n{code}```\n").as_bytes());
+        let paints = crate::render::paint::paint_document(&doc);
+        let mut highlighting = Highlighting::new(code_sources(&doc), &paints, true);
+        let first = paints.first().expect("code");
+        highlighting.want(first);
+        let asked = first.text.len() + READ_AHEAD;
+        assert_eq!(
+            highlighting.wanted,
+            vec![Request {
+                block: first.code.expect("a span").block,
+                until: asked
+            }]
+        );
+        // Paints within what was asked ask for nothing more; the first past it does.
+        for paint in &paints {
+            highlighting.want(paint);
+            let code = paint.code.expect("a span");
+            if code.start + paint.text.len() <= asked {
+                assert_eq!(highlighting.wanted.len(), 1);
+            }
+        }
+        assert!(highlighting.wanted.len() > 1);
+        // Never past the block's end.
+        let len = code.trim_end().len();
+        assert!(
+            highlighting
+                .wanted
+                .iter()
+                .all(|request| request.until <= len)
+        );
+        assert_eq!(
+            highlighting.wanted.last().map(|request| request.until),
+            Some(len)
+        );
+    }
+
+    #[test]
+    fn replies_name_the_paints_they_reach() {
+        // Three paints of one block; a reply up to the middle of the second.
+        let code = "let x = 1;\n".repeat(600);
+        let doc = gbk_markdown_core::load(format!("```rust\n{code}```\n").as_bytes());
+        let paints = crate::render::paint::paint_document(&doc);
+        assert!(paints.len() >= 3);
+        let mut highlighting = Highlighting::new(code_sources(&doc), &paints, true);
+        let (requests, _requests_in) = mpsc::channel();
+        let (replies_out, replies) = mpsc::channel();
+        highlighting.thread = Some(Thread { requests, replies });
+        let span = |index: usize| {
+            let paint = paints.get(index).expect("a paint");
+            let code = paint.code.expect("a span");
+            (code.block, code.start, code.start + paint.text.len())
+        };
+        let (block, _, first_end) = span(0);
+        let (_, second_start, _) = span(1);
+        let reply = |until| Reply {
+            block,
+            until,
+            tokens: Vec::new(),
+            stopped: None,
+        };
+        replies_out.send(reply(second_start + 5)).expect("sent");
+        assert_eq!(highlighting.collect(), vec![0, 1]);
+        // From there to the end of the second: only the second.
+        let (_, _, second_end) = span(1);
+        replies_out.send(reply(second_end)).expect("sent");
+        assert_eq!(highlighting.collect(), vec![1]);
+        assert!(first_end <= second_start);
+        // A reply that ends exactly at a paint's start does not reach it.
+        let (_, third_start, _) = span(2);
+        assert_eq!(second_end + 1, third_start);
+        replies_out.send(reply(third_start)).expect("sent");
+        assert_eq!(highlighting.collect(), Vec::<usize>::new());
+    }
+
+    #[test]
+    fn when_the_thread_is_gone_code_stays_plain() {
+        let doc = gbk_markdown_core::load(b"```rust\nfn a() {}\n```\n\n```toml\nx = 1\n```\n");
+        let paints = crate::render::paint::paint_document(&doc);
+        let mut highlighting = Highlighting::new(code_sources(&doc), &paints, true);
+        let (requests, requests_in) = mpsc::channel();
+        let (replies_out, replies) = mpsc::channel::<Reply>();
+        highlighting.thread = Some(Thread { requests, replies });
+        highlighting.want(paints.first().expect("rust"));
+        assert!(highlighting.dispatch());
+        assert!(highlighting.busy());
+        // The thread stops.
+        drop((requests_in, replies_out));
+        assert_eq!(highlighting.collect(), Vec::<usize>::new());
+        assert!(!highlighting.busy());
+        assert_eq!(
+            highlighting.counts(),
+            HighlightCounts {
+                highlighted: 0,
+                no_grammar: 0,
+                stopped: 2,
+                pending: 0
+            }
+        );
+        // Nothing more is asked for.
+        highlighting.want_all();
+        assert!(!highlighting.dispatch());
     }
 
     #[test]
@@ -877,9 +1113,9 @@ mod tests {
         let doc = gbk_markdown_core::load(b"```rust\nfn a() {}\n```\n");
         let paints = crate::render::paint::paint_document(&doc);
         let mut highlighting = Highlighting::new(code_sources(&doc), &paints, false);
-        assert!(!highlighting.want(paints.first().expect("rust")));
+        highlighting.want(paints.first().expect("rust"));
         highlighting.want_all();
-        highlighting.dispatch();
+        assert!(!highlighting.dispatch());
         assert!(!highlighting.busy());
         assert!(highlighting.thread.is_none());
     }

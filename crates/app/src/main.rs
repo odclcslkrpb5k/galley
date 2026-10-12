@@ -2,7 +2,7 @@
 
 mod args;
 mod document_view;
-mod highlighter;
+mod highlighting;
 mod images;
 mod links;
 mod output;

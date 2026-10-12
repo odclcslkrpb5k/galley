@@ -20,7 +20,7 @@ use gtk::prelude::*;
 use gtk::{gdk, glib};
 
 use crate::args::ProbeArgs;
-use crate::highlighter::HighlightCounts;
+use crate::highlighting::HighlightCounts;
 use crate::images::ImageCounts;
 use crate::output::{print_line, report_error};
 use crate::units;
@@ -63,6 +63,9 @@ pub(crate) struct Probe {
     /// Paints drawn again once their code's colours arrived: a scroll benchmark over code must
     /// have some, or it did not measure highlighting.
     recoloured: Cell<usize>,
+    /// Code sent to the highlighter inside a frame (starting its thread there would delay the
+    /// frame): gated at 0.
+    highlights_sent_in_frames: Cell<usize>,
     /// When the height worker finished, after `main` began.
     heights_measured: Cell<Option<Duration>>,
     /// The vertical adjustment --bench-scroll drives.
@@ -102,6 +105,7 @@ struct ScrollRecord {
     last_frame_time: Option<i64>,
     paint_started: Option<Instant>,
     layouts_at_start: usize,
+    recoloured_at_start: usize,
     intervals_us: Vec<i64>,
     busy_us: Vec<u128>,
 }
@@ -125,6 +129,7 @@ impl Probe {
             in_frame: Cell::new(false),
             layouts_in_scroll_frames: Cell::new(0),
             recoloured: Cell::new(0),
+            highlights_sent_in_frames: Cell::new(0),
             heights_measured: Cell::new(None),
             scroll_target: RefCell::new(None),
             scroll: RefCell::new(ScrollRecord::default()),
@@ -185,9 +190,11 @@ impl Probe {
     }
 
     /// For --check-heights: reports how many leaf heights the worker got wrong, and exits.
-    pub(crate) fn heights_checked(&self, mismatches: usize, leaves: usize) {
+    /// `highlighted` is how many code blocks were highlighted when the heights were compared.
+    pub(crate) fn heights_checked(&self, mismatches: usize, leaves: usize, highlighted: usize) {
         let report = format!(
-            "height_mismatches={mismatches} leaves={leaves} heights_measured_us={}",
+            "height_mismatches={mismatches} leaves={leaves} heights_measured_us={} \
+             code_highlighted={highlighted}",
             optional_micros(self.heights_measured.get())
         );
         std::process::exit(if print_line(report) {
@@ -197,11 +204,19 @@ impl Probe {
         });
     }
 
-    /// Counts one Pango layout of `bytes` bytes of text.
+    /// Counts a paint drawn again because its code's colours arrived.
     pub(crate) fn recoloured(&self) {
         increment(&self.recoloured, 1);
     }
 
+    /// Counts code sent to the highlighter; inside a frame, where it must never be, separately.
+    pub(crate) fn highlights_sent(&self) {
+        if self.in_frame.get() {
+            increment(&self.highlights_sent_in_frames, 1);
+        }
+    }
+
+    /// Counts one Pango layout of `bytes` bytes of text.
     pub(crate) fn layout_created(&self, bytes: usize) {
         increment(&self.layouts_created, 1);
         if self.in_frame.get() && self.scroll.borrow().last_frame_time.is_some() {
@@ -293,11 +308,14 @@ impl Probe {
             if self.args.wait_highlights {
                 let HighlightCounts {
                     highlighted,
-                    plain,
+                    no_grammar,
+                    stopped,
                     pending,
                 } = highlights;
                 report = format!(
-                    "{report} code_highlighted={highlighted} code_plain={plain} code_pending={pending}"
+                    "{report} code_highlighted={highlighted} code_no_grammar={no_grammar} \
+                     code_stopped={stopped} code_pending={pending} highlights_sent_in_frames={}",
+                    self.highlights_sent_in_frames.get()
                 );
             }
             drop(view);
@@ -395,6 +413,7 @@ impl Probe {
         {
             let mut record = self.scroll.borrow_mut();
             record.layouts_at_start = self.layouts_created.get();
+            record.recoloured_at_start = self.recoloured.get();
             record.refresh_us = refresh_interval_us(window);
         }
         let probe = Rc::clone(self);
@@ -461,7 +480,7 @@ impl Probe {
             "scroll_frames={} reached_end={reached_end} refresh_us={refresh} refresh_known={} \
              median_interval_us={} p99_interval_us={} max_interval_us={longest} dropped={dropped} \
              p50_busy_us={} p99_busy_us={} max_busy_us={busiest} layouts_during_scroll={} \
-             layouts_in_scroll_frames={} recoloured={}",
+             layouts_in_scroll_frames={} recoloured={} highlights_sent_in_frames={}",
             intervals.len(),
             record.refresh_us.is_some(),
             percentile(&intervals, 50)?,
@@ -472,7 +491,10 @@ impl Probe {
                 .get()
                 .saturating_sub(record.layouts_at_start),
             self.layouts_in_scroll_frames.get(),
-            self.recoloured.get(),
+            self.recoloured
+                .get()
+                .saturating_sub(record.recoloured_at_start),
+            self.highlights_sent_in_frames.get(),
         ))
     }
 }

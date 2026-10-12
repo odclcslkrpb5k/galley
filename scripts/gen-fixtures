@@ -213,9 +213,10 @@ MD
   echo 'print("after it: plain")'
   echo '```'
   echo
-  # Long enough to scroll: highlighting asked for further down only as it is laid out.
+  # Long enough to scroll past the 16 KiB read ahead of what is laid out, so colours arrive
+  # while scrolling.
   echo '```rust'
-  for ((i = 1; i <= 400; i++)); do printf 'fn f%d() -> u32 { %d } // %d\n' "$i" "$i" "$i"; done
+  for ((i = 1; i <= 1500; i++)); do printf 'fn f%d() -> u32 { %d } // %d\n' "$i" "$i" "$i"; done
   echo '```'
 } >>"$out/code.md"
 

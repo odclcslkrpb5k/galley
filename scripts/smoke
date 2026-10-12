@@ -88,11 +88,17 @@ for fixture in "${scrolled[@]}"; do
     echo "smoke: scroll $fixture laid out ${frames:-?} leaves inside frames; must be 0" >&2
     fail=1
   fi
-  # Scrolling through code must draw some of it again in colour, or the run did not measure
-  # highlighting arriving while scrolling.
+  # Code is never sent to the highlighter inside a frame (its thread starts on the first send).
+  sent=$(grep -oE 'highlights_sent_in_frames=[0-9]+' <<<"$out" | cut -d= -f2 || true)
+  if [[ "$sent" != 0 ]]; then
+    echo "smoke: scroll $fixture sent code to the highlighter inside ${sent:-?} frames; must be 0" >&2
+    fail=1
+  fi
+  # Scrolling through code must draw some of it again in colour once scrolling began, or the
+  # run did not measure highlighting arriving while scrolling.
   recoloured=$(grep -oE 'recoloured=[0-9]+' <<<"$out" | cut -d= -f2 || true)
   if [[ "$fixture" == target/fixtures/code.md ]] && ! { [[ "$recoloured" =~ ^[0-9]+$ ]] && ((recoloured > 0)); }; then
-    echo "smoke: scroll $fixture recoloured ${recoloured:-?} paints; highlighting was not measured" >&2
+    echo "smoke: scroll $fixture recoloured ${recoloured:-?} paints while scrolling; highlighting was not measured" >&2
     fail=1
   fi
   n=$((n + 1))
@@ -157,12 +163,13 @@ if [[ "$(field images_loaded "$pictures")" != 5 || "$(field images_failed "$pict
 fi
 
 # Code: six blocks are highlighted (Rust, shell, a console session, TOML, JSX, a long Rust
-# block); PowerShell (no grammar) and Python (stopped at a 5000-byte line) are plain; unnamed
-# code and math are not asked for.
+# block); PowerShell has no grammar; Python stops at a 5000-byte line; unnamed code and math
+# are not asked for. Nothing was sent to the highlighter inside a frame.
 probe_run coloured --wait-highlights --screenshot="$screens/code-highlighted.png" target/fixtures/code.md
-if [[ "$(field code_highlighted "$coloured")" != 6 || "$(field code_plain "$coloured")" != 2 ||
-  "$(field code_pending "$coloured")" != 0 ]]; then
-  echo "smoke: code.md did not highlight 6 blocks and leave 2 plain: $coloured" >&2
+if [[ "$(field code_highlighted "$coloured")" != 6 || "$(field code_no_grammar "$coloured")" != 1 ||
+  "$(field code_stopped "$coloured")" != 1 || "$(field code_pending "$coloured")" != 0 ||
+  "$(field highlights_sent_in_frames "$coloured")" != 0 ]]; then
+  echo "smoke: code.md did not highlight 6 blocks, find 1 with no grammar and stop 1: $coloured" >&2
   fail=1
 fi
 
@@ -188,8 +195,13 @@ for fixture in "${checked[@]}" "--wait-images target/fixtures/images.md" \
   # shellcheck disable=SC2086 # the extra entry is an option and a file
   out=$(timeout 300 "$bin" --offline --check-heights $fixture 2>&1 || true)
   mismatches=$(grep -oE 'height_mismatches=[0-9]+' <<<"$out" | cut -d= -f2 || true)
+  highlighted=$(grep -oE 'code_highlighted=[0-9]+' <<<"$out" | cut -d= -f2 || true)
   if [[ "$mismatches" != 0 ]]; then
     echo "smoke: heights $fixture: ${mismatches:-no report} mismatches between worker and layout: $out" >&2
+    fail=1
+  elif [[ "$fixture" == --wait-highlights* ]] && ! { [[ "$highlighted" =~ ^[0-9]+$ ]] && ((highlighted > 0)); }; then
+    # The comparison must have been made with colours in, or it checked nothing.
+    echo "smoke: heights $fixture were compared with no code highlighted: $out" >&2
     fail=1
   fi
   n=$((n + 1))

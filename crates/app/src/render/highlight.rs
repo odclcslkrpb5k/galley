@@ -1,7 +1,7 @@
-//! Syntax highlighting as plain data (docs/plan.md §4.6): which language a code block is in,
+//! Syntax highlighting as plain data (docs/plan.md §4.5, "As built in M5"): which language a code block is in,
 //! the kinds of token the highlighter finds, and the tokens found so far, which the widget's
-//! typesetter turns into colours. Pure, so it is unit-tested; the highlighter itself (syntect,
-//! on its own thread) is `crate::highlighter`.
+//! typesetter turns into colours. Pure, so it is unit-tested; reading code with syntect, on its
+//! own thread, and the main thread's record of it are `crate::highlighting`.
 //!
 //! Tokens are colours only, never a weight or a slant: a colour cannot change a layout's size,
 //! so a block's height is the same before and after it is highlighted, and the height worker
@@ -67,27 +67,59 @@ pub(crate) struct CodeSource {
     pub(crate) text: String,
 }
 
+/// Most tokens coloured in one paint; the rest of it is plain. Each is a Pango attribute, and
+/// a 2 KiB paint of 1366 (a Perl grammar on alternations) took 2-6 ms to lay out and draw, more
+/// than a prefetch slice (M5 review); ordinary code has about 230.
+pub(crate) const MAX_PAINT_TOKENS: usize = 512;
+
+/// Info strings GitHub shows plain.
+const PLAIN: [&str; 8] = [
+    "",
+    "text",
+    "plaintext",
+    "plain",
+    "txt",
+    "nohighlight",
+    "math",
+    "log",
+];
+/// Info strings for a shell session.
+pub(crate) const SESSIONS: [&str; 4] = ["console", "shellsession", "shell-session", "sh-session"];
+/// Names GitHub knows that the grammars do not, and the grammars' names for them.
+pub(crate) const ALIASES: [(&str, &str); 15] = [
+    ("shell", "bash"),
+    ("shell-script", "bash"),
+    ("golang", "go"),
+    ("python3", "py"),
+    ("py3", "py"),
+    ("jsx", "tsx"),
+    ("objc", "h"),
+    ("objective-c", "h"),
+    ("csharp", "cs"),
+    ("fsharp", "f#"),
+    ("docker", "dockerfile"),
+    ("containerfile", "dockerfile"),
+    ("jsonc", "json"),
+    ("json5", "json"),
+    ("html+erb", "erb"),
+];
+
 /// The language of a block whose info string starts with `info`, if it names one: GitHub
-/// highlights only a block that says what it is, and so does this. Names GitHub knows that the
-/// grammars do not are mapped to ones they do (`shell` is Bash); a name with no grammar is
-/// shown plain (the highlighter says so).
+/// highlights only a block that says what it is, and so does this. A name with no grammar
+/// (PowerShell) is shown plain; the highlighter says so.
 pub(crate) fn language(info: &str) -> Option<Language> {
     let lower = info.to_lowercase();
-    let (name, session) = match lower.as_str() {
-        "" | "text" | "plaintext" | "plain" | "txt" | "nohighlight" | "math" => return None,
-        "console" | "shellsession" | "shell-session" | "sh-session" => ("bash", true),
-        "shell" | "shell-script" => ("bash", false),
-        "golang" => ("go", false),
-        "python3" | "py3" => ("py", false),
-        "jsx" => ("tsx", false),
-        "objc" | "objective-c" => ("h", false),
-        "csharp" => ("cs", false),
-        "fsharp" => ("f#", false),
-        "docker" | "containerfile" => ("dockerfile", false),
-        "jsonc" | "json5" => ("json", false),
-        "html+erb" => ("erb", false),
-        "batch" => ("bat", false),
-        other => (other, false),
+    if PLAIN.contains(&lower.as_str()) {
+        return None;
+    }
+    let session = SESSIONS.contains(&lower.as_str());
+    let name = if session {
+        "bash"
+    } else {
+        ALIASES
+            .iter()
+            .find(|(alias, _)| *alias == lower)
+            .map_or(lower.as_str(), |(_, name)| name)
     };
     Some(Language {
         name: name.to_owned(),
@@ -126,7 +158,8 @@ impl Highlights {
         found.extend(tokens.into_iter().filter(|token| token.start >= after));
     }
 
-    /// Colour attributes for `len` bytes of text at `code`, relative to that text.
+    /// Colour attributes for `len` bytes of text at `code`, relative to that text: at most
+    /// `MAX_PAINT_TOKENS`.
     pub(crate) fn attrs(&self, code: CodeSpan, len: usize) -> Vec<TextAttr> {
         let Some(tokens) = self.blocks.get(&code.block) else {
             return Vec::new();
@@ -138,6 +171,7 @@ impl Highlights {
             .unwrap_or_default()
             .iter()
             .take_while(|token| token.start < to)
+            .take(MAX_PAINT_TOKENS)
             .map(|token| TextAttr {
                 start: token.start.clamp(from, to) - from,
                 end: token.end.clamp(from, to) - from,
@@ -168,6 +202,7 @@ pub(crate) mod tests {
         assert_eq!(named(""), None);
         assert_eq!(named("text"), None);
         assert_eq!(named("math"), None);
+        assert_eq!(named("LOG"), None);
     }
 
     /// The ids of a document's code blocks, in order.
@@ -232,6 +267,22 @@ pub(crate) mod tests {
         assert_eq!(
             kinds(12, 9),
             vec![(8, 9, AttrKind::Token(TokenClass::Comment))]
+        );
+        // Past the cap, the rest of a paint is plain.
+        let mut dense = Highlights::default();
+        dense.extend(
+            block,
+            (0..MAX_PAINT_TOKENS + 5)
+                .map(|index| token(index * 2, index * 2 + 1, TokenClass::Keyword))
+                .collect(),
+        );
+        let attrs = dense.attrs(CodeSpan { block, start: 0 }, 4 * MAX_PAINT_TOKENS);
+        assert_eq!(attrs.len(), MAX_PAINT_TOKENS);
+        assert_eq!(
+            dense
+                .attrs(CodeSpan { block, start: 0 }, 2 * MAX_PAINT_TOKENS - 1)
+                .len(),
+            MAX_PAINT_TOKENS
         );
         // Another block has none.
         assert_eq!(

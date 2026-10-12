@@ -256,4 +256,8 @@ Not repeated here, so there is one source each (an earlier copy here drifted fro
   gdk-pixbuf to stop; glycin warns "running without sandbox" in Docker (no bwrap there).
   Process: save multi-file edit scripts to the scratchpad before running them (a failed
   anchor then costs a re-run, not a re-type; it happened twice this milestone).
+  Mutants: 39 survivors first, 5 after new tests, all equivalent (commit 0313a44). Perf: no
+  layouts in scroll frames; busy times match M3's binary interleaved on the same day (a lone
+  run looked 1-2 ms worse: always A/B against the previous binary, never against old tables);
+  table-1mb drops ~1.5 more frames per 3000 (watch item for M5).
   Next: M5 (syntax highlighting), awaiting the user's go-ahead.

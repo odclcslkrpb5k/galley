@@ -284,3 +284,41 @@ now budgets layouts before the first frame at 1000.
 pieces are now at most 64 cells, cheaper to rasterise than M2's 2 KiB styled text runs.
 code-1mb is unchanged code; its 11-19 against M2's 7 is within this load's noise (watch it;
 per-leaf textures remain the lever, plan §4.5).
+
+## M4 (2026-10-12): images
+
+Images are boxes from their placeholder size until decoded, loaded on worker threads only while
+the view is still, and re-laid-out between frames. Every benchmark runs `--offline` (local files
+load; remote images stay placeholders). Release binary 2.7 → 4.3 MB (ureq, rustls, ring).
+
+### First frame
+
+`bench-startup -n 20`, M3 against M4 interleaved: unchanged within 1 ms on every fixture. The
+gallery is built on the loader thread and nothing is fetched before the first frame.
+
+### Scroll, `--bench-scroll`, three interleaved runs each, then a fourth for busy times
+
+| Fixture | Frames | Dropped | p50 busy | M3 dropped | M3 p50 busy |
+|---|---|---|---|---|---|
+| readme-200kb | 1696 | 0, 1, 0 (2) | 8.0 ms | 1, 1, 1 | 6.5-6.8 ms |
+| list-1mb | 3000 | 0, 0, 0 (0) | 8.0 ms | 0, 0, 0 | 5.9-6.1 ms |
+| code-1mb | 2998 | 0, 0, 0 (1) | 8.6 ms | 11, 12, 19 | 8.4 ms |
+| table-1mb | ~2996 | 0, 0, 3 (1) | 7.3 ms | 2, 1, 3 | 5.7-5.8 ms |
+| wide-table | 323 | 0, 0, 0 (0) | 7.8 ms | 0, 0, 0 | 6.1-6.4 ms |
+| images | 73 | 0, 0, 0 (0) | 6.0 ms | — | — |
+
+`layouts_in_scroll_frames=0` in every run. Shorter documents than M3: readme-200kb's images are
+boxes rather than alt text, and wide-table's narrow columns keep their natural widths (its
+heights check: 0 mismatches). Dropped frames are at or below M3's, code-1mb's markedly so.
+
+Busy times sit 1-2 ms above the M3 table, but M3's binary, rebuilt and interleaved with M4's
+on the same day, matches them, so the machine has slowed and M4 has not:
+
+| Fixture, four interleaved runs | M3 p50 busy | M4 p50 busy | M3 dropped | M4 dropped |
+|---|---|---|---|---|
+| list-1mb | 8.1-8.7 ms | 8.4-8.8 ms | 0, 0, 1, 1 | 0, 0, 0, 1 |
+| table-1mb | 7.0-7.4 ms | 7.1-7.3 ms | 0, 1, 1, 2 | 3, 2, 2, 3 |
+
+table-1mb drops slightly but consistently more on M4 (2.5 against 1 per ~3000 frames, every M4
+run at or above every M3 run) with the same median busy time: a tail effect, not a per-frame
+cost. Watch item for M5: its p99 busy time, interleaved against this M4 binary.

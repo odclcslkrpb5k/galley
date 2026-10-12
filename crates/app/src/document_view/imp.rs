@@ -1,21 +1,23 @@
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
+use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use gtk::prelude::*;
 use gtk::subclass::prelude::*;
-use gtk::{glib, graphene, gsk, pango};
+use gtk::{gio, glib, graphene, gsk, pango};
 
+use crate::links::{self, Opening};
 use crate::output::report_error;
 use crate::probe::Probe;
-use crate::render::geometry::{LeafGeometry, Rect, Shade};
+use crate::render::geometry::{LeafGeometry, MarkerPlace, Rect, Shade};
 use crate::render::heights::{Job, Worker, WorkerGone};
 use crate::render::indicator::{self, Scroll};
-use crate::render::paint::{BarColor, LeafPaint};
-use crate::render::positions::Positions;
-use crate::render::text::{Palette, TextSetup, Typesetter};
+use crate::render::paint::{self, BarColor, LeafPaint, Target};
+use crate::render::positions::{Positions, Spot};
+use crate::render::text::{ColumnWidths, Content, Measured, Palette, TextSetup, Typesetter};
 use crate::units;
 
 /// Space around the document, in em.
@@ -74,6 +76,14 @@ pub(crate) struct DocumentView {
     /// started from.
     indicator_hover: Cell<bool>,
     indicator_drag: Cell<Option<f64>>,
+    /// The document's file, which its relative links start from.
+    path: RefCell<Option<PathBuf>>,
+    /// The paint to show at the top once the view has a size (`--anchor`).
+    start: Cell<Option<usize>>,
+    /// Where the view was before each jump to a link inside the document, for going back.
+    history: RefCell<Vec<Spot>>,
+    /// The link under the pointer.
+    hovered: RefCell<Option<Target>>,
 }
 
 // By hand: gtk::ScrollablePolicy has no Default.
@@ -97,6 +107,10 @@ impl Default for DocumentView {
             after_paint: RefCell::default(),
             indicator_hover: Cell::new(false),
             indicator_drag: Cell::new(None),
+            path: RefCell::default(),
+            start: Cell::new(None),
+            history: RefCell::default(),
+            hovered: RefCell::default(),
         }
     }
 }
@@ -112,6 +126,12 @@ struct Doc {
     palette: Palette,
     /// Drawn leaves (`None`: nothing to draw), near the viewport.
     cache: HashMap<usize, Option<gsk::RenderNode>>,
+    /// Tables' column widths at this width and text setup.
+    columns: ColumnWidths,
+    /// Anchor names and the paints they name.
+    anchors: HashMap<String, usize>,
+    /// The leaf last hit-tested for links, laid out (the pointer moves over one leaf at a time).
+    hit: Option<(usize, Measured, LeafGeometry)>,
     /// `None` once the worker has stopped.
     worker: Option<Worker>,
     /// For `--check-heights` only: every height the worker sent.
@@ -152,16 +172,47 @@ impl ObjectImpl for DocumentView {
             }
         ));
         widget.add_controller(drag);
+        let click = gtk::GestureClick::new();
+        // Any button: the primary opens links, the "back" mouse button goes back.
+        click.set_button(0);
+        click.connect_released(glib::clone!(
+            #[weak(rename_to = view)]
+            widget,
+            move |gesture, presses, x, y| view.imp().clicked(
+                gesture.current_button(),
+                presses,
+                x,
+                y
+            )
+        ));
+        widget.add_controller(click);
+        let keys = gtk::EventControllerKey::new();
+        keys.connect_key_pressed(glib::clone!(
+            #[weak(rename_to = view)]
+            widget,
+            #[upgrade_or]
+            glib::Propagation::Proceed,
+            move |_controller, key, _code, modifiers| view.imp().key_pressed(key, modifiers)
+        ));
+        widget.add_controller(keys);
+        widget.set_focusable(true);
         let motion = gtk::EventControllerMotion::new();
         motion.connect_motion(glib::clone!(
             #[weak(rename_to = view)]
             widget,
-            move |_controller, x, _y| view.imp().set_indicator_hover(view.imp().on_indicator(x))
+            move |_controller, x, y| {
+                let on_indicator = view.imp().on_indicator(x);
+                view.imp().set_indicator_hover(on_indicator);
+                view.imp().hover((!on_indicator).then_some((x, y)));
+            }
         ));
         motion.connect_leave(glib::clone!(
             #[weak(rename_to = view)]
             widget,
-            move |_controller| view.imp().set_indicator_hover(false)
+            move |_controller| {
+                view.imp().set_indicator_hover(false);
+                view.imp().hover(None);
+            }
         ));
         widget.add_controller(motion);
         let settings = widget.settings();
@@ -188,6 +239,8 @@ impl ObjectImpl for DocumentView {
 impl WidgetImpl for DocumentView {
     fn map(&self) {
         self.parent_map();
+        // For its keys (Alt+Left goes back).
+        self.obj().grab_focus();
         if let Some(clock) = self.obj().frame_clock() {
             let handler = clock.connect_after_paint(glib::clone!(
                 #[weak(rename_to = view)]
@@ -213,6 +266,13 @@ impl WidgetImpl for DocumentView {
         self.page.set(f64::from(height));
         self.widget_width.set(i64::from(width));
         let value = self.set_width(i64::from(width));
+        // The first allocation: open at `--anchor`'s paint.
+        let value = self.start.take().map_or(value, |paint| {
+            self.document
+                .borrow()
+                .as_ref()
+                .map(|doc| units::px_to_f64(doc.positions.start(paint)))
+        });
         self.configure_vadjustment(value);
     }
 
@@ -263,7 +323,16 @@ impl WidgetImpl for DocumentView {
 impl ScrollableImpl for DocumentView {}
 
 impl DocumentView {
-    pub(super) fn set_document(&self, paints: Vec<LeafPaint>, probe: Rc<Probe>) {
+    pub(super) fn set_document(
+        &self,
+        paints: Vec<LeafPaint>,
+        anchors: HashMap<String, usize>,
+        path: Option<PathBuf>,
+        start: Option<usize>,
+        probe: Rc<Probe>,
+    ) {
+        self.path.replace(path);
+        self.start.set(start);
         let widget = self.obj();
         let setup = TextSetup::of(&*widget);
         let count = paints.len();
@@ -276,6 +345,9 @@ impl DocumentView {
             setup,
             palette: Palette::for_foreground(widget.color()),
             cache: HashMap::new(),
+            columns: ColumnWidths::default(),
+            anchors,
+            hit: None,
             worker: Some(worker),
             worker_heights: Vec::new(),
             probe,
@@ -296,7 +368,11 @@ impl DocumentView {
         if let Some(doc) = self.document.borrow_mut().as_mut() {
             doc.sync_palette(widget.color());
             let margin = doc.margin();
-            for leaf in doc.positions.visible(-margin, units::round_px(height)) {
+            let top = self
+                .start
+                .get()
+                .map_or(-margin, |paint| doc.positions.start(paint) - margin);
+            for leaf in doc.positions.visible(top, units::round_px(height)) {
                 doc.ensure(&context, leaf, None, false);
             }
         }
@@ -330,6 +406,8 @@ impl DocumentView {
         doc.width = width;
         doc.generation += 1;
         doc.cache.clear();
+        doc.columns.clear();
+        doc.hit = None;
         let metrics = doc.setup.metrics();
         doc.positions = Positions::new(
             doc.paints
@@ -671,16 +749,194 @@ impl DocumentView {
         }
         let typesetter = doc.typesetter(self.obj().pango_context());
         let metrics = doc.setup.metrics();
+        let mut columns = ColumnWidths::default();
         let mismatches = doc
             .paints
             .iter()
             .zip(&doc.worker_heights)
             .filter(|&(paint, worker)| {
-                let (_layout, text_height) = typesetter.measure(paint, doc.width, &mut |_| {});
-                *worker != Some(metrics.leaf_height(paint, text_height))
+                let measured = typesetter.measure(paint, doc.width, &mut columns, &mut |_| {});
+                *worker != Some(metrics.leaf_height(paint, measured.height))
             })
             .count();
         doc.probe.heights_checked(mismatches, doc.paints.len());
+    }
+
+    // Links.
+
+    /// The link at a point of the view, if any.
+    pub(super) fn link_at(&self, x: f64, y: f64) -> Option<Target> {
+        let (top, _page) = self.viewport()?;
+        let context = self.obj().pango_context();
+        let mut document = self.document.borrow_mut();
+        let doc = document.as_mut()?;
+        let margin = doc.margin();
+        let y = top - margin + units::round_px(y);
+        let leaf = doc.positions.visible(y, 1).next()?;
+        let local = (units::round_px(x) - margin, y - doc.positions.start(leaf));
+        doc.link_in(&context, leaf, local)
+    }
+
+    /// The pointer moved to `at` (or left): show a hand over a link, and where it goes.
+    fn hover(&self, at: Option<(f64, f64)>) {
+        let target = at.and_then(|(x, y)| self.link_at(x, y));
+        if *self.hovered.borrow() == target {
+            return;
+        }
+        let widget = self.obj();
+        widget.set_cursor_from_name(target.is_some().then_some("pointer"));
+        let path = self.path.borrow();
+        widget.set_tooltip_text(
+            target
+                .as_ref()
+                .and_then(|target| describe(target, path.as_deref()))
+                .as_deref(),
+        );
+        self.hovered.replace(target);
+    }
+
+    fn clicked(&self, button: u32, presses: i32, x: f64, y: f64) {
+        match button {
+            gtk::gdk::BUTTON_PRIMARY if presses == 1 && !self.on_indicator(x) => {
+                if let Some(target) = self.link_at(x, y) {
+                    self.open(target);
+                }
+            }
+            // The "back" side button.
+            8 => self.go_back(),
+            _ => {}
+        }
+    }
+
+    fn key_pressed(
+        &self,
+        key: gtk::gdk::Key,
+        modifiers: gtk::gdk::ModifierType,
+    ) -> glib::Propagation {
+        let alt = modifiers.contains(gtk::gdk::ModifierType::ALT_MASK);
+        if alt && key == gtk::gdk::Key::Left {
+            self.go_back();
+            return glib::Propagation::Stop;
+        }
+        glib::Propagation::Proceed
+    }
+
+    fn open(&self, target: Target) {
+        match target {
+            Target::Leaf(leaf) => {
+                let paint = self
+                    .document
+                    .borrow()
+                    .as_ref()
+                    .and_then(|doc| paint::first_paint_of(&doc.paints, leaf));
+                if let Some(paint) = paint {
+                    self.jump_to(paint);
+                }
+            }
+            Target::Missing(name) => {
+                report_error(format_args!(
+                    "no heading or anchor named {name:?} in this document"
+                ));
+            }
+            Target::Uri(uri) => {
+                let window = self.obj().root().and_downcast::<gtk::Window>();
+                gtk::UriLauncher::new(&uri).launch(
+                    window.as_ref(),
+                    gio::Cancellable::NONE,
+                    move |result| {
+                        if let Err(error) = result {
+                            report_error(format_args!("cannot open {uri}: {error}"));
+                        }
+                    },
+                );
+            }
+            Target::Relative { path, fragment } => self.open_relative(&path, fragment.as_deref()),
+        }
+    }
+
+    /// Shows paint `paint` at the top, remembering where the view was.
+    fn jump_to(&self, paint: usize) {
+        let (top, value) = {
+            let document = self.document.borrow();
+            let Some(doc) = document.as_ref() else {
+                return;
+            };
+            let Some((top, _page)) = self.viewport() else {
+                return;
+            };
+            (
+                doc.positions.spot(top - doc.margin()),
+                units::px_to_f64(doc.positions.start(paint)),
+            )
+        };
+        if let Some(spot) = top {
+            self.history.borrow_mut().push(spot);
+        }
+        self.configure_vadjustment(Some(value));
+        self.obj().queue_draw();
+    }
+
+    /// Returns to where the view was before the last jump.
+    fn go_back(&self) {
+        let Some(spot) = self.history.borrow_mut().pop() else {
+            return;
+        };
+        let value = self
+            .document
+            .borrow()
+            .as_ref()
+            .map(|doc| units::px_to_f64(doc.positions.y_of(spot) + doc.margin()));
+        self.configure_vadjustment(value);
+        self.obj().queue_draw();
+    }
+
+    fn open_relative(&self, link: &str, fragment: Option<&str>) {
+        let Some(document) = self.path.borrow().clone() else {
+            return;
+        };
+        let is_repository = |folder: &Path| folder.join(".git").exists();
+        match links::resolve(&document, link, fragment, &is_repository) {
+            Opening::Viewer { path, fragment } => {
+                if same_file(&path, &document) {
+                    let paint = fragment.as_deref().and_then(|name| {
+                        self.document
+                            .borrow()
+                            .as_ref()
+                            .and_then(|doc| super::find_anchor(&doc.anchors, name))
+                    });
+                    match (paint, fragment) {
+                        (Some(paint), _) => self.jump_to(paint),
+                        (None, Some(name)) => self.open(Target::Missing(name)),
+                        (None, None) => {}
+                    }
+                } else {
+                    open_in_viewer(&path, fragment.as_deref());
+                }
+            }
+            Opening::System(path) => match std::fs::metadata(&path) {
+                Ok(metadata) if links::safe_to_open(&path, &metadata) => {
+                    let window = self.obj().root().and_downcast::<gtk::Window>();
+                    let file = gio::File::for_path(&path);
+                    gtk::FileLauncher::new(Some(&file)).launch(
+                        window.as_ref(),
+                        gio::Cancellable::NONE,
+                        move |result| {
+                            if let Err(error) = result {
+                                report_error(format_args!(
+                                    "cannot open {}: {error}",
+                                    path.display()
+                                ));
+                            }
+                        },
+                    );
+                }
+                Ok(_executable) => report_error(format_args!(
+                    "not opening {}: it is a program or launcher",
+                    path.display()
+                )),
+                Err(error) => report_error(format_args!("cannot open {}: {error}", path.display())),
+            },
+        }
     }
 
     // The scroll indicator.
@@ -762,6 +1018,56 @@ impl DocumentView {
     }
 }
 
+/// What a link's tooltip says: where it goes, when that is not this document.
+fn describe(target: &Target, document: Option<&Path>) -> Option<String> {
+    match target {
+        Target::Leaf(_) => None,
+        Target::Missing(name) => Some(format!("#{name} (not in this document)")),
+        Target::Uri(uri) => Some(uri.clone()),
+        Target::Relative { path, fragment } => {
+            let shown = document
+                .and_then(Path::parent)
+                .map_or_else(|| PathBuf::from(path), |folder| folder.join(path));
+            Some(match fragment {
+                Some(fragment) => format!("{}#{fragment}", shown.display()),
+                None => shown.display().to_string(),
+            })
+        }
+    }
+}
+
+/// Whether two paths name the same file.
+fn same_file(a: &Path, b: &Path) -> bool {
+    match (std::fs::canonicalize(a), std::fs::canonicalize(b)) {
+        (Ok(a), Ok(b)) => a == b,
+        _ => false,
+    }
+}
+
+/// Opens a Markdown file in a new viewer window, at `fragment` if given.
+fn open_in_viewer(path: &Path, fragment: Option<&str>) {
+    let viewer = match std::env::current_exe() {
+        Ok(viewer) => viewer,
+        Err(error) => {
+            report_error(format_args!(
+                "cannot find this viewer to open {}: {error}",
+                path.display()
+            ));
+            return;
+        }
+    };
+    let mut argv: Vec<std::ffi::OsString> = vec![viewer.into_os_string()];
+    if let Some(fragment) = fragment {
+        argv.push(format!("--anchor={fragment}").into());
+    }
+    argv.push("--".into());
+    argv.push(path.as_os_str().to_owned());
+    let argv: Vec<&std::ffi::OsStr> = argv.iter().map(std::ffi::OsString::as_os_str).collect();
+    if let Err(error) = gio::Subprocess::newv(&argv, gio::SubprocessFlags::NONE) {
+        report_error(format_args!("cannot open {}: {error}", path.display()));
+    }
+}
+
 /// Reports, once, that heights will stay estimates.
 fn worker_gone(doc: &mut Doc, gone: WorkerGone) {
     if doc.worker.take().is_some() {
@@ -791,6 +1097,29 @@ impl Doc {
         }
     }
 
+    /// The link at `(x, y)` in leaf `leaf` (leaf coordinates), laying the leaf out if it is not
+    /// the one last asked about.
+    fn link_in(
+        &mut self,
+        context: &pango::Context,
+        leaf: usize,
+        (x, y): (i64, i64),
+    ) -> Option<Target> {
+        let paints = Arc::clone(&self.paints);
+        let paint = paints.get(leaf)?;
+        let typesetter = self.typesetter(context.clone());
+        if self.hit.as_ref().is_none_or(|(at, _, _)| *at != leaf) {
+            let measured = typesetter.measure(paint, self.width, &mut self.columns, &mut |_| {});
+            let geometry =
+                self.setup
+                    .metrics()
+                    .geometry(paint, measured.height, measured.grid(), self.width);
+            self.hit = Some((leaf, measured, geometry));
+        }
+        let (_leaf, measured, geometry) = self.hit.as_ref()?;
+        typesetter.link_at(paint, measured, geometry, (x, y))
+    }
+
     /// Lays out and draws a leaf if it is not cached, and takes its exact height. Returns the
     /// scroll shift that keeps the anchor still (see `Positions::set`).
     fn ensure(
@@ -809,12 +1138,12 @@ impl Doc {
         };
         let probe = Rc::clone(&self.probe);
         let mut counted = |bytes: usize| probe.layout_created(bytes);
-        let (layout, text_height) = typesetter.measure(paint, self.width, &mut counted);
-        let geometry = self
-            .setup
-            .metrics()
-            .geometry(paint, text_height, self.width);
-        let node = draw_leaf(&typesetter, &layout, &geometry, &mut counted);
+        let measured = typesetter.measure(paint, self.width, &mut self.columns, &mut counted);
+        let geometry =
+            self.setup
+                .metrics()
+                .geometry(paint, measured.height, measured.grid(), self.width);
+        let node = draw_leaf(&typesetter, &measured, &geometry, &mut counted);
         self.cache.insert(leaf, node);
         self.positions.set(leaf, geometry.height, anchor, scrolling)
     }
@@ -823,7 +1152,7 @@ impl Doc {
 /// Draws one leaf at the origin, as its geometry places it.
 fn draw_leaf(
     typesetter: &Typesetter,
-    layout: &pango::Layout,
+    measured: &Measured,
     geometry: &LeafGeometry,
     counted: &mut dyn FnMut(usize),
 ) -> Option<gsk::RenderNode> {
@@ -834,24 +1163,53 @@ fn draw_leaf(
             Shade::CodeBackground => palette.faint(0.06),
             Shade::Bar(BarColor::Quote) => palette.faint(0.25),
             Shade::Bar(BarColor::Alert(kind)) => palette.alert(*kind),
-            Shade::Rule => palette.faint(0.2),
+            Shade::Rule | Shade::TableLine => palette.faint(0.2),
             Shade::HeadingRule => palette.faint(0.15),
+            Shade::TableStripe => palette.faint(0.04),
         };
         snapshot.append_color(&color, &graphene_rect(*rect));
     }
-    for (text, right, top) in &geometry.markers {
+    for MarkerPlace {
+        text, right, top, ..
+    } in &geometry.markers
+    {
         let marker = typesetter.marker(text, counted);
         let marker_width = i64::from(marker.pixel_size().0);
-        snapshot.save();
-        snapshot.translate(&point(right - marker_width, *top));
-        snapshot.append_layout(&marker, &palette.foreground);
-        snapshot.restore();
+        append_layout(
+            &snapshot,
+            &marker,
+            (right - marker_width, *top),
+            palette.foreground,
+        );
     }
-    snapshot.save();
-    snapshot.translate(&point(geometry.text_x, geometry.text_y));
-    snapshot.append_layout(layout, &palette.foreground);
-    snapshot.restore();
+    match &measured.content {
+        Content::Text(layout) => append_layout(
+            &snapshot,
+            layout,
+            (geometry.text_x, geometry.text_y),
+            palette.foreground,
+        ),
+        Content::Table { cells, .. } => {
+            for (layouts, origins) in cells.iter().zip(&geometry.cells) {
+                for (layout, &origin) in layouts.iter().zip(origins) {
+                    append_layout(&snapshot, layout, origin, palette.foreground);
+                }
+            }
+        }
+    }
     snapshot.to_node()
+}
+
+fn append_layout(
+    snapshot: &gtk::Snapshot,
+    layout: &pango::Layout,
+    (x, y): (i64, i64),
+    color: gtk::gdk::RGBA,
+) {
+    snapshot.save();
+    snapshot.translate(&point(x, y));
+    snapshot.append_layout(layout, &color);
+    snapshot.restore();
 }
 
 fn point(x: i64, y: i64) -> graphene::Point {

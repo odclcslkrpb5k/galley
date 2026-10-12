@@ -12,12 +12,18 @@
 //! huge leaf would stall a frame, so `split` cuts such paints into several. Paints therefore do
 //! not map one to one onto the document's leaves; each records its `source` leaf.
 
+use std::collections::HashMap;
+use std::ops::Range;
+use std::sync::Arc;
+
 use gbk_markdown_core::Document;
 use gbk_markdown_core::model::{
     AlertKind, Align, Container, Delimiter, HeadingLevel, InlineObject, Inlines, LEAF_TEXT_BYTES,
-    Leaf, LeafKind, Marker, Style,
+    Leaf, LeafKind, LinkTarget, Marker, Style,
 };
-use gbk_markdown_core::units::{ContextId, LeafId};
+use gbk_markdown_core::units::{ContextId, FootnoteId, LeafId, LinkId, RowNo, TableId};
+
+use super::table::{CellPaint, ColumnSample, RowPaint, TablePaint};
 
 /// Indent per container level, in em.
 const QUOTE_INDENT: f64 = 1.0;
@@ -37,6 +43,11 @@ pub(super) const CODE_PADDING: f64 = 0.6;
 /// line break is cut too: Pango wraps such a run slowly (16 KiB took ~200 ms), and it wraps
 /// at characters anyway, so the cut barely shows.
 const SPLIT_AT_LINE_BYTES: usize = 2 * 1024;
+/// Most text in one table cell: a cell is laid out whole, and no README needs more. Longer
+/// cells are cut short with an ellipsis (a listed deviation, plan §5).
+const CELL_TEXT_BYTES: usize = 2 * 1024;
+/// Body rows a table's column widths are measured from (`table::ColumnSample`).
+const SAMPLE_ROWS: usize = 50;
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct LeafPaint {
@@ -44,6 +55,9 @@ pub(crate) struct LeafPaint {
     pub(crate) source: usize,
     pub(crate) text: String,
     pub(crate) attrs: Vec<TextAttr>,
+    pub(crate) links: Vec<LinkSpan>,
+    /// Set for a piece of a table, whose text is in its cells (`text` is empty).
+    pub(crate) table: Option<TablePaint>,
     pub(crate) font: FontRole,
     pub(crate) align: Align,
     /// Distance of the text from the left margin.
@@ -65,6 +79,8 @@ impl LeafPaint {
             source: 0,
             text: text.to_owned(),
             attrs,
+            links: Vec::new(),
+            table: None,
             font,
             align: Align::Start,
             indent_em: 0.0,
@@ -84,6 +100,46 @@ pub(crate) struct TextAttr {
     pub(crate) start: usize,
     pub(crate) end: usize,
     pub(crate) kind: AttrKind,
+}
+
+/// A link over bytes `start..end` of a paint's (or cell's) text.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct LinkSpan {
+    pub(crate) start: usize,
+    pub(crate) end: usize,
+    pub(crate) target: Target,
+}
+
+/// Where a link goes, as far as the document alone can tell.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum Target {
+    /// A leaf of this document: a heading or `<a id>`, a footnote, or back to the reference.
+    Leaf(usize),
+    /// A `#fragment` that names nothing in this document.
+    Missing(String),
+    /// A URL, opened by the system.
+    Uri(String),
+    /// A path relative to the document (or, starting with `/`, to its repository), and the
+    /// fragment after it.
+    Relative {
+        path: String,
+        fragment: Option<String>,
+    },
+}
+
+impl Target {
+    /// A one-word description, for the probe's report: `leaf:3`, `uri:https://...`.
+    pub(crate) fn label(&self) -> String {
+        match self {
+            Self::Leaf(leaf) => format!("leaf:{leaf}"),
+            Self::Missing(name) => format!("missing:{name}"),
+            Self::Uri(uri) => format!("uri:{uri}"),
+            Self::Relative { path, fragment } => match fragment {
+                Some(fragment) => format!("relative:{path}#{fragment}"),
+                None => format!("relative:{path}"),
+            },
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -145,8 +201,13 @@ pub(crate) enum Decoration {
         first: bool,
         last: bool,
     },
-    /// A list marker or footnote number, right-aligned to end at `x_em`.
-    Marker { x_em: f64, text: String },
+    /// A list marker or footnote number, right-aligned to end at `x_em`; a footnote's number
+    /// links back to where it is referenced.
+    Marker {
+        x_em: f64,
+        text: String,
+        link: Option<Target>,
+    },
     /// A horizontal rule across the leaf (thematic break).
     Rule,
     /// The line under an h1 or h2, as on GitHub.
@@ -159,186 +220,518 @@ pub(crate) enum BarColor {
     Alert(AlertKind),
 }
 
+/// The first paint of document leaf `leaf` (paints are in leaf order).
+pub(crate) fn first_paint_of(paints: &[LeafPaint], leaf: usize) -> Option<usize> {
+    let at = paints.partition_point(|paint| paint.source < leaf);
+    paints
+        .get(at)
+        .is_some_and(|paint| paint.source == leaf)
+        .then_some(at)
+}
+
+/// Each anchor's name (a heading's slug, an `<a id>`) and the paint it names. The first of a
+/// name wins, as in a browser.
+pub(crate) fn anchors(doc: &Document, paints: &[LeafPaint]) -> HashMap<String, usize> {
+    let mut anchors = HashMap::new();
+    for anchor in doc.anchors() {
+        if let Some(paint) = first_paint_of(paints, anchor.leaf().index()) {
+            anchors.entry(anchor.slug().to_owned()).or_insert(paint);
+        }
+    }
+    anchors
+}
+
 /// The paints of every leaf, in order.
 pub(crate) fn paint_document(doc: &Document) -> Vec<LeafPaint> {
     let leaves: Vec<_> = doc.leaves_with_ids().collect();
-    leaves
-        .iter()
-        .enumerate()
-        .flat_map(|(index, &(id, leaf))| {
-            // The containers the next leaf is in: any other ends at this leaf.
-            let next: Vec<ContextId> = leaves
-                .get(index + 1)
-                .map(|&(_id, next)| doc.containers(next).map(|(id, _)| id).collect())
-                .unwrap_or_default();
-            split(paint_leaf(doc, index, id, leaf, &next))
-        })
-        .collect()
+    let mut painter = Painter {
+        doc,
+        references: first_references(doc),
+        samples: HashMap::new(),
+    };
+    let mut paints = Vec::with_capacity(leaves.len());
+    for (index, &(id, leaf)) in leaves.iter().enumerate() {
+        // The containers the next leaf is in: any other ends at this leaf.
+        let next: Vec<ContextId> = leaves
+            .get(index + 1)
+            .map(|&(_id, next)| doc.containers(next).map(|(id, _)| id).collect())
+            .unwrap_or_default();
+        paints.extend(split(painter.paint_leaf(index, id, leaf, &next)));
+    }
+    paints
 }
 
-fn paint_leaf(
-    doc: &Document,
-    source: usize,
-    id: LeafId,
-    leaf: &Leaf,
-    next: &[ContextId],
-) -> LeafPaint {
-    let mut paint = LeafPaint {
-        source,
-        text: String::new(),
-        attrs: Vec::new(),
-        font: FontRole::Body,
-        align: leaf.align(),
-        indent_em: 0.0,
-        gap_above_em: 0.0,
-        gap_below_em: PARAGRAPH_GAP,
-        pad_above_em: 0.0,
-        pad_below_em: 0.0,
-        background: None,
-        decorations: Vec::new(),
-    };
-    let tight = containers(&mut paint, doc, id, leaf, next);
-    match leaf.kind() {
-        LeafKind::Paragraph(inlines) => {
-            push_inlines(&mut paint, doc, inlines);
-            if tight {
-                paint.gap_below_em = TIGHT_GAP;
-            }
-        }
-        LeafKind::Heading { level, inlines, .. } => {
-            push_inlines(&mut paint, doc, inlines);
-            paint.font = FontRole::Heading(*level);
-            paint.attrs.push(whole(&paint.text, AttrKind::Bold));
-            paint.gap_above_em = 1.0;
-            paint.gap_below_em = 0.5;
-            if matches!(level, HeadingLevel::H1 | HeadingLevel::H2) {
-                paint.decorations.push(Decoration::HeadingRule);
-            }
-        }
-        LeafKind::Code { block, lines } => {
-            let code = doc.code_block(*block);
-            code.and_then(|code| code.lines(lines))
-                .unwrap_or_default()
-                .clone_into(&mut paint.text);
-            paint.font = FontRole::Code;
-            paint.background = Some(Fill::Code);
-            let first = lines.start.index() == 0;
-            let last = code.is_none_or(|code| lines.end.index() >= code.line_count());
-            paint.pad_above_em = if first { CODE_PADDING } else { 0.0 };
-            paint.pad_below_em = if last { CODE_PADDING } else { 0.0 };
-            paint.gap_below_em = if last { PARAGRAPH_GAP } else { 0.0 };
-        }
-        LeafKind::TableRows {
-            table,
-            rows,
-            with_header,
-        } => {
-            // M2 shows tables as aligned text rows; M3 draws them as tables.
-            if let Some(table) = doc.table(*table) {
-                if *with_header {
-                    push_row(&mut paint, doc, table.header());
-                    let header_end = paint.text.len();
-                    paint.attrs.push(TextAttr {
-                        start: 0,
-                        end: header_end,
-                        kind: AttrKind::Bold,
-                    });
+/// The leaf of each footnote's first reference, where its number links back to.
+fn first_references(doc: &Document) -> HashMap<FootnoteId, usize> {
+    let mut references = HashMap::new();
+    for (id, leaf) in doc.leaves_with_ids() {
+        let mut note = |inlines: &Inlines| {
+            for span in inlines.spans() {
+                if let Some(LinkTarget::Footnote(footnote)) = span
+                    .link()
+                    .and_then(|link| doc.link(link))
+                    .map(gbk_markdown_core::model::Link::target)
+                {
+                    references.entry(*footnote).or_insert(id.index());
                 }
-                for row in table.row_range(rows).unwrap_or_default() {
-                    if !paint.text.is_empty() {
-                        paint.text.push('\n');
-                    }
-                    push_row(&mut paint, doc, row);
+            }
+        };
+        match leaf.kind() {
+            LeafKind::Paragraph(inlines)
+            | LeafKind::Heading { inlines, .. }
+            | LeafKind::DetailsSummary { inlines, .. } => note(inlines),
+            LeafKind::TableRows { table, rows, .. } => {
+                for row in doc
+                    .table(*table)
+                    .and_then(|t| t.row_range(rows))
+                    .unwrap_or_default()
+                {
+                    row.iter().for_each(&mut note);
                 }
-                let last = rows.end.index() >= table.rows().len();
+            }
+            LeafKind::Code { .. } | LeafKind::ThematicBreak | LeafKind::AlertTitle(_) => {}
+        }
+    }
+    references
+}
+
+struct Painter<'d> {
+    doc: &'d Document,
+    references: HashMap<FootnoteId, usize>,
+    /// Each table's column sample, shared by its pieces.
+    samples: HashMap<TableId, Arc<ColumnSample>>,
+}
+
+/// Styled text being built: a paint's or a table cell's.
+struct Styled<'a> {
+    text: &'a mut String,
+    attrs: &'a mut Vec<TextAttr>,
+    links: &'a mut Vec<LinkSpan>,
+}
+
+impl Painter<'_> {
+    fn paint_leaf(
+        &mut self,
+        source: usize,
+        id: LeafId,
+        leaf: &Leaf,
+        next: &[ContextId],
+    ) -> LeafPaint {
+        let doc = self.doc;
+        let mut paint = LeafPaint {
+            source,
+            text: String::new(),
+            attrs: Vec::new(),
+            links: Vec::new(),
+            table: None,
+            font: FontRole::Body,
+            align: leaf.align(),
+            indent_em: 0.0,
+            gap_above_em: 0.0,
+            gap_below_em: PARAGRAPH_GAP,
+            pad_above_em: 0.0,
+            pad_below_em: 0.0,
+            background: None,
+            decorations: Vec::new(),
+        };
+        let tight = self.containers(&mut paint, id, leaf, next);
+        match leaf.kind() {
+            LeafKind::Paragraph(inlines) => {
+                self.push_inlines(&mut paint.styled(), inlines);
+                if tight {
+                    paint.gap_below_em = TIGHT_GAP;
+                }
+            }
+            LeafKind::Heading { level, inlines, .. } => {
+                self.push_inlines(&mut paint.styled(), inlines);
+                paint.font = FontRole::Heading(*level);
+                paint.attrs.push(whole(&paint.text, AttrKind::Bold));
+                paint.gap_above_em = 1.0;
+                paint.gap_below_em = 0.5;
+                if matches!(level, HeadingLevel::H1 | HeadingLevel::H2) {
+                    paint.decorations.push(Decoration::HeadingRule);
+                }
+            }
+            LeafKind::Code { block, lines } => {
+                let code = doc.code_block(*block);
+                code.and_then(|code| code.lines(lines))
+                    .unwrap_or_default()
+                    .clone_into(&mut paint.text);
+                paint.font = FontRole::Code;
+                paint.background = Some(Fill::Code);
+                let first = lines.start.index() == 0;
+                let last = code.is_none_or(|code| lines.end.index() >= code.line_count());
+                paint.pad_above_em = if first { CODE_PADDING } else { 0.0 };
+                paint.pad_below_em = if last { CODE_PADDING } else { 0.0 };
                 paint.gap_below_em = if last { PARAGRAPH_GAP } else { 0.0 };
             }
+            LeafKind::TableRows {
+                table,
+                rows,
+                with_header,
+            } => {
+                let last = doc
+                    .table(*table)
+                    .is_none_or(|t| rows.end.index() >= t.rows().len());
+                paint.gap_below_em = if last { PARAGRAPH_GAP } else { 0.0 };
+                paint.table = self.table_rows(*table, rows, *with_header, last);
+            }
+            LeafKind::ThematicBreak => {
+                paint.decorations.push(Decoration::Rule);
+                paint.gap_above_em = 0.5;
+            }
+            LeafKind::AlertTitle(kind) => {
+                kind.title().clone_into(&mut paint.text);
+                paint
+                    .attrs
+                    .push(whole(&paint.text, AttrKind::AlertTitle(*kind)));
+                paint.attrs.push(whole(&paint.text, AttrKind::Bold));
+                paint.gap_below_em = TIGHT_GAP;
+            }
+            LeafKind::DetailsSummary { inlines, .. } => {
+                self.push_inlines(&mut paint.styled(), inlines);
+                paint.decorations.push(Decoration::Marker {
+                    x_em: paint.indent_em - MARKER_GAP,
+                    text: "▾".to_owned(),
+                    link: None,
+                });
+                paint.gap_below_em = PARAGRAPH_GAP / 2.0;
+            }
         }
-        LeafKind::ThematicBreak => {
-            paint.decorations.push(Decoration::Rule);
-            paint.gap_above_em = 0.5;
+        paint
+    }
+
+    /// Applies the leaf's containers, outermost first: indent, bars, markers. Returns whether
+    /// the leaf sits directly in an item of a tight list.
+    fn containers(
+        &self,
+        paint: &mut LeafPaint,
+        id: LeafId,
+        leaf: &Leaf,
+        next: &[ContextId],
+    ) -> bool {
+        let doc = self.doc;
+        let mut stack: Vec<_> = doc.containers(leaf).collect();
+        let tight = matches!(
+            stack.first().map(|(_id, context)| context.container()),
+            Some(Container::ListItem { tight: true, .. })
+        );
+        stack.reverse();
+        let mut list_depth = 0;
+        for (context_id, context) in stack {
+            let starts_here = context.starts_at(id);
+            let last = !next.contains(&context_id);
+            match context.container() {
+                Container::Quote => {
+                    paint.decorations.push(Decoration::Bar {
+                        x_em: paint.indent_em,
+                        color: BarColor::Quote,
+                        first: starts_here,
+                        last,
+                    });
+                    paint.indent_em += QUOTE_INDENT;
+                }
+                Container::Alert(kind) => {
+                    paint.decorations.push(Decoration::Bar {
+                        x_em: paint.indent_em,
+                        color: BarColor::Alert(*kind),
+                        first: starts_here,
+                        last,
+                    });
+                    paint.indent_em += QUOTE_INDENT;
+                }
+                Container::ListItem { marker, .. } => {
+                    paint.indent_em += LIST_INDENT;
+                    if starts_here {
+                        paint.decorations.push(Decoration::Marker {
+                            x_em: paint.indent_em - MARKER_GAP,
+                            text: marker_text(*marker, list_depth),
+                            link: None,
+                        });
+                    }
+                    list_depth += 1;
+                }
+                Container::Footnote(footnote) => {
+                    paint.indent_em += LIST_INDENT;
+                    if starts_here && let Some(note) = doc.footnote(*footnote) {
+                        paint.decorations.push(Decoration::Marker {
+                            x_em: paint.indent_em - MARKER_GAP,
+                            text: format!("{}.", note.number()),
+                            link: self.references.get(footnote).copied().map(Target::Leaf),
+                        });
+                    }
+                }
+                Container::Details { .. } => paint.indent_em += DETAILS_INDENT,
+            }
         }
-        LeafKind::AlertTitle(kind) => {
-            kind.title().clone_into(&mut paint.text);
-            paint
-                .attrs
-                .push(whole(&paint.text, AttrKind::AlertTitle(*kind)));
-            paint.attrs.push(whole(&paint.text, AttrKind::Bold));
-            paint.gap_below_em = TIGHT_GAP;
-        }
-        LeafKind::DetailsSummary { inlines, .. } => {
-            push_inlines(&mut paint, doc, inlines);
-            paint.decorations.push(Decoration::Marker {
-                x_em: paint.indent_em - MARKER_GAP,
-                text: "▾".to_owned(),
+        tight
+    }
+
+    /// A table leaf's rows (with the header on its first), each cell's text styled and cut to
+    /// `CELL_TEXT_BYTES`; body rows are striped by their place in the whole table.
+    fn table_rows(
+        &mut self,
+        table_id: TableId,
+        rows: &Range<RowNo>,
+        with_header: bool,
+        last: bool,
+    ) -> Option<TablePaint> {
+        let doc = self.doc;
+        let table = doc.table(table_id)?;
+        let body = table.row_range(rows)?;
+        let columns = self.samples.get(&table_id).cloned().unwrap_or_else(|| {
+            let sample = Arc::new(ColumnSample {
+                table: table_id.index(),
+                count: table
+                    .rows()
+                    .iter()
+                    .map(Vec::len)
+                    .chain([table.header().len()])
+                    .max()
+                    .unwrap_or(0),
+                rows: self.rows_of(table, 0, true, SAMPLE_ROWS),
             });
-            paint.gap_below_em = PARAGRAPH_GAP / 2.0;
+            self.samples.insert(table_id, Arc::clone(&sample));
+            sample
+        });
+        let mut painted = Vec::with_capacity(body.len() + 1);
+        if with_header {
+            painted.extend(self.header_row(table));
+        }
+        painted.extend(self.body_rows(table, rows.start.index(), body));
+        Some(TablePaint {
+            columns,
+            rows: painted,
+            last,
+        })
+    }
+
+    /// The header and up to `count` body rows from `from`, as the sample measures them.
+    fn rows_of(
+        &self,
+        table: &gbk_markdown_core::model::Table,
+        from: usize,
+        with_header: bool,
+        count: usize,
+    ) -> Vec<RowPaint> {
+        let body = table.rows().get(from..).unwrap_or_default();
+        let mut rows = Vec::new();
+        if with_header {
+            rows.extend(self.header_row(table));
+        }
+        rows.extend(self.body_rows(
+            table,
+            from,
+            body.get(..count.min(body.len())).unwrap_or_default(),
+        ));
+        rows
+    }
+
+    fn header_row(&self, table: &gbk_markdown_core::model::Table) -> Option<RowPaint> {
+        if table.header().is_empty() {
+            return None;
+        }
+        let mut row = self.row(table, table.header(), false);
+        for cell in &mut row.cells {
+            let bold = whole(&cell.text, AttrKind::Bold);
+            cell.attrs.push(bold);
+        }
+        Some(row)
+    }
+
+    fn body_rows(
+        &self,
+        table: &gbk_markdown_core::model::Table,
+        first: usize,
+        rows: &[Vec<Inlines>],
+    ) -> Vec<RowPaint> {
+        rows.iter()
+            .enumerate()
+            .map(|(offset, cells)| self.row(table, cells, (first + offset) % 2 == 1))
+            .collect()
+    }
+
+    fn row(
+        &self,
+        table: &gbk_markdown_core::model::Table,
+        cells: &[Inlines],
+        striped: bool,
+    ) -> RowPaint {
+        RowPaint {
+            cells: cells
+                .iter()
+                .enumerate()
+                .map(|(column, inlines)| {
+                    let mut cell = CellPaint {
+                        text: String::new(),
+                        attrs: Vec::new(),
+                        links: Vec::new(),
+                        align: table.alignments().get(column).copied().unwrap_or_default(),
+                    };
+                    self.push_inlines(
+                        &mut Styled {
+                            text: &mut cell.text,
+                            attrs: &mut cell.attrs,
+                            links: &mut cell.links,
+                        },
+                        inlines,
+                    );
+                    cut_cell(&mut cell);
+                    cell
+                })
+                .collect(),
+            striped,
         }
     }
-    paint
+
+    /// Where a link goes.
+    fn target(&self, link: LinkId) -> Option<Target> {
+        let doc = self.doc;
+        Some(match doc.link(link)?.target() {
+            LinkTarget::Fragment(fragment) => doc.anchor_leaf(fragment).map_or_else(
+                || Target::Missing(fragment.clone()),
+                |leaf| Target::Leaf(leaf.index()),
+            ),
+            LinkTarget::Footnote(footnote) => {
+                let leaf = doc.contexts_with_ids().find_map(|(_id, context)| {
+                    (*context.container() == Container::Footnote(*footnote))
+                        .then(|| context.first_leaf())
+                        .flatten()
+                })?;
+                Target::Leaf(leaf.index())
+            }
+            LinkTarget::Absolute(url) => Target::Uri(url.clone()),
+            LinkTarget::Relative { path, fragment, .. } => {
+                if path.is_empty() {
+                    // `?query#fragment` on this document: the fragment is what matters here.
+                    return fragment
+                        .as_deref()
+                        .and_then(|fragment| doc.anchor_leaf(fragment))
+                        .map(|leaf| Target::Leaf(leaf.index()));
+                }
+                Target::Relative {
+                    path: path.clone(),
+                    fragment: fragment.clone(),
+                }
+            }
+        })
+    }
+
+    /// Appends styled text. Images become "[alt]" placeholders until M4 draws them.
+    fn push_inlines(&self, out: &mut Styled<'_>, inlines: &Inlines) {
+        let doc = self.doc;
+        let source = inlines.text();
+        // Where runs of source text start, in the source and in the paint text: a placeholder
+        // replaces each image's one object character, so positions after it move.
+        let mut runs: Vec<(usize, usize)> = vec![(0, out.text.len())];
+        let mut copied = 0;
+        for (offset, object) in inlines.objects() {
+            let at = offset.index();
+            out.text
+                .push_str(source.get(copied..at).unwrap_or_default());
+            let InlineObject::Image(image) = object;
+            let alt = doc.image(*image).map_or("", |image| image.alt());
+            let placeholder = format!("[{}]", if alt.is_empty() { "image" } else { alt });
+            let start = out.text.len();
+            out.text.push_str(&placeholder);
+            out.attrs.push(TextAttr {
+                start,
+                end: out.text.len(),
+                kind: AttrKind::Muted,
+            });
+            copied = at + Inlines::OBJECT.len_utf8();
+            runs.push((copied, out.text.len()));
+        }
+        out.text.push_str(source.get(copied..).unwrap_or_default());
+        let map = |position: usize| {
+            let (from, to) = runs
+                .iter()
+                .rev()
+                .find(|&&(from, _)| from <= position)
+                .copied()
+                .unwrap_or_default();
+            to + (position - from)
+        };
+        for span in inlines.spans() {
+            let range = span.range();
+            let (start, end) = (map(range.start.index()), map(range.end.index()));
+            let style = span.style();
+            for (bit, kind) in [
+                (Style::STRONG, AttrKind::Bold),
+                (Style::EMPHASIS, AttrKind::Italic),
+                (Style::STRIKETHROUGH, AttrKind::Strikethrough),
+                (Style::UNDERLINE, AttrKind::Underline),
+                (Style::CODE, AttrKind::Code),
+                (Style::KEYBOARD, AttrKind::Code),
+                (Style::MATH, AttrKind::Code),
+                (Style::DISPLAY_MATH, AttrKind::Code),
+                (Style::SUBSCRIPT, AttrKind::Subscript),
+                (Style::SUPERSCRIPT, AttrKind::Superscript),
+                (Style::FOOTNOTE_REFERENCE, AttrKind::Superscript),
+                (Style::HIGHLIGHT, AttrKind::Highlight),
+            ] {
+                if style.contains(bit) {
+                    out.attrs.push(TextAttr { start, end, kind });
+                }
+            }
+            let Some(target) = span.link().and_then(|link| self.target(link)) else {
+                continue;
+            };
+            out.attrs.push(TextAttr {
+                start,
+                end,
+                kind: AttrKind::Link,
+            });
+            // Runs of one link in several styles are one link.
+            match out.links.last_mut() {
+                Some(last) if last.end == start && last.target == target => last.end = end,
+                _ => out.links.push(LinkSpan { start, end, target }),
+            }
+        }
+    }
 }
 
-/// Applies the leaf's containers, outermost first: indent, bars, markers. Returns whether the
-/// leaf sits directly in an item of a tight list.
-fn containers(
-    paint: &mut LeafPaint,
-    doc: &Document,
-    id: LeafId,
-    leaf: &Leaf,
-    next: &[ContextId],
-) -> bool {
-    let mut stack: Vec<_> = doc.containers(leaf).collect();
-    let tight = matches!(
-        stack.first().map(|(_id, context)| context.container()),
-        Some(Container::ListItem { tight: true, .. })
-    );
-    stack.reverse();
-    let mut list_depth = 0;
-    for (context_id, context) in stack {
-        let starts_here = context.starts_at(id);
-        let last = !next.contains(&context_id);
-        match context.container() {
-            Container::Quote => {
-                paint.decorations.push(Decoration::Bar {
-                    x_em: paint.indent_em,
-                    color: BarColor::Quote,
-                    first: starts_here,
-                    last,
-                });
-                paint.indent_em += QUOTE_INDENT;
-            }
-            Container::Alert(kind) => {
-                paint.decorations.push(Decoration::Bar {
-                    x_em: paint.indent_em,
-                    color: BarColor::Alert(*kind),
-                    first: starts_here,
-                    last,
-                });
-                paint.indent_em += QUOTE_INDENT;
-            }
-            Container::ListItem { marker, .. } => {
-                paint.indent_em += LIST_INDENT;
-                if starts_here {
-                    paint.decorations.push(Decoration::Marker {
-                        x_em: paint.indent_em - MARKER_GAP,
-                        text: marker_text(*marker, list_depth),
-                    });
-                }
-                list_depth += 1;
-            }
-            Container::Footnote(footnote) => {
-                paint.indent_em += LIST_INDENT;
-                if starts_here && let Some(footnote) = doc.footnote(*footnote) {
-                    paint.decorations.push(Decoration::Marker {
-                        x_em: paint.indent_em - MARKER_GAP,
-                        text: format!("{}.", footnote.number()),
-                    });
-                }
-            }
-            Container::Details { .. } => paint.indent_em += DETAILS_INDENT,
+impl LeafPaint {
+    fn styled(&mut self) -> Styled<'_> {
+        Styled {
+            text: &mut self.text,
+            attrs: &mut self.attrs,
+            links: &mut self.links,
         }
     }
-    tight
+}
+
+/// Cuts a cell's text to `CELL_TEXT_BYTES`, with an ellipsis.
+fn cut_cell(cell: &mut CellPaint) {
+    if cell.text.len() <= CELL_TEXT_BYTES {
+        return;
+    }
+    let at = cell.text.floor_char_boundary(CELL_TEXT_BYTES);
+    cell.text.truncate(at);
+    cell.text.push('…');
+    clamp_spans(&mut cell.attrs, &mut cell.links, 0, at);
+}
+
+/// Keeps the attributes and links over `from..to`, rebased to start at `from`.
+fn clamp_spans(attrs: &mut Vec<TextAttr>, links: &mut Vec<LinkSpan>, from: usize, to: usize) {
+    *attrs = attrs
+        .iter()
+        .filter(|attr| attr.start < to && attr.end > from)
+        .map(|attr| TextAttr {
+            start: attr.start.clamp(from, to) - from,
+            end: attr.end.clamp(from, to) - from,
+            kind: attr.kind,
+        })
+        .collect();
+    *links = links
+        .iter()
+        .filter(|link| link.start < to && link.end > from)
+        .map(|link| LinkSpan {
+            start: link.start.clamp(from, to) - from,
+            end: link.end.clamp(from, to) - from,
+            target: link.target.clone(),
+        })
+        .collect();
 }
 
 fn marker_text(marker: Marker, depth: usize) -> String {
@@ -365,88 +758,30 @@ fn whole(text: &str, kind: AttrKind) -> TextAttr {
     }
 }
 
-fn push_row(paint: &mut LeafPaint, doc: &Document, cells: &[Inlines]) {
-    for (index, cell) in cells.iter().enumerate() {
-        if index > 0 {
-            paint.text.push_str("  │  ");
-        }
-        push_inlines(paint, doc, cell);
-    }
-}
-
-/// Appends styled text. Images become "[alt]" placeholders until M4 draws them.
-fn push_inlines(paint: &mut LeafPaint, doc: &Document, inlines: &Inlines) {
-    let source = inlines.text();
-    // Where runs of source text start, in the source and in the paint text: a placeholder
-    // replaces each image's one object character, so positions after it move.
-    let mut runs: Vec<(usize, usize)> = vec![(0, paint.text.len())];
-    let mut copied = 0;
-    for (offset, object) in inlines.objects() {
-        let at = offset.index();
-        paint
-            .text
-            .push_str(source.get(copied..at).unwrap_or_default());
-        let InlineObject::Image(image) = object;
-        let alt = doc.image(*image).map_or("", |image| image.alt());
-        let placeholder = format!("[{}]", if alt.is_empty() { "image" } else { alt });
-        let start = paint.text.len();
-        paint.text.push_str(&placeholder);
-        paint.attrs.push(TextAttr {
-            start,
-            end: paint.text.len(),
-            kind: AttrKind::Muted,
-        });
-        copied = at + Inlines::OBJECT.len_utf8();
-        runs.push((copied, paint.text.len()));
-    }
-    paint
-        .text
-        .push_str(source.get(copied..).unwrap_or_default());
-    let map = |position: usize| {
-        let (from, to) = runs
-            .iter()
-            .rev()
-            .find(|&&(from, _)| from <= position)
-            .copied()
-            .unwrap_or_default();
-        to + (position - from)
-    };
-    for span in inlines.spans() {
-        let range = span.range();
-        let (start, end) = (map(range.start.index()), map(range.end.index()));
-        let style = span.style();
-        for (bit, kind) in [
-            (Style::STRONG, AttrKind::Bold),
-            (Style::EMPHASIS, AttrKind::Italic),
-            (Style::STRIKETHROUGH, AttrKind::Strikethrough),
-            (Style::UNDERLINE, AttrKind::Underline),
-            (Style::CODE, AttrKind::Code),
-            (Style::KEYBOARD, AttrKind::Code),
-            (Style::MATH, AttrKind::Code),
-            (Style::DISPLAY_MATH, AttrKind::Code),
-            (Style::SUBSCRIPT, AttrKind::Subscript),
-            (Style::SUPERSCRIPT, AttrKind::Superscript),
-            (Style::FOOTNOTE_REFERENCE, AttrKind::Superscript),
-            (Style::HIGHLIGHT, AttrKind::Highlight),
-        ] {
-            if style.contains(bit) {
-                paint.attrs.push(TextAttr { start, end, kind });
-            }
-        }
-        if span.link().is_some() {
-            paint.attrs.push(TextAttr {
-                start,
-                end,
-                kind: AttrKind::Link,
-            });
-        }
-    }
-}
-
-/// Cuts a paint whose text is too long into pieces that each lay out quickly (see
-/// `SPLIT_AT_LINE_BYTES` and `cuts`). The pieces stack into the original box: gaps, padding,
-/// markers and bar ends stay with the first or last piece.
+/// Cuts a paint that is too much to lay out at once into pieces that each lay out quickly:
+/// text at `cuts`, a table between rows (see `table_cuts`). The pieces stack into the original
+/// box: gaps, padding, markers and bar ends stay with the first or last piece.
 fn split(paint: LeafPaint) -> Vec<LeafPaint> {
+    if let Some(table) = paint.table.as_ref() {
+        let ranges = table_cuts(table);
+        if ranges.len() <= 1 {
+            return vec![paint];
+        }
+        let count = ranges.len();
+        return ranges
+            .into_iter()
+            .enumerate()
+            .map(|(index, rows)| {
+                let mut piece = piece(&paint, index == 0, index + 1 == count);
+                piece.table = paint.table.as_ref().map(|table| TablePaint {
+                    columns: Arc::clone(&table.columns),
+                    rows: table.rows.get(rows).unwrap_or_default().to_vec(),
+                    last: table.last && index + 1 == count,
+                });
+                piece
+            })
+            .collect();
+    }
     let cuts = cuts(&paint.text);
     if cuts.is_empty() {
         return vec![paint];
@@ -459,52 +794,77 @@ fn split(paint: LeafPaint) -> Vec<LeafPaint> {
         .chain([(paint.text.len(), paint.text.len())])
         .enumerate()
     {
-        let (first, last) = (index == 0, index + 1 == count);
-        let decorations = paint
-            .decorations
-            .iter()
-            .filter_map(|decoration| match decoration {
-                Decoration::Bar {
-                    x_em,
-                    color,
-                    first: starts,
-                    last: ends,
-                } => Some(Decoration::Bar {
-                    x_em: *x_em,
-                    color: *color,
-                    first: first && *starts,
-                    last: last && *ends,
-                }),
-                Decoration::Marker { .. } | Decoration::Rule => first.then(|| decoration.clone()),
-                Decoration::HeadingRule => last.then(|| decoration.clone()),
-            })
-            .collect();
-        pieces.push(LeafPaint {
-            source: paint.source,
-            text: paint.text.get(from..to).unwrap_or_default().to_owned(),
-            attrs: paint
-                .attrs
-                .iter()
-                .filter(|attr| attr.start < to && attr.end > from)
-                .map(|attr| TextAttr {
-                    start: attr.start.clamp(from, to) - from,
-                    end: attr.end.clamp(from, to) - from,
-                    kind: attr.kind,
-                })
-                .collect(),
-            font: paint.font,
-            align: paint.align,
-            indent_em: paint.indent_em,
-            gap_above_em: if first { paint.gap_above_em } else { 0.0 },
-            gap_below_em: if last { paint.gap_below_em } else { 0.0 },
-            pad_above_em: if first { paint.pad_above_em } else { 0.0 },
-            pad_below_em: if last { paint.pad_below_em } else { 0.0 },
-            background: paint.background,
-            decorations,
-        });
+        let mut piece = piece(&paint, index == 0, index + 1 == count);
+        paint
+            .text
+            .get(from..to)
+            .unwrap_or_default()
+            .clone_into(&mut piece.text);
+        piece.attrs.clone_from(&paint.attrs);
+        piece.links.clone_from(&paint.links);
+        clamp_spans(&mut piece.attrs, &mut piece.links, from, to);
+        pieces.push(piece);
         from = next;
     }
     pieces
+}
+
+/// A piece of `paint` with no content yet, first and/or last of the pieces.
+fn piece(paint: &LeafPaint, first: bool, last: bool) -> LeafPaint {
+    let decorations = paint
+        .decorations
+        .iter()
+        .filter_map(|decoration| match decoration {
+            Decoration::Bar {
+                x_em,
+                color,
+                first: starts,
+                last: ends,
+            } => Some(Decoration::Bar {
+                x_em: *x_em,
+                color: *color,
+                first: first && *starts,
+                last: last && *ends,
+            }),
+            Decoration::Marker { .. } | Decoration::Rule => first.then(|| decoration.clone()),
+            Decoration::HeadingRule => last.then(|| decoration.clone()),
+        })
+        .collect();
+    LeafPaint {
+        source: paint.source,
+        text: String::new(),
+        attrs: Vec::new(),
+        links: Vec::new(),
+        table: None,
+        font: paint.font,
+        align: paint.align,
+        indent_em: paint.indent_em,
+        gap_above_em: if first { paint.gap_above_em } else { 0.0 },
+        gap_below_em: if last { paint.gap_below_em } else { 0.0 },
+        pad_above_em: if first { paint.pad_above_em } else { 0.0 },
+        pad_below_em: if last { paint.pad_below_em } else { 0.0 },
+        background: paint.background,
+        decorations,
+    }
+}
+
+/// Row ranges for a table's pieces: as many rows as fit in `SPLIT_AT_LINE_BYTES` of cell text,
+/// at least one.
+fn table_cuts(table: &TablePaint) -> Vec<Range<usize>> {
+    let mut ranges = Vec::new();
+    let mut start = 0;
+    let mut bytes = 0;
+    for (index, row) in table.rows.iter().enumerate() {
+        let size: usize = row.cells.iter().map(|cell| cell.text.len()).sum();
+        if index > start && bytes + size > SPLIT_AT_LINE_BYTES {
+            ranges.push(start..index);
+            start = index;
+            bytes = 0;
+        }
+        bytes += size;
+    }
+    ranges.push(start..table.rows.len());
+    ranges
 }
 
 /// Where to cut `text`: (end of a piece, start of the next). In order of preference: at a line
@@ -569,7 +929,7 @@ mod tests {
             .decorations
             .iter()
             .filter_map(|decoration| match decoration {
-                Decoration::Marker { x_em, text } => Some((*x_em, text.clone())),
+                Decoration::Marker { x_em, text, .. } => Some((*x_em, text.clone())),
                 Decoration::Bar { .. } | Decoration::Rule | Decoration::HeadingRule => None,
             })
             .collect()
@@ -881,17 +1241,51 @@ mod tests {
         assert_eq!(sources, vec![0, 1, 2]);
     }
 
+    fn cell_texts(paint: &LeafPaint) -> Vec<Vec<String>> {
+        paint
+            .table
+            .as_ref()
+            .expect("a table piece")
+            .rows
+            .iter()
+            .map(|row| row.cells.iter().map(|cell| cell.text.clone()).collect())
+            .collect()
+    }
+
     #[test]
-    fn tables_are_rows_of_cells_with_a_bold_header() {
-        let short = paints("| A | B |\n|---|---|\n| 1 | 2 |\n| 3 | 4 |\n");
-        let table = short.first().expect("table");
-        assert_eq!(table.text, "A  │  B\n1  │  2\n3  │  4");
-        assert!(table.attrs.contains(&TextAttr {
-            start: 0,
-            end: "A  │  B".len(),
-            kind: AttrKind::Bold
-        }));
-        assert!((table.gap_below_em - PARAGRAPH_GAP).abs() < f64::EPSILON);
+    fn tables_are_rows_of_cells_with_a_bold_header_and_striped_body() {
+        let short = paints("| A | B |\n|:-:|--:|\n| 1 | 2 |\n| 3 | 4 |\n| 5 | 6 |\n");
+        let piece = short.first().expect("table");
+        assert_eq!(piece.text, "");
+        assert_eq!(
+            cell_texts(piece),
+            vec![
+                vec!["A", "B"],
+                vec!["1", "2"],
+                vec!["3", "4"],
+                vec!["5", "6"]
+            ]
+        );
+        let table = piece.table.as_ref().expect("table");
+        let header = table.rows.first().expect("header");
+        assert!(
+            header
+                .cells
+                .iter()
+                .all(|cell| cell.attrs.contains(&whole(&cell.text, AttrKind::Bold)))
+        );
+        let striped: Vec<bool> = table.rows.iter().map(|row| row.striped).collect();
+        assert_eq!(striped, vec![false, false, true, false]);
+        let aligns: Vec<Align> = header.cells.iter().map(|cell| cell.align).collect();
+        assert_eq!(aligns, vec![Align::Center, Align::End]);
+        assert!(table.last);
+        assert_eq!(table.columns.count, 2);
+        assert_eq!(table.columns.rows.len(), 4);
+        assert!((piece.gap_below_em - PARAGRAPH_GAP).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn long_tables_share_one_sample_and_close_on_their_last_piece() {
         let rows = (0..60)
             .map(|i| format!("| {i} |\n"))
             .collect::<Vec<_>>()
@@ -899,6 +1293,134 @@ mod tests {
         let long = paints(&format!("| N |\n|---|\n{rows}"));
         let gaps: Vec<f64> = long.iter().map(|paint| paint.gap_below_em).collect();
         assert_eq!(gaps, vec![0.0, PARAGRAPH_GAP]);
+        let lasts: Vec<bool> = long
+            .iter()
+            .filter_map(|paint| paint.table.as_ref().map(|table| table.last))
+            .collect();
+        assert_eq!(lasts, vec![false, true]);
+        let (first, second) = (long.first().expect("first"), long.get(1).expect("second"));
+        let sample = |paint: &LeafPaint| Arc::clone(&paint.table.as_ref().expect("table").columns);
+        assert!(Arc::ptr_eq(&sample(first), &sample(second)));
+        // Header plus SAMPLE_ROWS body rows.
+        assert_eq!(sample(first).rows.len(), 1 + SAMPLE_ROWS);
+        // The second chunk starts at body row 50: even, so not striped.
+        assert_eq!(cell_texts(second).first(), Some(&vec!["50".to_owned()]));
+        assert!(
+            !second
+                .table
+                .as_ref()
+                .expect("table")
+                .rows
+                .first()
+                .expect("row")
+                .striped
+        );
+    }
+
+    #[test]
+    fn big_tables_split_between_rows_and_cells_are_capped() {
+        let wide = "w".repeat(900);
+        let rows = (0..5)
+            .map(|_| format!("| {wide} |\n"))
+            .collect::<Vec<_>>()
+            .concat();
+        let pieces = paints(&format!("| H |\n|---|\n{rows}"));
+        let sizes: Vec<usize> = pieces.iter().map(|paint| cell_texts(paint).len()).collect();
+        // Header + 2 rows fit in 2 KiB, then 2 rows, then 1.
+        assert_eq!(sizes, vec![3, 2, 1]);
+        let lasts: Vec<bool> = pieces
+            .iter()
+            .filter_map(|paint| paint.table.as_ref().map(|table| table.last))
+            .collect();
+        assert_eq!(lasts, vec![false, false, true]);
+        let huge = paints(&format!("| H |\n|---|\n| **{}** |\n", "x".repeat(5000)));
+        let cell = huge
+            .iter()
+            .flat_map(|paint| paint.table.iter().flat_map(|table| table.rows.iter()))
+            .nth(1)
+            .and_then(|row| row.cells.first())
+            .expect("the big cell");
+        assert_eq!(cell.text.len(), CELL_TEXT_BYTES + '…'.len_utf8());
+        assert!(cell.attrs.iter().all(|attr| attr.end <= CELL_TEXT_BYTES));
+    }
+
+    #[test]
+    fn targets_have_one_word_labels() {
+        assert_eq!(Target::Leaf(3).label(), "leaf:3");
+        assert_eq!(Target::Missing("x".to_owned()).label(), "missing:x");
+        assert_eq!(Target::Uri("https://a".to_owned()).label(), "uri:https://a");
+        let relative = |fragment: Option<&str>| Target::Relative {
+            path: "a.md".to_owned(),
+            fragment: fragment.map(str::to_owned),
+        };
+        assert_eq!(relative(None).label(), "relative:a.md");
+        assert_eq!(relative(Some("b")).label(), "relative:a.md#b");
+    }
+
+    #[test]
+    fn links_resolve_to_leaves_uris_and_paths() {
+        let paints = paints(
+            "# Top\n\n[up](#top) [gone](#nowhere) [web](https://x.org) [doc](docs/a.md#b) [self](?x#top)\n\nNote[^n].\n\n[^n]: The note.\n",
+        );
+        let text = paints.get(1).expect("links");
+        let targets: Vec<(&str, Target)> = text
+            .links
+            .iter()
+            .map(|link| {
+                (
+                    text.text.get(link.start..link.end).unwrap_or(""),
+                    link.target.clone(),
+                )
+            })
+            .collect();
+        assert_eq!(
+            targets,
+            vec![
+                ("up", Target::Leaf(0)),
+                ("gone", Target::Missing("nowhere".to_owned())),
+                ("web", Target::Uri("https://x.org".to_owned())),
+                (
+                    "doc",
+                    Target::Relative {
+                        path: "docs/a.md".to_owned(),
+                        fragment: Some("b".to_owned())
+                    }
+                ),
+                ("self", Target::Leaf(0)),
+            ]
+        );
+        let reference = paints.get(2).expect("reference");
+        assert_eq!(
+            reference.links.first().map(|link| link.target.clone()),
+            Some(Target::Leaf(3))
+        );
+        let note = paints.get(3).expect("footnote");
+        let back = note
+            .decorations
+            .iter()
+            .find_map(|decoration| match decoration {
+                Decoration::Marker { link, .. } => link.clone(),
+                Decoration::Bar { .. } | Decoration::Rule | Decoration::HeadingRule => None,
+            });
+        assert_eq!(back, Some(Target::Leaf(2)));
+    }
+
+    #[test]
+    fn a_link_in_several_styles_is_one_link_and_cut_links_stay_on_both_sides() {
+        let styled = paints("[plain **bold** plain](https://x.org)\n");
+        let links = &styled.first().expect("paragraph").links;
+        assert_eq!(links.len(), 1);
+        assert_eq!(
+            links.first().map(|link| (link.start, link.end)),
+            Some((0, 16))
+        );
+        let long = format!("[{}](https://x.org)\n", "a".repeat(3000));
+        let pieces = paints(&long);
+        let spans: Vec<(usize, usize)> = pieces
+            .iter()
+            .flat_map(|paint| paint.links.iter().map(|link| (link.start, link.end)))
+            .collect();
+        assert_eq!(spans, vec![(0, 2048), (0, 952)]);
     }
 
     #[test]

@@ -12,7 +12,7 @@ use std::thread;
 use gtk::prelude::FontMapExt as _;
 
 use super::paint::LeafPaint;
-use super::text::{Palette, TextSetup, Typesetter};
+use super::text::{ColumnWidths, Palette, TextSetup, Typesetter};
 
 /// Leaves per batch: small enough to switch jobs quickly, large enough to keep sends cheap.
 const BATCH: usize = 128;
@@ -87,6 +87,7 @@ fn run(jobs: &Receiver<Job>, batches: &Sender<Batch>) {
             setup: job.setup,
             palette: Palette::default(),
         };
+        let mut columns = ColumnWidths::default();
         let mut first = 0;
         let total = job.paints.len();
         loop {
@@ -107,9 +108,13 @@ fn run(jobs: &Receiver<Job>, batches: &Sender<Batch>) {
                 .iter()
                 .map(|paint| {
                     // The worker's layouts are its own; the probe counts main-thread work only.
-                    let (_layout, text_height) =
-                        typesetter.measure(paint, job.view_text_width, &mut |_bytes| {});
-                    metrics.leaf_height(paint, text_height)
+                    let measured = typesetter.measure(
+                        paint,
+                        job.view_text_width,
+                        &mut columns,
+                        &mut |_bytes| {},
+                    );
+                    metrics.leaf_height(paint, measured.height)
                 })
                 .collect();
             let done = end >= total;

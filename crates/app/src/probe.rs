@@ -63,6 +63,17 @@ pub(crate) struct Probe {
     /// The vertical adjustment --bench-scroll drives.
     scroll_target: RefCell<Option<gtk::Adjustment>>,
     scroll: RefCell<ScrollRecord>,
+    /// For --link-at: what is at a point of the view.
+    link_reporter: RefCell<Option<LinkReporter>>,
+}
+
+/// Describes the link at a point of the view.
+pub(crate) struct LinkReporter(pub(crate) Box<dyn Fn(f64, f64) -> String>);
+
+impl std::fmt::Debug for LinkReporter {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("LinkReporter")
+    }
 }
 
 #[derive(Debug, Default)]
@@ -97,6 +108,7 @@ impl Probe {
             heights_measured: Cell::new(None),
             scroll_target: RefCell::new(None),
             scroll: RefCell::new(ScrollRecord::default()),
+            link_reporter: RefCell::new(None),
         })
     }
 
@@ -116,6 +128,10 @@ impl Probe {
 
     pub(crate) fn loader_joined(&self, waited: Duration) {
         self.loader_wait.set(Some(waited));
+    }
+
+    pub(crate) fn set_link_reporter(&self, reporter: LinkReporter) {
+        self.link_reporter.replace(Some(reporter));
     }
 
     pub(crate) fn set_scroll_target(&self, adjustment: gtk::Adjustment) {
@@ -245,11 +261,18 @@ impl Probe {
                 None => "clock-error".to_owned(),
             },
         );
+        let link = self.args.link_at.map_or_else(String::new, |(x, y)| {
+            let label = self.link_reporter.borrow().as_ref().map_or_else(
+                || "no-view".to_owned(),
+                |report| (report.0)(f64::from(x), f64::from(y)),
+            );
+            format!(" link_at={label}")
+        });
         format!(
             "first_frame_us={since_t0} since_main_us={} gtk_ready_us={} presented_us={} \
              loader_wait_us={} layouts_created={} laid_out_before_first_frame={} \
              bytes_laid_out_before_first_frame={} width_resets_before_first_frame={} leaves={} \
-             renderer={}",
+             renderer={}{link}",
             micros(self.main_started.elapsed()),
             optional_micros(self.gtk_ready.get()),
             optional_micros(self.presented.get()),

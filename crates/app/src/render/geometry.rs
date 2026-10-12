@@ -4,7 +4,8 @@
 //! leaf's height and the position of everything drawn in it. The height the worker measures and
 //! the boxes the widget draws both come from it, so they cannot drift apart.
 
-use super::paint::{BarColor, CODE_PADDING, Decoration, Fill, LeafPaint};
+use super::paint::{BarColor, CODE_PADDING, Decoration, Fill, LeafPaint, Target};
+use super::table::{CELL_PAD_Y_EM, Grid, LINE_PX};
 use crate::units;
 
 /// Bar width in em, and its least width in pixels.
@@ -36,6 +37,9 @@ pub(crate) enum Shade {
     Bar(BarColor),
     Rule,
     HeadingRule,
+    TableLine,
+    /// Every second body row of a table.
+    TableStripe,
 }
 
 /// A laid-out leaf: its height, where its text goes, and what is drawn around it.
@@ -46,8 +50,18 @@ pub(crate) struct LeafGeometry {
     pub(crate) text_x: i64,
     pub(crate) text_y: i64,
     pub(crate) fills: Vec<(Rect, Shade)>,
-    /// Markers (text, right edge, top), right-aligned to end at the edge.
-    pub(crate) markers: Vec<(String, i64, i64)>,
+    pub(crate) markers: Vec<MarkerPlace>,
+    /// For a table: the top-left corner of each cell's text, row by row.
+    pub(crate) cells: Vec<Vec<(i64, i64)>>,
+}
+
+/// A marker's text, right-aligned to end at `right`, at `top`; and where clicking it goes.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct MarkerPlace {
+    pub(crate) text: String,
+    pub(crate) right: i64,
+    pub(crate) top: i64,
+    pub(crate) link: Option<Target>,
 }
 
 impl Metrics {
@@ -78,8 +92,15 @@ impl Metrics {
         (view_text_width - self.px(paint.indent_em) - 2 * self.horizontal_padding(paint)).max(1)
     }
 
-    /// Where everything in a leaf goes, `width` being the view's text width.
-    pub(crate) fn geometry(self, paint: &LeafPaint, text_height: i64, width: i64) -> LeafGeometry {
+    /// Where everything in a leaf goes, `width` being the view's text width. `text_height` is
+    /// the laid-out text's height, or a table's grid's (`grid`).
+    pub(crate) fn geometry(
+        self,
+        paint: &LeafPaint,
+        text_height: i64,
+        grid: Option<&Grid>,
+        width: i64,
+    ) -> LeafGeometry {
         let height = self.leaf_height(paint, text_height);
         let gap_above = self.px(paint.gap_above_em);
         let gap_below = self.px(paint.gap_below_em);
@@ -120,9 +141,13 @@ impl Metrics {
                         Shade::Bar(*color),
                     ));
                 }
-                Decoration::Marker { x_em, text } => {
-                    markers.push((text.clone(), self.px(*x_em), text_y));
-                }
+                Decoration::Marker { x_em, text, link } => markers.push(MarkerPlace {
+                    text: text.clone(),
+                    right: self.px(*x_em),
+                    // Level with a table's first line of text, else with the text.
+                    top: text_y + grid.map_or(0, |_| LINE_PX + self.px(CELL_PAD_Y_EM)),
+                    link: link.clone(),
+                }),
                 Decoration::Rule => fills.push((
                     Rect {
                         x: indent,
@@ -143,19 +168,67 @@ impl Metrics {
                 )),
             }
         }
+        let text_x = indent + self.horizontal_padding(paint);
+        let mut cells = Vec::new();
+        if let Some(grid) = grid {
+            fills.extend(grid.fills.iter().map(|(rect, shade)| {
+                (
+                    Rect {
+                        x: rect.x + text_x,
+                        y: rect.y + text_y,
+                        ..*rect
+                    },
+                    *shade,
+                )
+            }));
+            cells = grid
+                .cells
+                .iter()
+                .map(|row| row.iter().map(|&(x, y)| (x + text_x, y + text_y)).collect())
+                .collect();
+        }
         LeafGeometry {
             height,
-            text_x: indent + self.horizontal_padding(paint),
+            text_x,
             text_y,
             fills,
             markers,
+            cells,
         }
     }
 
-    /// A leaf's height estimated without layout: characters over an average width per line.
+    /// A leaf's height estimated without layout: characters over an average width per line; a
+    /// table's rows as their tallest cell's lines, at an even share of the width per column.
     pub(crate) fn estimate(self, paint: &LeafPaint, view_text_width: i64) -> i64 {
         let scale = paint.font.scale();
         let line = units::round_px(self.em_px * scale * 1.4);
+        if let Some(table) = paint.table.as_ref() {
+            let columns = units::count_to_f64(table.columns.count.max(1));
+            let column = units::px_to_f64(self.text_width(paint, view_text_width)) / columns;
+            let per_line = (column / (self.em_px * 0.5)).max(1.0);
+            let rows: i64 = table
+                .rows
+                .iter()
+                .map(|row| {
+                    let lines = row
+                        .cells
+                        .iter()
+                        .map(|cell| {
+                            cell.text
+                                .split('\n')
+                                .map(|line| {
+                                    let chars = units::count_to_f64(line.chars().count());
+                                    units::round_px((chars / per_line).ceil().max(1.0))
+                                })
+                                .sum::<i64>()
+                        })
+                        .max()
+                        .unwrap_or(1);
+                    lines * line + 2 * self.px(CELL_PAD_Y_EM) + LINE_PX
+                })
+                .sum();
+            return self.leaf_height(paint, rows + if table.last { LINE_PX } else { 0 });
+        }
         let char_px = self.em_px * scale * 0.5;
         let width = units::px_to_f64(self.text_width(paint, view_text_width));
         let per_line = (width / char_px).max(1.0);
@@ -207,7 +280,7 @@ mod tests {
     #[test]
     fn the_geometry_height_is_the_leaf_height() {
         for paint in paints("# Title\n\n> quote\n\n- item\n\n```\ncode\n```\n\n---\n") {
-            let geometry = METRICS.geometry(&paint, 20, 600);
+            let geometry = METRICS.geometry(&paint, 20, None, 600);
             assert_eq!(geometry.height, METRICS.leaf_height(&paint, 20));
         }
     }
@@ -215,7 +288,7 @@ mod tests {
     #[test]
     fn code_text_sits_inside_its_padded_background() {
         let paints = paints("```\ncode\n```\n");
-        let geometry = METRICS.geometry(paints.first().expect("code"), 20, 600);
+        let geometry = METRICS.geometry(paints.first().expect("code"), 20, None, 600);
         assert_eq!((geometry.text_x, geometry.text_y), (10, 10));
         assert_eq!(
             geometry.fills,
@@ -237,7 +310,7 @@ mod tests {
         let paints = paints("> # Title\n> body\n\nafter\n");
         let bar = |paint: &LeafPaint| {
             METRICS
-                .geometry(paint, 20, 600)
+                .geometry(paint, 20, None, 600)
                 .fills
                 .into_iter()
                 .find_map(|(rect, shade)| matches!(shade, Shade::Bar(_)).then_some(rect))
@@ -259,10 +332,18 @@ mod tests {
     #[test]
     fn markers_rules_and_heading_rules_are_placed() {
         let paints = paints("- item\n\n---\n\n# Title\n");
-        let item = METRICS.geometry(paints.first().expect("item"), 20, 600);
-        assert_eq!(item.markers, vec![("•".to_owned(), 22, 0)]);
+        let item = METRICS.geometry(paints.first().expect("item"), 20, None, 600);
+        assert_eq!(
+            item.markers,
+            vec![MarkerPlace {
+                text: "•".to_owned(),
+                right: 22,
+                top: 0,
+                link: None
+            }]
+        );
         assert_eq!((item.text_x, item.text_y), (28, 0));
-        let rule = METRICS.geometry(paints.get(1).expect("rule"), 20, 600);
+        let rule = METRICS.geometry(paints.get(1).expect("rule"), 20, None, 600);
         assert_eq!(
             rule.fills,
             vec![(
@@ -275,7 +356,7 @@ mod tests {
                 Shade::Rule
             )]
         );
-        let title = METRICS.geometry(paints.get(2).expect("title"), 40, 600);
+        let title = METRICS.geometry(paints.get(2).expect("title"), 40, None, 600);
         assert_eq!(
             title.fills,
             vec![(
@@ -311,7 +392,7 @@ mod tests {
         assert_eq!(METRICS.text_width(item, 600), 600 - 28);
         let code = paints.get(1).expect("code");
         assert_eq!(METRICS.text_width(code, 600), 600 - 28 - 20);
-        let fills = METRICS.geometry(code, 20, 600).fills;
+        let fills = METRICS.geometry(code, 20, None, 600).fills;
         let background = fills.first().expect("background").0;
         assert_eq!((background.x, background.width), (28, 600 - 28));
     }

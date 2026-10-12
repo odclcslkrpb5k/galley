@@ -76,6 +76,19 @@ for fixture in "${scrolled[@]}"; do
   n=$((n + 1))
 done
 
+# Links: the widget finds the link under a point at the top, and after --anchor opened the
+# document far down (gen-fixtures writes links.md so both points are on a link).
+links=target/fixtures/links.md
+for case in "|leaf:" "--anchor=end|uri:https://example.com/end"; do
+  args=${case%%|*} want=${case#*|}
+  out=$(timeout 60 "$bin" --exit-after-first-frame --link-at=120,44 ${args:+"$args"} "$links" 2>&1 || true)
+  if ! grep -q "link_at=$want" <<<"$out"; then
+    echo "smoke: --link-at ${args:-at the top} did not find $want: $out" >&2
+    fail=1
+  fi
+  n=$((n + 1))
+done
+
 # The GL fallback (--renderer=gl): it must really be GL, reach a first frame and scroll without
 # layout in frames.
 gl_fixture=target/fixtures/readme-200kb.md

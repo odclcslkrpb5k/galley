@@ -17,7 +17,9 @@ fi
 tty=()
 if [[ -t 0 && -t 1 ]]; then tty=(-it); fi
 
-exec docker run --rm "${tty[@]}" \
+# --init: PID 1 is a real init. Without it, whatever command runs first is PID 1, and xvfb-run
+# as PID 1 waits forever for its X server (it hung three times in M3 before this).
+exec docker run --rm --init "${tty[@]}" \
   --user "$(id -u):$(id -g)" \
   -v "$root:/work" -w /work \
   -v gbk-markdown-registry:/cargo/registry \

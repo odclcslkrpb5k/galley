@@ -10,6 +10,7 @@
 #   huge-line.md  one code line of 2 MB (M2 review: never reached a first frame)
 #   huge-cells.md  a 50-row table with 40 KB cells (M2 review: first frame after 68 s)
 #   huge-heading.md  one heading of 1 MB
+#   links.md  a link filling the first lines, and far down an anchored one (smoke: --link-at)
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
 corpus=$root/crates/core/tests/data/corpus
@@ -76,5 +77,20 @@ run() { printf "%${2}s" '' | tr ' ' "$1"; }
   run h 1000000
   echo
 } >"$out/huge-heading.md"
+
+# Links for the smoke run's hit test: the first lines are one link, so a point a little inside
+# the top-left of the text is on it whatever the font; the same far down, after an anchor.
+{
+  words=$(for ((i = 1; i <= 120; i++)); do printf 'link '; done)
+  echo "[$words](#end)"
+  echo
+  for ((i = 1; i <= 400; i++)); do printf 'Paragraph %d of filler.\n\n' "$i"; done
+  echo '<a id="end"></a>'
+  echo
+  echo "[$words](https://example.com/end)"
+  echo
+  # Enough after it that it can scroll to the top.
+  for ((i = 1; i <= 100; i++)); do printf 'Trailing paragraph %d.\n\n' "$i"; done
+} >"$out/links.md"
 
 ls -l "$out"

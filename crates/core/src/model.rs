@@ -215,6 +215,12 @@ impl Context {
     pub fn starts_at(&self, leaf: LeafId) -> bool {
         self.first_leaf == Some(leaf)
     }
+
+    /// Its first leaf: where a link to it (a footnote) goes.
+    #[must_use]
+    pub fn first_leaf(&self) -> Option<LeafId> {
+        self.first_leaf
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

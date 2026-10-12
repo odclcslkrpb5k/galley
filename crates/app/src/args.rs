@@ -7,15 +7,17 @@ use std::time::Duration;
 use crate::renderer::Renderer;
 
 pub(crate) const USAGE: &str = "\
-usage: gbk-markdown [OPTIONS] FILE
+usage: gbk-markdown [OPTIONS] [--] FILE
 
 options:
+  --anchor=NAME             open at the heading or anchor NAME (as in FILE#NAME)
   --renderer=cairo|gl       GTK's renderer (default cairo, faster to first frame); overrides
                             GSK_RENDERER
   --exit-after-first-frame  print the probe report after the first frame and exit
   --bench-scroll            after the first frame, scroll to the end, report frame times, exit
   --t0=NS                   spawn time in CLOCK_REALTIME nanoseconds, for the startup report
   --screenshot=PATH         save the first frame as PNG
+  --link-at=X,Y             with --exit-after-first-frame, report the link at that point
   --empty-window            show no document, for measuring GTK's startup floor (no FILE)
   --check-heights           when the height worker finishes, compare its heights with layouts
                             made here, report mismatches and exit
@@ -25,6 +27,8 @@ options:
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Args {
     pub(crate) file: Option<PathBuf>,
+    /// Where to open the file: a heading's or `<a id>`'s name.
+    pub(crate) anchor: Option<String>,
     pub(crate) mode: Mode,
     /// `None`: not given (see `renderer::env_changes`).
     pub(crate) renderer: Option<Renderer>,
@@ -58,6 +62,8 @@ pub(crate) struct ProbeArgs {
     /// Spawn time since the Unix epoch, as passed by scripts/bench-startup.
     pub(crate) t0: Option<Duration>,
     pub(crate) screenshot: Option<PathBuf>,
+    /// A point of the window, in whole pixels, to report the link at after the first frame.
+    pub(crate) link_at: Option<(i32, i32)>,
 }
 
 #[derive(Debug, PartialEq, Eq, thiserror::Error)]
@@ -68,6 +74,8 @@ pub(crate) enum UsageError {
     OptionNotUtf8,
     #[error("--t0 needs a whole number of nanoseconds")]
     BadT0,
+    #[error("--link-at needs X,Y in pixels")]
+    BadPoint,
     #[error("--renderer must be cairo or gl")]
     BadRenderer,
     #[error("no FILE given")]
@@ -79,6 +87,8 @@ pub(crate) enum UsageError {
 /// Parses the arguments after the program name.
 pub(crate) fn parse(args: impl IntoIterator<Item = OsString>) -> Result<Args, UsageError> {
     let mut file = None;
+    let mut anchor = None;
+    let mut options_ended = false;
     let mut mode = Mode::Document;
     let mut renderer = None;
     // Plain gtk::init is the default: it skips GApplication's session-bus connection, measured
@@ -87,7 +97,11 @@ pub(crate) fn parse(args: impl IntoIterator<Item = OsString>) -> Result<Args, Us
     let mut probe = ProbeArgs::default();
 
     for arg in args {
-        if !arg.as_encoded_bytes().starts_with(b"--") {
+        if !options_ended && arg == "--" {
+            options_ended = true;
+            continue;
+        }
+        if options_ended || !arg.as_encoded_bytes().starts_with(b"--") {
             if file.replace(PathBuf::from(arg)).is_some() {
                 return Err(UsageError::ExtraFile);
             }
@@ -113,6 +127,16 @@ pub(crate) fn parse(args: impl IntoIterator<Item = OsString>) -> Result<Args, Us
                 probe.t0 = Some(Duration::from_nanos(nanos));
             }
             ("--screenshot", Some(path)) => probe.screenshot = Some(PathBuf::from(path)),
+            ("--anchor", Some(name)) => anchor = Some(name.to_owned()),
+            ("--link-at", Some(point)) => {
+                let (x, y) = point.split_once(',').ok_or(UsageError::BadPoint)?;
+                let number = |text: &str| {
+                    text.trim()
+                        .parse::<i32>()
+                        .map_err(|_nan| UsageError::BadPoint)
+                };
+                probe.link_at = Some((number(x)?, number(y)?));
+            }
             ("--empty-window", None) => mode = Mode::EmptyWindow,
             ("--renderer", Some("cairo")) => renderer = Some(Renderer::Cairo),
             ("--renderer", Some("gl")) => renderer = Some(Renderer::Gl),
@@ -126,6 +150,7 @@ pub(crate) fn parse(args: impl IntoIterator<Item = OsString>) -> Result<Args, Us
     }
     Ok(Args {
         file,
+        anchor,
         mode,
         renderer,
         startup,
@@ -145,6 +170,7 @@ mod tests {
     fn a_file_alone_uses_the_defaults() {
         let args = parse_strs(&["README.md"]).expect("valid");
         assert_eq!(args.file, Some(PathBuf::from("README.md")));
+        assert_eq!(args.anchor, None);
         assert_eq!(args.mode, Mode::Document);
         assert_eq!(args.renderer, None);
         assert_eq!(args.startup, Startup::PlainInit);
@@ -171,6 +197,16 @@ mod tests {
         assert!(args.probe.exit_after_first_frame);
         assert_eq!(args.probe.screenshot, Some(PathBuf::from("/tmp/a.png")));
         assert_eq!(args.startup, Startup::Application);
+        let args = parse_strs(&["--link-at=10,20", "x.md"]).expect("valid");
+        assert_eq!(args.probe.link_at, Some((10, 20)));
+        for bad in [
+            "--link-at=10",
+            "--link-at=a,1",
+            "--link-at=1,",
+            "--link-at=1.5,2",
+        ] {
+            assert_eq!(parse_strs(&[bad, "x.md"]), Err(UsageError::BadPoint));
+        }
     }
 
     #[test]
@@ -186,6 +222,17 @@ mod tests {
         assert_eq!(
             parse_strs(&["--renderer", "a.md"]),
             Err(UsageError::UnknownOption("--renderer".to_owned()))
+        );
+    }
+
+    #[test]
+    fn an_anchor_and_a_file_after_the_options_end() {
+        let args = parse_strs(&["--anchor=install", "--", "--odd name.md"]).expect("valid");
+        assert_eq!(args.anchor, Some("install".to_owned()));
+        assert_eq!(args.file, Some(PathBuf::from("--odd name.md")));
+        assert_eq!(
+            parse_strs(&["--", "a.md", "--"]),
+            Err(UsageError::ExtraFile)
         );
     }
 

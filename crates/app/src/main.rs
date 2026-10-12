@@ -2,6 +2,7 @@
 
 mod args;
 mod document_view;
+mod links;
 mod output;
 mod probe;
 mod render;
@@ -9,6 +10,7 @@ mod renderer;
 mod units;
 
 use std::cell::{Cell, RefCell};
+use std::collections::HashMap;
 use std::path::Path;
 use std::process::ExitCode;
 use std::rc::Rc;
@@ -38,7 +40,14 @@ enum LoadError {
     LoaderPanicked,
 }
 
-type Loader = JoinHandle<Result<Vec<render::paint::LeafPaint>, LoadError>>;
+/// What the loader thread makes of the file.
+struct Loaded {
+    paints: Vec<render::paint::LeafPaint>,
+    /// Anchor names and the paints they name.
+    anchors: HashMap<String, usize>,
+}
+
+type Loader = JoinHandle<Result<Loaded, LoadError>>;
 
 fn main() -> ExitCode {
     let main_started = Instant::now();
@@ -92,11 +101,12 @@ fn set_environment(changes: Vec<EnvChange>) {
 }
 
 /// Reads, parses and paints the document: everything up to Pango, off the main thread.
-fn load(path: &Path) -> Result<Vec<render::paint::LeafPaint>, LoadError> {
+fn load(path: &Path) -> Result<Loaded, LoadError> {
     let bytes = std::fs::read(path).map_err(|error| LoadError::Read(error.kind()))?;
-    Ok(render::paint::paint_document(&gbk_markdown_core::load(
-        &bytes,
-    )))
+    let doc = gbk_markdown_core::load(&bytes);
+    let paints = render::paint::paint_document(&doc);
+    let anchors = render::paint::anchors(&doc, &paints);
+    Ok(Loaded { paints, anchors })
 }
 
 fn run_application(args: &Args, loader: Option<Loader>, probe: Rc<Probe>) -> ExitCode {
@@ -107,13 +117,21 @@ fn run_application(args: &Args, loader: Option<Loader>, probe: Rc<Probe>) -> Exi
     let loader = RefCell::new(loader);
     let failed = Rc::new(Cell::new(false));
     let title = window_title(args);
+    let (file, anchor) = (args.file.clone(), args.anchor.clone());
     app.connect_activate(glib::clone!(
         #[strong]
         failed,
         move |app| {
             probe.gtk_ready();
             let window = gtk::ApplicationWindow::new(app);
-            if let Err(error) = show(window.upcast_ref(), &title, loader.take(), &probe) {
+            let shown = show(
+                window.upcast_ref(),
+                &title,
+                loader.take(),
+                (file.as_deref(), anchor.as_deref()),
+                &probe,
+            );
+            if let Err(error) = shown {
                 report_error(error);
                 failed.set(true);
                 app.quit();
@@ -145,7 +163,8 @@ fn run_plain(args: &Args, loader: Option<Loader>, probe: &Rc<Probe>) -> ExitCode
             glib::Propagation::Proceed
         }
     ));
-    if let Err(error) = show(&window, &window_title(args), loader, probe) {
+    let opened = (args.file.as_deref(), args.anchor.as_deref());
+    if let Err(error) = show(&window, &window_title(args), loader, opened, probe) {
         report_error(error);
         return ExitCode::FAILURE;
     }
@@ -162,6 +181,7 @@ fn show(
     window: &gtk::Window,
     title: &str,
     loader: Option<Loader>,
+    (file, anchor): (Option<&Path>, Option<&str>),
     probe: &Rc<Probe>,
 ) -> Result<(), LoadError> {
     window.set_title(Some(title));
@@ -175,9 +195,24 @@ fn show(
             probe.layout_created(bytes);
         });
         let waited = Instant::now();
-        let paints = loader.join().unwrap_or(Err(LoadError::LoaderPanicked))?;
+        let document = loader.join().unwrap_or(Err(LoadError::LoaderPanicked))?;
         probe.loader_joined(waited.elapsed());
-        let view = DocumentView::new(paints, Rc::clone(probe));
+        let start = anchor.and_then(|name| {
+            let paint = document_view::find_anchor(&document.anchors, name);
+            if paint.is_none() {
+                report_error(format_args!(
+                    "no heading or anchor named {name:?}; showing the top"
+                ));
+            }
+            paint
+        });
+        let view = DocumentView::new(
+            document.paints,
+            document.anchors,
+            file.map(Path::to_path_buf),
+            start,
+            Rc::clone(probe),
+        );
         // The view draws its own scroll indicator (render/indicator.rs says why).
         let scrolled = gtk::ScrolledWindow::builder()
             .hscrollbar_policy(gtk::PolicyType::Never)
@@ -185,6 +220,10 @@ fn show(
             .child(&view)
             .build();
         probe.set_scroll_target(scrolled.vadjustment());
+        let reporter = view.clone();
+        probe.set_link_reporter(probe::LinkReporter(Box::new(move |x, y| {
+            reporter.link_label_at(x, y)
+        })));
         window.set_child(Some(&scrolled));
         if probe.prepare_enabled() {
             view.prepare(f64::from(DEFAULT_WIDTH), f64::from(DEFAULT_HEIGHT));

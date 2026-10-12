@@ -153,4 +153,22 @@ Not repeated here, so there is one source each (an earlier copy here drifted fro
   Process lesson: `cargo fmt` (run inside in-docker) rewrites files, which makes the next
   whole-file Write fail as "modified since read" - three times this milestone. Fix used: read
   one line of a file before rewriting it whole.
+- 2026-10-11: M1 mutation testing done (core). Full run: 501 mutants, 110 missed; tests added for
+  every non-equivalent survivor (split/slice arithmetic, HTML stack bookkeeping, pre/summary/
+  media paths, all style/heading/align/alert arms, model accessors, footnote numbering). Two
+  real bugs found on the way: an inline `<summary>` lost its text to the paragraph; a code line
+  longer than the leaf cap had no test (its chunking loop would spin if `start + 1` broke).
+  Remaining survivors, all equivalent:
+  - `next_token` constant: tokens only matter for out-of-order ends; the walker always nests.
+  - `high << 4 | low` vs `^`: the bits never overlap.
+  - `floor_char_boundary` `>`/`>=`: index 0 is always a char boundary.
+  - `trim_end` `>`/`>=`, `close_html` `>`/`>=`, `ensure_started` `>`/`>=`: the equal case is a
+    no-op (span already ends there; stale deferred token popped later; container already gone
+    is not reachable since HTML closes are deferred).
+  - `close_containers_from` `&&`/`||` with `details_from`: flushing a summary that is not open
+    only flushes pending text, which `end_container` does anyway.
+  - `append` `&&`/`||`: `ends_with_space` is already true for empty text.
+  - `split_inlines` `cut > start + max/2` vs `>=`: a space exactly at the midpoint may or may
+    not be a cut; both are valid.
+  - `Footnote::number` -> 1 survived only before the first-reference ordering test was added.
 

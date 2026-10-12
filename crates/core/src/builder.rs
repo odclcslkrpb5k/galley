@@ -330,8 +330,9 @@ impl Builder {
                             Void::Object(object) => inlines.object(object),
                         }
                     } else if name == "summary" {
-                        // A summary opened inside a paragraph collects what follows.
+                        // A summary opened inside a paragraph collects the text after it.
                         self.open_summary();
+                        inlines.summary_from = Some(inlines.text.len());
                     } else if !self_closing && let Some(effect) = self.inline_effect(name, &token) {
                         self.push_html(name, effect, Scope::Inline);
                     }
@@ -340,6 +341,12 @@ impl Builder {
                     if is_filtered(name) {
                         inlines.text(&collapse_whitespace(source));
                     } else if name == "summary" {
+                        if let Some(from) = inlines.summary_from.take() {
+                            let tail = inlines.split_off(from);
+                            if let Some((_details, summary)) = self.summary.as_mut() {
+                                summary.append(&tail);
+                            }
+                        }
                         self.flush_summary();
                     } else {
                         self.close_html(name);
@@ -1113,6 +1120,8 @@ pub(crate) struct InlineBuilder {
     /// The union of `styles`, kept current.
     style: Style,
     html: HtmlState,
+    /// Where an inline `<summary>` opened: the text after it belongs to the summary.
+    summary_from: Option<usize>,
 }
 
 impl InlineBuilder {
@@ -1216,6 +1225,21 @@ impl InlineBuilder {
                 .iter()
                 .map(|(at, object)| (ByteOffset::new(base + at.index()), *object)),
         );
+    }
+
+    /// Removes and returns the text from byte `at` on, with its spans and objects.
+    fn split_off(&mut self, at: usize) -> Inlines {
+        let at = floor_char_boundary(&self.text, at.min(self.text.len()));
+        let whole = Inlines {
+            text: std::mem::take(&mut self.text),
+            spans: std::mem::take(&mut self.spans),
+            objects: std::mem::take(&mut self.objects),
+        };
+        let head = slice_inlines(&whole, 0, at);
+        self.text = head.text;
+        self.spans = head.spans;
+        self.objects = head.objects;
+        slice_inlines(&whole, at, whole.text.len())
     }
 
     fn ends_with_space(&self) -> bool {
@@ -1597,5 +1621,396 @@ mod tests {
         builder.html_block("<p>Check out my app <br></p>");
         let doc = builder.finish();
         assert_eq!(texts(&doc), vec!["Check out my app"]);
+    }
+
+    #[test]
+    fn splitting_respects_char_boundaries_and_carries_spans_and_objects() {
+        // No spaces, multi-byte characters: cut at the last char boundary before the limit.
+        let text = "é".repeat(LEAF_TEXT_BYTES);
+        let mut inlines = InlineBuilder::default();
+        let strong = inlines.begin_style(Style::STRONG);
+        inlines.text(&text);
+        inlines.end_style(strong);
+        inlines.object(InlineObject::Image(ImageId::new(0)));
+        let parts = split_inlines(inlines.finish(), LEAF_TEXT_BYTES);
+        assert_eq!(parts.len(), 3);
+        let lengths: Vec<usize> = parts.iter().map(|part| part.text.len()).collect();
+        assert_eq!(lengths, vec![LEAF_TEXT_BYTES, LEAF_TEXT_BYTES, 3]);
+        for part in parts.iter().take(2) {
+            assert!(part.text.chars().all(|c| c == 'é'));
+            assert_eq!(part.spans.len(), 1);
+            let span = part.spans.first().expect("span");
+            assert_eq!(span.range.start.index(), 0);
+            assert_eq!(span.range.end.index(), part.text.len());
+        }
+        let last = parts.last().expect("last part");
+        assert_eq!(
+            last.objects,
+            vec![(ByteOffset::new(0), InlineObject::Image(ImageId::new(0)))]
+        );
+        assert_eq!(parts.first().map(|part| part.objects.len()), Some(0));
+    }
+
+    #[test]
+    fn splitting_prefers_a_space_in_the_second_half() {
+        let early_space = format!("a {}", "b".repeat(LEAF_TEXT_BYTES));
+        let parts = split_inlines(
+            Inlines {
+                text: early_space,
+                ..Inlines::default()
+            },
+            LEAF_TEXT_BYTES,
+        );
+        // The only space is in the first half: cut at the limit instead.
+        assert_eq!(
+            parts.first().map(|part| part.text.len()),
+            Some(LEAF_TEXT_BYTES)
+        );
+        let late_space = format!("{} {}", "a".repeat(LEAF_TEXT_BYTES - 10), "b".repeat(100));
+        let parts = split_inlines(
+            Inlines {
+                text: late_space,
+                ..Inlines::default()
+            },
+            LEAF_TEXT_BYTES,
+        );
+        assert_eq!(
+            parts.first().map(|part| part.text.len()),
+            Some(LEAF_TEXT_BYTES - 9)
+        );
+        assert_eq!(floor_char_boundary("aé", 2), 1);
+        assert_eq!(floor_char_boundary("aé", 3), 3);
+        assert_eq!(floor_char_boundary("", 0), 0);
+    }
+
+    #[test]
+    fn tables_chunk_by_rows() {
+        let mut builder = builder();
+        builder.table(Table {
+            alignments: vec![Align::Start],
+            header: vec![Inlines::default()],
+            rows: vec![vec![Inlines::default()]; 120],
+        });
+        let doc = builder.finish();
+        let chunks: Vec<(usize, usize, bool)> = doc
+            .leaves
+            .iter()
+            .filter_map(|leaf| {
+                if let LeafKind::TableRows {
+                    rows, with_header, ..
+                } = &leaf.kind
+                {
+                    Some((rows.start.index(), rows.end.index(), *with_header))
+                } else {
+                    None
+                }
+            })
+            .collect();
+        assert_eq!(
+            chunks,
+            vec![(0, 50, true), (50, 100, false), (100, 120, false)]
+        );
+    }
+
+    #[test]
+    fn code_line_starts_are_exact() {
+        let mut builder = builder();
+        builder.code_block("", "ab\ncde\n\nf\n");
+        let doc = builder.finish();
+        let block = doc.code_blocks.first().expect("block");
+        let starts: Vec<usize> = block.line_starts.iter().map(|at| at.index()).collect();
+        assert_eq!(starts, vec![0, 3, 7, 8]);
+        assert_eq!(block.text, "ab\ncde\n\nf");
+    }
+
+    #[test]
+    fn every_html_style_heading_and_alignment() {
+        for (tag, style) in [
+            ("b", Style::STRONG),
+            ("strong", Style::STRONG),
+            ("i", Style::EMPHASIS),
+            ("em", Style::EMPHASIS),
+            ("code", Style::CODE),
+            ("tt", Style::CODE),
+            ("samp", Style::CODE),
+            ("kbd", Style::KEYBOARD),
+            ("sub", Style::SUBSCRIPT),
+            ("sup", Style::SUPERSCRIPT),
+            ("del", Style::STRIKETHROUGH),
+            ("s", Style::STRIKETHROUGH),
+            ("ins", Style::UNDERLINE),
+            ("u", Style::UNDERLINE),
+            ("mark", Style::HIGHLIGHT),
+        ] {
+            assert_eq!(html_style(tag), Some(style), "<{tag}>");
+        }
+        assert_eq!(html_style("span"), None);
+        let levels: Vec<Option<HeadingLevel>> = ["h1", "h2", "h3", "h4", "h5", "h6", "h7"]
+            .iter()
+            .map(|name| heading_level(name))
+            .collect();
+        assert_eq!(
+            levels,
+            vec![
+                Some(HeadingLevel::H1),
+                Some(HeadingLevel::H2),
+                Some(HeadingLevel::H3),
+                Some(HeadingLevel::H4),
+                Some(HeadingLevel::H5),
+                Some(HeadingLevel::H6),
+                None
+            ]
+        );
+        assert_eq!(parse_align(" LEFT "), Some(Align::Start));
+        assert_eq!(parse_align("right"), Some(Align::End));
+        assert_eq!(parse_align("middle"), Some(Align::Center));
+        assert_eq!(parse_align("justify"), None);
+    }
+
+    #[test]
+    fn tags_inside_pre_are_dropped_and_pre_ends_at_its_closer() {
+        let mut builder = builder();
+        builder.html_block(
+            "<pre><b>bold</b> text</pre>
+<p>after</p>",
+        );
+        builder.html_block("<pre></pre>");
+        let doc = builder.finish();
+        assert_eq!(texts(&doc), vec!["<code>", "after", "<code>"]);
+        assert_eq!(
+            doc.code_blocks.first().map(|block| block.text.as_str()),
+            Some("bold text")
+        );
+        assert_eq!(doc.code_blocks.get(1).map(CodeBlock::line_count), Some(0));
+        assert_eq!(doc.notices, Vec::new());
+    }
+
+    #[test]
+    fn a_summary_opened_inline_collects_and_closes() {
+        let mut builder = builder();
+        builder.html_block("<details>");
+        let mut inlines = builder.inline_builder();
+        builder.html_inline(&mut inlines, "<summary>");
+        inlines.text("Title");
+        builder.html_inline(&mut inlines, "</summary>");
+        builder.paragraph(inlines);
+        paragraph(&mut builder, "first");
+        paragraph(&mut builder, "second");
+        builder.html_block("</details>");
+        let doc = builder.finish();
+        assert_eq!(texts(&doc), vec!["Title", "first", "second"]);
+        assert!(matches!(
+            doc.leaves.first().map(|leaf| &leaf.kind),
+            Some(LeafKind::DetailsSummary { .. })
+        ));
+    }
+
+    #[test]
+    fn summaries_join_paragraphs_with_spaces() {
+        let mut builder = builder();
+        builder.html_block("<details><summary>");
+        paragraph(&mut builder, "one");
+        paragraph(&mut builder, "two");
+        builder.html_block("</summary></details>");
+        let doc = builder.finish();
+        assert_eq!(texts(&doc), vec!["one two"]);
+    }
+
+    #[test]
+    fn details_ids_are_distinct_and_open_is_read() {
+        let mut builder = builder();
+        builder.html_block("<details><summary>a</summary>");
+        builder.html_block("</details>");
+        builder.html_block("<details open><summary>b</summary>");
+        builder.html_block("</details>");
+        let doc = builder.finish();
+        let details: Vec<(usize, bool)> = doc
+            .contexts
+            .iter()
+            .filter_map(|context| {
+                if let Container::Details { id, open } = context.container {
+                    Some((id.index(), open))
+                } else {
+                    None
+                }
+            })
+            .collect();
+        assert_eq!(details, vec![(0, false), (1, true)]);
+    }
+
+    #[test]
+    fn media_become_links() {
+        let mut builder = builder();
+        builder.html_block("<video src=\"demo.mp4\">fallback text</video>");
+        builder.html_block("<audio>no source</audio>");
+        let doc = builder.finish();
+        assert_eq!(texts(&doc), vec!["▶ video", "▶ audio"]);
+        let linked: Vec<bool> = doc
+            .leaves
+            .iter()
+            .map(|leaf| {
+                if let LeafKind::Paragraph(inlines) = &leaf.kind {
+                    inlines.spans.iter().any(|s| s.link.is_some())
+                } else {
+                    false
+                }
+            })
+            .collect();
+        assert_eq!(linked, vec![true, false]);
+    }
+
+    #[test]
+    fn html_opened_inside_a_container_ends_with_it() {
+        let mut builder = builder();
+        let item = builder.begin_container(Container::Quote);
+        builder.html_block("<div align=\"right\"><b>");
+        paragraph(&mut builder, "inside");
+        builder.end_container(item);
+        paragraph(&mut builder, "after");
+        let doc = builder.finish();
+        let last = doc.leaves.last().expect("after");
+        assert_eq!(last.align, Align::Start);
+        let LeafKind::Paragraph(inlines) = &last.kind else {
+            panic!("paragraph");
+        };
+        assert_eq!(inlines.spans, Vec::new());
+    }
+
+    #[test]
+    fn a_stray_closer_after_a_closed_tag_closes_nothing() {
+        let mut builder = builder();
+        builder.html_block("<div align=\"right\">");
+        builder.html_block("<b>x</b></b>");
+        paragraph(&mut builder, "still right");
+        let doc = builder.finish();
+        assert_eq!(doc.leaves.last().map(|leaf| leaf.align), Some(Align::End));
+    }
+
+    #[test]
+    fn a_summary_left_open_ends_with_its_container() {
+        let mut builder = builder();
+        let item = builder.begin_container(Container::Quote);
+        builder.html_block("<details><summary>unclosed");
+        builder.end_container(item);
+        paragraph(&mut builder, "after");
+        let doc = builder.finish();
+        assert_eq!(texts(&doc), vec!["unclosed", "after"]);
+        assert_eq!(containers(&doc, 1), Vec::new());
+    }
+
+    #[test]
+    fn deferred_html_closes_wait_for_markdown_containers() {
+        let mut builder = builder();
+        builder.html_block("<details>");
+        let quote = builder.begin_container(Container::Quote);
+        let mut inlines = builder.inline_builder();
+        inlines.text("in quote");
+        builder.html_inline(&mut inlines, "</details>");
+        builder.paragraph(inlines);
+        paragraph(&mut builder, "still in quote");
+        builder.end_container(quote);
+        paragraph(&mut builder, "after");
+        let doc = builder.finish();
+        let in_details = |leaf| {
+            containers(&doc, leaf)
+                .iter()
+                .any(|c| matches!(c, Container::Details { .. }))
+        };
+        assert!(in_details(1));
+        assert_eq!(containers(&doc, 1).first(), Some(&Container::Quote));
+        assert!(!in_details(2));
+        assert_eq!(containers(&doc, 2), Vec::new());
+    }
+
+    #[test]
+    fn leading_whitespace_of_html_text_is_dropped_but_inner_spaces_kept() {
+        let mut builder = builder();
+        builder.html_block("<p>\n   a   <b>b</b>   c\n</p>");
+        let doc = builder.finish();
+        assert_eq!(texts(&doc), vec!["a b c"]);
+    }
+
+    #[test]
+    fn one_line_longer_than_the_cap_is_one_chunk() {
+        let mut builder = builder();
+        builder.code_block("", &format!("{}\n", "x".repeat(3 * LEAF_TEXT_BYTES)));
+        let doc = builder.finish();
+        let chunks: Vec<_> = doc
+            .leaves
+            .iter()
+            .filter_map(|leaf| {
+                if let LeafKind::Code { lines, .. } = &leaf.kind {
+                    Some((lines.start.index(), lines.end.index()))
+                } else {
+                    None
+                }
+            })
+            .collect();
+        assert_eq!(chunks, vec![(0, 1)]);
+    }
+
+    #[test]
+    fn splitting_at_exact_multiples_and_span_edges() {
+        // Exactly twice the cap, no spaces: two parts, not a third empty one.
+        let parts = split_inlines(
+            Inlines {
+                text: "x".repeat(2 * LEAF_TEXT_BYTES),
+                ..Inlines::default()
+            },
+            LEAF_TEXT_BYTES,
+        );
+        assert_eq!(parts.len(), 2);
+        // A span starting exactly at the cut belongs to the second part only, and one ending
+        // exactly at it to the first only: no empty spans.
+        let mut inlines = InlineBuilder::default();
+        inlines.text(&"a".repeat(LEAF_TEXT_BYTES));
+        let strong = inlines.begin_style(Style::STRONG);
+        inlines.text("bold");
+        inlines.end_style(strong);
+        let parts = split_inlines(inlines.finish(), LEAF_TEXT_BYTES);
+        assert_eq!(parts.first().map(|p| p.spans.len()), Some(0));
+        assert_eq!(parts.get(1).map(|p| p.spans.len()), Some(1));
+        let mut inlines = InlineBuilder::default();
+        let strong = inlines.begin_style(Style::STRONG);
+        inlines.text(&"a".repeat(LEAF_TEXT_BYTES));
+        inlines.end_style(strong);
+        inlines.text("plain");
+        let parts = split_inlines(inlines.finish(), LEAF_TEXT_BYTES);
+        assert_eq!(parts.first().map(|p| p.spans.len()), Some(1));
+        assert_eq!(parts.get(1).map(|p| p.spans.len()), Some(0));
+    }
+
+    #[test]
+    fn html_opened_just_before_a_container_outlives_it() {
+        let mut builder = builder();
+        builder.html_block("<div align=\"right\">");
+        let quote = builder.begin_container(Container::Quote);
+        paragraph(&mut builder, "quoted");
+        builder.end_container(quote);
+        paragraph(&mut builder, "after");
+        let doc = builder.finish();
+        assert_eq!(doc.leaves.last().map(|leaf| leaf.align), Some(Align::End));
+    }
+
+    #[test]
+    fn a_container_inside_a_summary_does_not_end_it() {
+        let mut builder = builder();
+        builder.html_block("<details><summary>");
+        paragraph(&mut builder, "a");
+        let quote = builder.begin_container(Container::Quote);
+        paragraph(&mut builder, "b");
+        builder.end_container(quote);
+        paragraph(&mut builder, "c");
+        builder.html_block("</summary></details>");
+        let doc = builder.finish();
+        assert_eq!(texts(&doc), vec!["a b c"]);
+    }
+
+    #[test]
+    fn text_after_a_break_starts_without_a_space() {
+        let mut builder = builder();
+        builder.html_block("<p>a<br> b</p>");
+        let doc = builder.finish();
+        assert_eq!(texts(&doc), vec!["a\nb"]);
     }
 }

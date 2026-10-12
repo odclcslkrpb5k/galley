@@ -391,7 +391,8 @@ impl Walker<'_> {
                     Style::MATH
                 };
                 let token = inlines.begin_style(style);
-                inlines.text(&math.literal);
+                // `$$` on lines of their own leaves newlines around the formula.
+                inlines.text(math.literal.trim_matches('\n'));
                 inlines.end_style(token);
             }
             NodeValue::HtmlInline(html) => self.builder.html_inline(inlines, html),

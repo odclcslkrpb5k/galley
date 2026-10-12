@@ -133,5 +133,17 @@ mod tests {
         assert_eq!(percent_decode("100%"), "100%");
         assert_eq!(percent_decode("%zz%4"), "%zz%4");
         assert_eq!(percent_decode("%FF"), "\u{FFFD}");
+        assert_eq!(percent_decode("%2f%2F%e2%82%ac"), "//€");
+        for (digit, value) in [
+            (b'0', 0),
+            (b'9', 9),
+            (b'a', 10),
+            (b'f', 15),
+            (b'A', 10),
+            (b'F', 15),
+        ] {
+            assert_eq!(hex_value(digit), Some(value));
+        }
+        assert_eq!(hex_value(b'g'), None);
     }
 }

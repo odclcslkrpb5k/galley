@@ -135,6 +135,8 @@ mod gfm {
         assert_eq!(style_of(&inlines, "z^2"), Style::MATH);
         let display = paragraph("$$\\frac{1}{3}$$");
         assert_eq!(style_of(&display, "frac"), Style::DISPLAY_MATH);
+        let display = paragraph("$$\n\\frac{1}{3}\n$$");
+        assert_eq!(display.text(), "\\frac{1}{3}");
     }
 
     #[test]
@@ -229,6 +231,21 @@ mod gfm {
     }
 
     #[test]
+    fn footnotes_are_numbered_by_first_reference() {
+        let doc = doc("b[^b] a[^a] b again[^b]\n\n[^a]: A\n\n[^b]: B\n");
+        let numbers: Vec<(&str, usize)> = doc
+            .footnotes()
+            .iter()
+            .map(|footnote| (footnote.label(), footnote.number()))
+            .collect();
+        assert_eq!(numbers, vec![("b", 1), ("a", 2)]);
+        assert_eq!(
+            texts(&doc).first().map(String::as_str),
+            Some("b1 a2 b again1")
+        );
+    }
+
+    #[test]
     fn a_footnote_label_defined_twice_keeps_its_first_definition() {
         let doc = doc("x[^a]\n\n[^a]: one\n\n[^a]: two\n");
         assert_eq!(texts(&doc), vec!["x1", "one"]);
@@ -290,6 +307,62 @@ mod gfm {
             doc.leaves().first().map(Leaf::kind),
             Some(LeafKind::AlertTitle(AlertKind::Caution))
         ));
+    }
+
+    #[test]
+    fn the_model_exposes_what_the_renderer_reads() {
+        let doc = doc(concat!(
+            "# Top\n\n",
+            "[a](/x \"Link title\") ![alt](img.png \"Image title\")\n\n",
+            "<p align=\"right\"><img src=\"b.png\" width=\"30\" height=\"20\"></p>\n\n",
+            "| l | c | r |\n|:--|:-:|--:|\n| 1 | 2 | 3 |\n\n",
+            "> - nested\n",
+        ));
+        assert_eq!(
+            doc.links().first().and_then(|l| l.title()),
+            Some("Link title")
+        );
+        let images = doc.images();
+        assert_eq!(images.len(), 2);
+        assert_eq!(images.first().and_then(|i| i.title()), Some("Image title"));
+        assert_eq!(
+            images.first().map(gbk_markdown_core::model::Image::size),
+            Some((None, None))
+        );
+        assert_eq!(
+            images.get(1).map(gbk_markdown_core::model::Image::size),
+            Some((Some(30), Some(20)))
+        );
+        assert_eq!(images.get(1).and_then(|i| i.title()), None);
+        let aligns: Vec<_> = doc.leaves().iter().map(Leaf::align).collect();
+        assert_eq!(aligns.get(2), Some(&gbk_markdown_core::model::Align::End));
+        let table = doc.tables().first().expect("table");
+        assert_eq!(
+            table.alignments(),
+            &[
+                gbk_markdown_core::model::Align::Start,
+                gbk_markdown_core::model::Align::Center,
+                gbk_markdown_core::model::Align::End
+            ]
+        );
+        let nested = doc.leaves().last().expect("nested item");
+        let item = nested
+            .context()
+            .and_then(|id| doc.context(id))
+            .expect("item");
+        let quote = item.parent().and_then(|id| doc.context(id)).expect("quote");
+        assert_eq!(quote.container(), &Container::Quote);
+        assert_eq!(quote.parent(), None);
+        assert_eq!(doc.contexts_with_ids().count(), 2);
+        let top = doc.leaves_with_ids().next().map(|(id, _)| id);
+        assert_eq!(doc.anchor_leaf("top"), top);
+        assert_eq!(doc.anchor_leaf("user-content-top"), top);
+        assert_eq!(doc.anchor_leaf("missing"), None);
+        assert_eq!(doc.notices(), &[]);
+        assert_eq!(
+            load(b"\xFF").notices(),
+            &[gbk_markdown_core::model::Notice::InvalidUtf8Replaced]
+        );
     }
 
     // Heading anchors, against GitHub's own rendering of every corpus file.

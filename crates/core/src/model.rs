@@ -666,6 +666,30 @@ mod tests {
     }
 
     #[test]
+    fn style_constants_are_distinct_single_bits() {
+        let all = [
+            Style::EMPHASIS,
+            Style::STRONG,
+            Style::STRIKETHROUGH,
+            Style::CODE,
+            Style::KEYBOARD,
+            Style::SUBSCRIPT,
+            Style::SUPERSCRIPT,
+            Style::MATH,
+            Style::DISPLAY_MATH,
+            Style::FOOTNOTE_REFERENCE,
+            Style::UNDERLINE,
+            Style::HIGHLIGHT,
+        ];
+        for (i, a) in all.iter().enumerate() {
+            assert_eq!(a.0.count_ones(), 1, "{a:?}");
+            for b in all.iter().skip(i + 1) {
+                assert_ne!(a, b);
+            }
+        }
+    }
+
+    #[test]
     fn heading_levels() {
         assert_eq!(HeadingLevel::from_number(3), Some(HeadingLevel::H3));
         assert_eq!(HeadingLevel::from_number(0), None);
@@ -678,6 +702,15 @@ mod tests {
         assert_eq!(AlertKind::from_marker("TIP"), Some(AlertKind::Tip));
         assert_eq!(AlertKind::from_marker("note"), Some(AlertKind::Note));
         assert_eq!(AlertKind::from_marker("info"), None);
+        for kind in [
+            AlertKind::Note,
+            AlertKind::Tip,
+            AlertKind::Important,
+            AlertKind::Warning,
+            AlertKind::Caution,
+        ] {
+            assert_eq!(AlertKind::from_marker(kind.title()), Some(kind));
+        }
     }
 
     #[test]

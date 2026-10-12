@@ -2057,7 +2057,10 @@ mod tests {
             vec![vec![vec!["a"], vec!["b"]], vec![vec!["in", "x"]]]
         );
         // With no table open, </tr> and </table> end the text before them.
-        assert_eq!(texts(&doc), vec!["<table>", "<table>", "text", "more", "end"]);
+        assert_eq!(
+            texts(&doc),
+            vec!["<table>", "<table>", "text", "more", "end"]
+        );
     }
 
     #[test]

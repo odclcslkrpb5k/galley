@@ -249,3 +249,38 @@ All at the GTK floor; the smoke now runs them with a 5 s first-frame bound.
 Scrolling no longer separates the renderers: GL drops 0-2 frames per run on prose, lists and
 code, Cairo 0-8; both drop 11-20 on table-1mb. First frame still favours Cairo by 70-90 ms
 (M2 table above). On goal order (first paint first), Cairo with GL disabled is favoured.
+
+## M3 (2026-10-12): GFM completeness
+
+Tables became grids (one layout per cell), links, `<details>`, HTML tables. Cairo (the
+default). Load 1.3-2.0.
+
+### First frame, `bench-startup -n 20` (ms)
+
+| Fixture | Median | p90 | M2 Cairo median | Laid out before first frame |
+|---|---|---|---|---|
+| one-line | 223.1 | 238.0 | 210.1 | 1 layout, 9 B |
+| ripgrep README | 248.4 | 259.3 | 248.5 | 100 layouts, 2.3 KiB |
+| list-1mb | 229.0 | 251.0 | 233.3 | 59 layouts, 559 B |
+| table-1mb | 254.1 | 266.0 | 257.8 | 258 layouts, 2.3 KiB |
+| wide-table (100 columns) | 236.4 (n=10) | 249.9 | — | 355 layouts, 847 B |
+
+Unchanged within noise: M3's extra work (column samples, more layouts per table screen,
+link resolution on the loader thread) is hidden under GTK's floor. wide-table first made 1600
+layouts (cells off the right edge); cells starting past it are no longer laid out. The smoke
+now budgets layouts before the first frame at 1000.
+
+### Scroll, `--bench-scroll`, three interleaved runs each
+
+| Fixture | Frames | Dropped | p50 busy | M2 follow-up Cairo dropped |
+|---|---|---|---|---|
+| readme-200kb | 1840 | 1, 1, 1 | 6.5-6.8 ms | 1, 0, 8 |
+| list-1mb | 3000 | 0, 0, 0 | 5.9-6.1 ms | 1, 2, 1 |
+| code-1mb | ~2985 | 11, 12, 19 | 8.4 ms | 7, 7, 7 |
+| table-1mb | ~2998 | 2, 1, 3 | 5.7-5.8 ms | 13, 11, 18 |
+| wide-table | 596 | 0, 0, 0 | 6.1-6.4 ms | — |
+
+`layouts_in_scroll_frames=0` in every run. table-1mb drops far fewer frames as grids: its
+pieces are now at most 64 cells, cheaper to rasterise than M2's 2 KiB styled text runs.
+code-1mb is unchanged code; its 11-19 against M2's 7 is within this load's noise (watch it;
+per-leaf textures remain the lever, plan §4.5).

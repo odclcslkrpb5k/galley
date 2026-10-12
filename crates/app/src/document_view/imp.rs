@@ -1435,7 +1435,9 @@ fn draw_leaf(
         Content::Table { cells, .. } => {
             for (layouts, origins) in cells.iter().zip(&geometry.cells) {
                 for (layout, &origin) in layouts.iter().zip(origins) {
-                    append_layout(&snapshot, layout, origin, palette.foreground);
+                    if let Some(layout) = layout {
+                        append_layout(&snapshot, layout, origin, palette.foreground);
+                    }
                 }
             }
         }

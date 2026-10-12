@@ -197,7 +197,10 @@ pub(crate) enum Content {
     Text(pango::Layout),
     Table {
         /// Row by row; a row with fewer cells than columns has empty ones.
-        cells: Vec<Vec<pango::Layout>>,
+        /// `None` for a cell that starts past the view's right edge: with no sideways
+        /// scrolling it can never be seen, so it is not laid out (a 100-column table made
+        /// 1600 layouts before the first frame, nearly all of them off screen).
+        cells: Vec<Vec<Option<pango::Layout>>>,
         grid: Grid,
     },
 }
@@ -272,19 +275,27 @@ impl Typesetter {
         for row in &table.rows {
             let mut layouts = Vec::with_capacity(widths.len());
             let mut row_heights = Vec::with_capacity(widths.len());
+            let mut left = table::LINE_PX;
             for (column, column_width) in widths.iter().enumerate() {
-                let layout = match row.cells.get(column) {
-                    Some(cell) => self.layout(
-                        &cell.text,
-                        &cell.attrs,
+                let layout = if left >= width {
+                    None
+                } else {
+                    let text = row.cells.get(column);
+                    Some(self.layout(
+                        text.map_or("", |cell| cell.text.as_str()),
+                        text.map_or(&[], |cell| cell.attrs.as_slice()),
                         FontRole::Body,
-                        cell.align,
+                        text.map_or(Align::Start, |cell| cell.align),
                         Some((column_width - 2 * pad_x).max(1)),
                         counted,
-                    ),
-                    None => self.layout("", &[], FontRole::Body, Align::Start, None, counted),
+                    ))
                 };
-                row_heights.push(i64::from(layout.pixel_size().1));
+                left += column_width + table::LINE_PX;
+                row_heights.push(
+                    layout
+                        .as_ref()
+                        .map_or(0, |layout| i64::from(layout.pixel_size().1)),
+                );
                 layouts.push(layout);
             }
             cells.push(layouts);
@@ -365,7 +376,7 @@ impl Typesetter {
                     .find_map(|((layouts, origins), row)| {
                         layouts.iter().zip(origins).zip(&row.cells).find_map(
                             |((layout, &(left, top)), cell)| {
-                                link_in_layout(layout, &cell.links, (x - left, y - top))
+                                link_in_layout(layout.as_ref()?, &cell.links, (x - left, y - top))
                             },
                         )
                     })
@@ -669,7 +680,11 @@ mod tests {
         let Content::Table { cells, .. } = &measured.content else {
             panic!("a table");
         };
-        let cell = cells.get(1).and_then(|row| row.get(1)).expect("cell y");
+        let cell = cells
+            .get(1)
+            .and_then(|row| row.get(1))
+            .and_then(Option::as_ref)
+            .expect("cell y");
         let origin = geometry
             .cells
             .get(1)
@@ -728,6 +743,36 @@ mod tests {
     }
 
     #[test]
+    fn cells_past_the_right_edge_are_not_laid_out() {
+        let header = (0..30)
+            .map(|c| format!(" c{c} |"))
+            .collect::<Vec<_>>()
+            .concat();
+        let rule = "---|".repeat(30);
+        let row = (0..30)
+            .map(|c| format!(" {c} |"))
+            .collect::<Vec<_>>()
+            .concat();
+        let leaves = laid_out(&format!("|{header}\n|{rule}\n|{row}\n"));
+        let (_paint, measured, _geometry) = leaves.first().expect("table");
+        let Content::Table { cells, grid } = &measured.content else {
+            panic!("a table");
+        };
+        assert!(grid.width > 600, "{}", grid.width);
+        let laid: Vec<usize> = cells
+            .iter()
+            .map(|row| row.iter().filter(|cell| cell.is_some()).count())
+            .collect();
+        // 3 em (48 px) columns from 1 px in: the 13th starts at 1 + 12 × 49 = 589, the 14th at 638.
+        assert_eq!(laid, vec![13, 13]);
+        assert!(
+            cells
+                .iter()
+                .all(|row| row.iter().take(13).all(Option::is_some))
+        );
+    }
+
+    #[test]
     fn table_columns_fit_their_text_and_rows_their_tallest_cell() {
         let leaves = laid_out("| Name | Value |\n|---|---|\n| a | b<br>c |\n");
         let (_paint, measured, _geometry) = leaves.first().expect("table");
@@ -737,13 +782,19 @@ mod tests {
         // Natural widths: the table is narrower than the view, and no header cell wraps.
         assert!(grid.width < 300, "{}", grid.width);
         for layout in cells.first().expect("header") {
-            assert_eq!(layout.line_count(), 1);
+            assert_eq!(layout.as_ref().map(pango::Layout::line_count), Some(1));
         }
         let row = cells.get(1).expect("body row");
-        let tall = row.get(1).expect("two lines");
+        let tall = row.get(1).and_then(Option::as_ref).expect("two lines");
         assert_eq!(tall.line_count(), 2);
         // Two rows of padding and lines, plus the tallest cell of each row.
-        let one = i64::from(row.first().expect("one line").pixel_size().1);
+        let one = i64::from(
+            row.first()
+                .and_then(Option::as_ref)
+                .expect("one line")
+                .pixel_size()
+                .1,
+        );
         let two = i64::from(tall.pixel_size().1);
         let pad = typesetter().setup.metrics().px(CELL_PAD_Y_EM);
         assert_eq!(grid.height, (1 + one + 2 * pad) + (1 + two + 2 * pad) + 1);

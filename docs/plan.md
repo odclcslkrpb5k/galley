@@ -1,6 +1,6 @@
 # gbk-markdown: implementation plan
 
-Status: draft 3, 2026-10-11; M0-M3 complete (see §10, docs/perf-baseline.md). Draft 2 was revised after a three-way red-team (performance; GFM and
+Status: draft 3, 2026-10-11; M0-M4 complete (see §10, docs/perf-baseline.md). Draft 2 was revised after a three-way red-team (performance; GFM and
 renderer design; build, rules and process); §13 lists those changes. Draft 3 applies the user's
 answers in §11.
 
@@ -40,6 +40,9 @@ Wall-clock numbers are reports (noisy). Work counters are deterministic and gate
 - comrak **=0.56.0**, exact pin, `default-features = false`. Exact because we call
   `comrak::Anchorizer`, which is `#[doc(hidden)]` and so not covered by semver.
 - `thiserror` 2.x.
+- `ureq` 3.4 (`rustls-no-provider`, `platform-verifier`) and `rustls` 0.23 (`ring`) for remote
+  images (M4): a small blocking client on worker threads, certificates checked against the
+  system's store (no bundled roots).
 - Later: `syntect` 5.x with `default-fancy` (pure-Rust regex).
 
 ## 3. Repository layout
@@ -220,7 +223,7 @@ added later without changing the model.
   a millisecond whatever the document holds: the M2 review found a 2 MB code line never reached
   a first frame, and 200-line code chunks took 10-48 ms each (Eliminate). Paints therefore do
   not map one to one onto leaves; each records its `source` leaf. A map from paint text offsets
-  back to the leaf's `ByteOffset`s (placeholders shift them) was thought needed for M3's link
+  back to the leaf's `ByteOffset`s was thought needed for M3's link
   hit-testing; M3 resolved links at paint time instead, so it waits for selection and find.
 - **Worker heights are equal, not close.** The widget's cairo font options cannot be read back
   (no pangocairo binding), so `TextSetup` derives them from `gtk::Settings` as GTK does.
@@ -244,8 +247,7 @@ added later without changing the model.
   every run to 0; the smoke asserts `layouts_in_scroll_frames=0` on three fixtures (Engineer).
 - **Body font.** Body text is `sans-serif` and code `monospace`, at the desktop font's size. The
   desktop font here is Source Code Pro, which suits a terminal, not prose.
-- **Not yet:** long code lines wrap instead of scrolling sideways,
-  images are `[alt]` placeholders (M4). Leaf estimates for the first width are computed on the
+- **Not yet:** long code lines wrap instead of scrolling sideways. Leaf estimates for the first width are computed on the
   main thread (0.7-2.5 ms on 1 MiB fixtures); they could move to the loader. Rendering each leaf
   to a texture during prefetch, so scroll frames are blits, is the next scroll experiment (GSK
   rendering is now most of a scroll frame's 5-10 ms). A list marker before a heading (`- # x`)
@@ -288,16 +290,47 @@ added later without changing the model.
 - **Worker batches** end after 128 leaves or 20 ms, so a resize does not wait behind a batch
   of table pieces; held heights are a map (dropping one when a height is set now is O(1)).
 
+### As built in M4, and why
+
+- **Images stay in the text.** An image is the object character core put in its paint's text,
+  marked `AttrKind::Image`; Pango reserves its box with a shape attribute, on the baseline. The
+  box's size (`render/image.rs`, pure and tested): the `width`/`height` of an HTML `<img>`
+  (clamped to 16384 px), the other side following the image's proportions once known; else
+  its own size once decoded; else a placeholder sized from the same attributes or the alt text
+  (with room for a "⚠", so a failure moves nothing); then scaled down to the text width. Sizes
+  come from an `ImageTable` the height worker and the view share, so both measure alike
+  (`--check-heights --wait-images` compares after images load: 0 mismatches).
+- **Loading** (`images.rs`). An image is wanted once its placeholder is drawn while the view
+  is still (a fling would queue everything it passed), and sent after the frame, never inside
+  one, the first frame included. Four threads, started on the first request, read local files
+  (relative to the document, `/path` from the repository's root; at most 10 MB, through the
+  opened file) or fetch `http(s)` (ureq: 20 s, 5 redirects, 10 MB). Images with the same
+  source load once. A load still going after 30 s is shown as failed.
+- **Decoding.** The first bytes decide (`render/sniff.rs`, pure and tested): PNG, JPEG, GIF,
+  WebP and BMP give their declared size, refused above 40 megapixels before any decoder sees
+  them; SVG is drawn at a capped size; anything else is not shown. The decoder is the one
+  gdk-pixbuf loader for the sniffed format, at most 2048 px a side, and pixels go to Cairo's
+  own premultiplied BGRA on the loading thread. Asking gdk-pixbuf to stop instead (a 0 × 0
+  size) was tried and dropped: on Ubuntu 26.04 it hands PNG, JPEG, GIF and SVG to glycin, out
+  of process, which waits forever on that, and the formats it keeps in process (WebP, HEIF)
+  decode in C.
+- **Arrivals** are collected every 100 ms (a row of badges is laid out once, not per badge),
+  and the paints showing them, plus every piece of a table whose column sample holds one, are
+  laid out again then, between frames, if near the view, through the anchoring path; natural
+  column widths are measured again only for those tables. Over 256 MB of decoded images, those
+  far from the view are forgotten (their size kept, so nothing moves) and load again when next
+  drawn.
+- **Placeholders** are faint boxes with the alt text, "⚠" when the load failed; hovering an
+  image not shown says why (loading, failed and the reason, offline, nothing to load it from).
+  Images are not clickable unless inside a link; links and other attributes skip image
+  characters, so a linked badge is not underlined. `--offline` fetches no remote images.
+- **Startup**: unchanged within 1 ms (M3 and M4 binaries alternated); the binary grew from 2.7
+  to 4.3 MB (TLS).
+
 ### 4.6 Deferred work
 
 - Syntax highlighting (M5): syntect loads on a worker after first paint; visible code chunks first.
-- Images (M4): a placeholder (alt text, sized from `width`/`height` attributes when present) is
-  painted first. An image is fetched and decoded only once its placeholder has been painted in
-  the viewport, on a worker; the leaf is re-measured when it arrives, through the normal anchoring
-  path. Local files are read; remote `http(s)` images are fetched with a small blocking HTTP
-  client on the worker pool (candidate: `ureq` with rustls; vetted by cargo-deny), with a timeout
-  and a size cap. A failed fetch leaves the placeholder with a notice. No fetch ever runs before
-  first paint.
+- Images: built in M4 (§4.5 "As built in M4").
 
 ## 5. GFM coverage
 
@@ -328,7 +361,7 @@ asserting its effect (Engineer).
 | Front matter | a key/value table, as GitHub shows it, for flat YAML (scalars, quoted with escapes, lists shown "a, b"); anything else (nested maps, block strings) stays YAML in a code block | M3, done |
 | Math | parsed so `$a_b$` is not mangled; `MATH` / `DISPLAY_MATH` styles, shown monospace; display math centred | M3, done |
 | Emoji shortcodes | comrak `shortcodes` → Unicode (the `emojis` crate). GitHub renders `:octocat:` as an image; we leave it as text. Unknown shortcodes stay literal | M3, done |
-| Images | §4.6 | M4 |
+| Images | inline, sized, scaled to fit; local and remote, loaded once drawn (§4.5 "As built in M4") | M4, done |
 | Mermaid | code block | — |
 
 Known deviations from GitHub, as built in M3 (besides oracle 3's list, §9):
@@ -342,6 +375,11 @@ Known deviations from GitHub, as built in M3 (besides oracle 3's list, §9):
 - Link failures (missing file, refused program) are reported on stderr, not in the window.
 - Table tags inside a Markdown paragraph line (`text</td><td>more`) are not cells.
 - Headings inside `<summary>` or a table cell get no anchor (GitHub's behaviour unverified).
+- Images (M4): animated GIFs show their first frame; TIFF, HEIF, AVIF, JPEG XL and `data:`
+  URIs are not shown; `srcset` is ignored (`<picture>` shows its `<img>`); raster images over
+  40 megapixels are refused, not downscaled; an image in the paint at the top of the view that
+  arrives can move the text below it in that paint (anchoring is per paint); clicking an image
+  that is not in a link does nothing.
 | `@mention`, `#123`, SHA links | need repo context; out of scope | — |
 
 ### 5.1 Raw HTML
@@ -419,7 +457,9 @@ counter covers node building too. From M3 the smoke also budgets layouts before 
 frame (≤ 1000: bytes miss a table's many small cells), scrolls table-1mb and a 100-column
 table, and checks links and clicks through the probe: `--link-at=X,Y` reports the link at a
 point after the first frame (`link_at=leaf:N|uri:…|relative:…|missing:…|none`), and
-`--click-at=X,Y` clicks there through the widget's own handling (never opening anything outside
+`--wait-images` reports `images_loaded`, `images_failed` and `images_loading` once nothing is
+loading (M4; smoke checks images.md loads 5 and fails 2, and compares heights after images
+load), and `--click-at=X,Y` clicks there through the widget's own handling (never opening anything outside
 the document) and reports the next frame (`clicked=`, `document_height=`, `top_leaf=`). Scroll scenarios other than steady scroll-to-end (flinging up
 into estimated leaves, resizing mid-document) are covered by `render::positions`' unit tests,
 not by bench runs.
@@ -475,8 +515,9 @@ exemption). So tests return `()` and use `.expect("what")` and `assert_eq!`. Sha
 
 ### cargo-deny (0.20 syntax)
 
-Licence allow-list (MIT, Apache-2.0, BSD-2/3, Zlib, Unicode-3.0, MPL-2.0; a new one fails the gate
-until reviewed; Unicode-DFS-2016 is allowed for `finl_unicode` alone, as a per-crate exception), advisories with the current syntax (the removed `vulnerability = "deny"` key
+Licence allow-list (MIT, Apache-2.0, BSD-2/3, Zlib, Unicode-3.0, MPL-2.0, and ISC since M4 for
+ring, rustls-webpki and untrusted (reviewed: permissive, MIT-equivalent); a new one fails the
+gate until reviewed; the graph is limited to `x86_64-unknown-linux-gnu`, the only target built; Unicode-DFS-2016 is allowed for `finl_unicode` alone, as a per-crate exception), advisories with the current syntax (the removed `vulnerability = "deny"` key
 errors) and `unmaintained = "workspace"` so an unmaintained transitive GTK crate does not block
 every push, `anyhow` banned, comrak wrapped to core, duplicate versions warn.
 
@@ -485,7 +526,8 @@ every push, `anyhow` banned, comrak wrapped to core, duplicate versions warn.
 ### Docker
 
 - `FROM ubuntu:26.04@sha256:<pinned>`. apt: `build-essential pkg-config libgtk-4-dev curl
-  ca-certificates xvfb`.
+  ca-certificates xvfb`, and `librsvg2-common` (gdk-pixbuf's SVG loader, for image tests and
+  smoke). Smoke and bench-startup run `--offline`: the gate contacts no network.
 - `RUSTUP_HOME=/rustup`, `CARGO_HOME=/cargo`; `rustup-init` downloaded with a pinned sha256;
   toolchain from the copied `rust-toolchain.toml`. `/cargo/{registry,git,advisory-dbs}` created in
   the image with mode 1777 and `/rustup` world-readable, so the build can run as the host UID.
@@ -628,6 +670,7 @@ replaces review.)
   corpus inputs with 8 listed deviations; spec/extension oracles 684 of 702 (four raw-HTML-table
   deviations went, 6 for GitHub's link protocols came); §4.5 "As built in M3", §5's known deviations.
 - **M4 images.** Placeholders first; local and remote fetched lazily once visible (§4.6).
+  *Done 2026-10-12:* §4.5 "As built in M4", §5's image deviations.
 - **M5 syntax highlighting.** Lazy syntect.
 - **M6 viewer features.** Reload on
   change (`gio::FileMonitor`); keyboard navigation; zoom; dark mode; `.desktop` file and MIME
@@ -660,7 +703,12 @@ Open: none.
 - Selection, find and accessibility in the custom widget are real work after v1; the (leaf,
   `ByteOffset`) addressing keeps the model ready for them.
 - Remote image fetches contact third-party hosts (badge services, trackers) when a document is
-  viewed; this is the chosen behaviour, and nothing is fetched before first paint.
+  viewed; this is the chosen behaviour, and nothing is fetched before first paint. A README can
+  also point at addresses on the local network (`http://192.168.1.1/...`): a GET is made, its
+  answer only shown as an image if it is one. `--offline` turns fetching off; a default-off or
+  per-document setting is a candidate for M6.
+- A decoder that never returns (glycin, out of process) keeps one of the four loading threads;
+  its image fails after 30 s, but enough such images would leave none.
 - Worker heights may not match main-thread layout exactly; the equality test says so, and the
   idle-slice fallback exists.
 - The renderer floor may dominate TTFP; §4.4's choices are the lever, decided on numbers.

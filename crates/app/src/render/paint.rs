@@ -1311,7 +1311,7 @@ mod tests {
     #[test]
     fn image_infos_keep_alt_size_and_loadable_sources() {
         let doc = gbk_markdown_core::load(
-            b"![a](x.png) <img src=\"https://h/y.svg\" width=\"30\" alt=\"b\"> ![c](#frag) ![d](data:x)",
+            b"![a](x.png) <img src=\"https://h/y.svg\" width=\"30\" alt=\"b\"> ![c](#frag) ![d](data:x) ![e](?query)",
         );
         let infos = image_infos(&doc);
         let summary: Vec<(&str, Option<u32>, Option<ImageSource>)> = infos
@@ -1329,6 +1329,7 @@ mod tests {
                 ),
                 ("c", None, None),
                 ("d", None, None),
+                ("e", None, None),
             ]
         );
     }

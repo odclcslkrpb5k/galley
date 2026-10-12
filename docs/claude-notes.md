@@ -42,6 +42,7 @@ Optimisation goals, in priority order as stated:
 | 2026-10-11 | Remote images: placeholder first, fetch async once placeholder is visible | User decision |
 | 2026-10-11 | Binary name `gbk-markdown` | User decision |
 | 2026-10-11 | Budgets split: GTK floor (measured) + our added cost; work counters gate, wall clock reports | Red-team: GTK startup may exceed a fixed TTFP budget |
+| 2026-10-12 | Remote images via ureq 3 + rustls (ring), system certificates (platform-verifier); ISC licence allowed after review | M4; no bundled roots, no OpenSSL; startup unchanged within 1 ms |
 | 2026-10-12 | Cairo renderer by default, `--renderer=cairo\|gl` overrides GSK_RENDERER; `unsafe_code` deny with one exception (set_var in main) | User decision: 70-90 ms faster first frame, scrolling even; check-boundaries keeps it the only unsafe |
 
 Push guard (installed 2026-10-11): `.claude/hooks/guard-push` refuses Bash commands whose text
@@ -242,3 +243,17 @@ Not repeated here, so there is one source each (an earlier copy here drifted fro
   the rest are equivalent and named in commit 7f69d89. Perf: first frames as M2 within noise,
   table-1mb scroll drops 1-3 (M2 11-18); docs/perf-baseline.md "M3".
   Next: M4 (images), awaiting the user's go-ahead.
+- 2026-10-12: M4 (images) built, reviewed and pushed. Images stay at their object character
+  with a Pango shape attribute; sizes from a shared ImageTable (worker and view agree:
+  `--check-heights --wait-images` 0 mismatches); images.rs loads once drawn while still, after
+  the frame, 4 threads, ureq/rustls, sniffed formats only (render/sniff.rs), 40 MP refusal
+  before decoding, 2048 px decode cap, 30 s deadline, dedup by source, 256 MB texture budget.
+  Reviews: correctness 11 findings (worst: /proc/self/pagemap read until OOM; gdk-pixbuf 2.44
+  sends PNG/JPEG/GIF to glycin, so the in-process list was wrong), performance 11 (redraw every
+  16 ms while loading; arrivals laid out in frames, which the smoke caught), coherence 15.
+  Learned: gdk-pixbuf on Ubuntu 26.04 decodes most formats out of process with glycin, which
+  hangs forever if a size callback asks for 0 × 0, so sniff sizes ourselves and never ask
+  gdk-pixbuf to stop; glycin warns "running without sandbox" in Docker (no bwrap there).
+  Process: save multi-file edit scripts to the scratchpad before running them (a failed
+  anchor then costs a re-run, not a re-type; it happened twice this milestone).
+  Next: M5 (syntax highlighting), awaiting the user's go-ahead.

@@ -564,11 +564,28 @@ mod tests {
 
     /// A 2 × 1 PNG, red then blue.
     fn png() -> Vec<u8> {
-        let pixbuf =
-            gdk_pixbuf::Pixbuf::new(gdk_pixbuf::Colorspace::Rgb, false, 8, 2, 1).expect("a pixbuf");
-        pixbuf.put_pixel(0, 0, 255, 0, 0, 255);
-        pixbuf.put_pixel(1, 0, 0, 0, 255, 255);
+        sized_png(2, 1)
+    }
+
+    /// A PNG of `width` × `height`, red.
+    fn sized_png(width: i32, height: i32) -> Vec<u8> {
+        let pixbuf = gdk_pixbuf::Pixbuf::new(gdk_pixbuf::Colorspace::Rgb, false, 8, width, height)
+            .expect("a pixbuf");
+        pixbuf.fill(0xFF00_00FF);
+        if width > 1 {
+            pixbuf.put_pixel(1, 0, 0, 0, 255, 255);
+        }
         pixbuf.save_to_bufferv("png", &[]).expect("encoded")
+    }
+
+    /// A PNG whose header declares `width` × `height` (checksum fixed up).
+    fn declaring(width: u32, height: u32) -> Vec<u8> {
+        let mut png = png();
+        // IHDR's width and height are bytes 16..24, its checksum 29..33 (over 12..29).
+        png.splice(16..24, [width.to_be_bytes(), height.to_be_bytes()].concat());
+        let crc = crc32(png.get(12..29).expect("IHDR"));
+        png.splice(29..33, crc.to_be_bytes());
+        png
     }
 
     /// The CRC-32 PNG chunks carry.
@@ -621,18 +638,84 @@ mod tests {
     fn a_small_png_declaring_too_many_pixels_is_refused() {
         // A PNG whose header says 20 000 × 20 000 (400 megapixels), in a few bytes: refused
         // before any decoder sees it.
-        let mut png = png();
-        // IHDR's width and height are bytes 16..24, its checksum 29..33 (over 12..29).
-        png.splice(
-            16..24,
-            [20_000_u32.to_be_bytes(), 20_000_u32.to_be_bytes()].concat(),
-        );
-        let crc = crc32(png.get(12..29).expect("IHDR"));
-        png.splice(29..33, crc.to_be_bytes());
+        let png = declaring(20_000, 20_000);
         assert_eq!(
             decode(&png).map(|_| ()),
             Err(ImageError::TooManyPixels(20_000, 20_000))
         );
+    }
+
+    #[test]
+    fn a_png_declaring_no_pixels_is_damaged() {
+        assert_eq!(
+            decode(&declaring(0, 5)).map(|_| ()),
+            Err(ImageError::Corrupt)
+        );
+        assert_eq!(
+            decode(&declaring(5, 0)).map(|_| ()),
+            Err(ImageError::Corrupt)
+        );
+    }
+
+    #[test]
+    fn foreign_errors_map_to_ours_by_kind() {
+        assert_eq!(
+            ImageError::from(ureq::Error::StatusCode(404)),
+            ImageError::Status(404)
+        );
+        assert_eq!(
+            ImageError::from(ureq::Error::Timeout(ureq::Timeout::Global)),
+            ImageError::TimedOut
+        );
+        assert_eq!(
+            ImageError::from(ureq::Error::HostNotFound),
+            ImageError::HostNotFound
+        );
+        assert_eq!(
+            ImageError::from(ureq::Error::Io(std::io::Error::from(
+                std::io::ErrorKind::ConnectionReset
+            ))),
+            ImageError::Network(std::io::ErrorKind::ConnectionReset)
+        );
+        assert_eq!(
+            ImageError::from(ureq::Error::BodyExceedsLimit(9)),
+            ImageError::TooLarge
+        );
+        assert_eq!(
+            ImageError::from(ureq::Error::ConnectionFailed),
+            ImageError::FetchFailed
+        );
+        let pixbuf = |kind| glib::Error::new(kind, "message text is never read");
+        assert_eq!(
+            ImageError::from(pixbuf(gdk_pixbuf::PixbufError::UnknownType)),
+            ImageError::NotAnImage
+        );
+        assert_eq!(
+            ImageError::from(pixbuf(gdk_pixbuf::PixbufError::UnsupportedOperation)),
+            ImageError::NotAnImage
+        );
+        assert_eq!(
+            ImageError::from(pixbuf(gdk_pixbuf::PixbufError::InsufficientMemory)),
+            ImageError::TooLarge
+        );
+        assert_eq!(
+            ImageError::from(pixbuf(gdk_pixbuf::PixbufError::CorruptImage)),
+            ImageError::Corrupt
+        );
+    }
+
+    #[test]
+    fn files_up_to_the_cap_are_read_and_no_more() {
+        let dir = std::env::temp_dir().join(format!("gbk-cap-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        let cap = usize::try_from(MAX_BYTES).expect("small");
+        assert_eq!(cap, 10 * 1024 * 1024);
+        std::fs::write(dir.join("exact"), vec![0_u8; cap]).expect("write");
+        std::fs::write(dir.join("over"), vec![0_u8; cap + 1]).expect("write");
+        assert_eq!(read(&dir.join("exact")).map(|bytes| bytes.len()), Ok(cap));
+        assert_eq!(read(&dir.join("over")), Err(ImageError::TooLarge));
+        assert_eq!(TEXTURE_BUDGET, 256 * 1024 * 1024);
+        std::fs::remove_dir_all(&dir).expect("clean up");
     }
 
     #[test]
@@ -701,6 +784,7 @@ mod tests {
         gallery.dispatch(Instant::now());
         // a and e share a source: one fetch for both.
         assert_eq!(gallery.sharing.len(), 2);
+        assert_eq!(gallery.counts().loading, 3);
         let mut changed = settle(&mut gallery);
         changed.sort_unstable();
         let mut expected = vec![*first, *missing, *again];
@@ -722,6 +806,11 @@ mod tests {
             }
         );
         assert_eq!(gallery.paints_of(*first), &[0]);
+        // Online, the remote image is wanted.
+        let infos = crate::render::paint::image_infos(&doc);
+        let mut online = Gallery::new(infos, &paints, None, false, true);
+        online.want(paint);
+        assert!(matches!(online.state(*remote), Some(ImageState::Wanted)));
         // Disabled (--check-heights), nothing is wanted.
         let infos = crate::render::paint::image_infos(&doc);
         let mut quiet = Gallery::new(infos, &paints, None, false, false);
@@ -734,8 +823,9 @@ mod tests {
     fn far_images_are_forgotten_over_the_budget() {
         let dir = std::env::temp_dir().join(format!("gbk-trim-{}", std::process::id()));
         std::fs::create_dir_all(&dir).expect("temp dir");
-        std::fs::write(dir.join("dot.png"), png()).expect("write");
-        let doc = gbk_markdown_core::load(b"![a](dot.png)\n\n![b](dot.png)\n");
+        // 3 × 2 pixels: 24 bytes decoded.
+        std::fs::write(dir.join("dot.png"), sized_png(3, 2)).expect("write");
+        let doc = gbk_markdown_core::load(b"text\n\n![a](dot.png)\n\n![b](dot.png)\n");
         let paints = crate::render::paint::paint_document(&doc);
         let infos = crate::render::paint::image_infos(&doc);
         let mut gallery = Gallery::new(infos, &paints, Some(dir.join("doc.md")), true, true);
@@ -744,16 +834,17 @@ mod tests {
         }
         gallery.dispatch(Instant::now());
         settle(&mut gallery);
-        let near = *paints.first().and_then(|p| p.images.first()).expect("a");
-        let far = *paints.get(1).and_then(|p| p.images.first()).expect("b");
-        // Two 2 × 1 images are 16 bytes: within 16, nothing goes.
-        gallery.trim(16, &|image| image == near);
+        let near = *paints.get(1).and_then(|p| p.images.first()).expect("a");
+        let far = *paints.get(2).and_then(|p| p.images.first()).expect("b");
+        assert_eq!(gallery.paints_of(far), &[2]);
+        // Two images of 24 bytes: within 48, nothing goes; over 47, the far one does.
+        gallery.trim(48, &|image| image == near);
         assert_eq!(gallery.counts().loaded, 2);
-        gallery.trim(8, &|image| image == near);
+        gallery.trim(47, &|image| image == near);
         assert!(matches!(gallery.state(near), Some(ImageState::Ready(_))));
         assert!(matches!(gallery.state(far), Some(ImageState::Waiting)));
         // Its size stays known, so its paint keeps its height.
-        assert_eq!(gallery.table().natural(far), Some((2, 1)));
+        assert_eq!(gallery.table().natural(far), Some((3, 2)));
         std::fs::remove_dir_all(&dir).expect("clean up");
     }
 

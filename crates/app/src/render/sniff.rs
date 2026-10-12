@@ -191,6 +191,13 @@ mod tests {
         png.extend(3_u32.to_be_bytes());
         assert_eq!(sniff(&png), Sniffed::Raster(Format::Png, 20_000, 3));
         assert_eq!(sniff(png.get(..20).expect("short")), Sniffed::Unknown);
+        // The signature without IHDR, or IHDR without the signature, is not a PNG.
+        let mut no_header = png.clone();
+        no_header.splice(12..16, *b"IDAT");
+        assert_eq!(sniff(&no_header), Sniffed::Unknown);
+        let mut no_signature = png.clone();
+        no_signature.splice(0..8, *b"notapng!");
+        assert_eq!(sniff(&no_signature), Sniffed::Unknown);
         let gif = b"GIF89a\x40\x01\xF0\x00rest";
         assert_eq!(sniff(gif), Sniffed::Raster(Format::Gif, 320, 240));
         let mut bmp = b"BM".to_vec();
@@ -207,6 +214,10 @@ mod tests {
         jpeg.extend([0; 14]);
         jpeg.extend([0xFF, 0xFF, 0xC0, 0x00, 0x11, 0x08, 0x01, 0xE0, 0x02, 0x80]);
         assert_eq!(sniff(&jpeg), Sniffed::Raster(Format::Jpeg, 640, 480));
+        // Standalone markers (RST0, TEM) and an empty segment (length 2) before the frame.
+        let mut standalone = vec![0xFF, 0xD8, 0xFF, 0xD0, 0xFF, 0x01, 0xFF, 0xE1, 0x00, 0x02];
+        standalone.extend([0xFF, 0xC0, 0x00, 0x11, 0x08, 0x00, 0x03, 0x00, 0x04]);
+        assert_eq!(sniff(&standalone), Sniffed::Raster(Format::Jpeg, 4, 3));
         // A DHT segment (C4) is not a frame header.
         let mut dht = vec![0xFF, 0xD8, 0xFF, 0xC4, 0x00, 0x04, 0, 0];
         dht.extend([0xFF, 0xC2, 0x00, 0x11, 0x08, 0x00, 0x10, 0x00, 0x20]);
@@ -251,6 +262,17 @@ mod tests {
             Sniffed::Raster(Format::Webp, 10_000, 10_000)
         );
         assert_eq!(sniff(&riff(b"ALPH", &extended)), Sniffed::Unknown);
+        // 24 bits: 0x010000 + 1 = 65 537 across.
+        let mut wide = vec![0; 8];
+        wide.extend([0x00, 0x00, 0x01, 0x00, 0x00, 0x00]);
+        assert_eq!(
+            sniff(&riff(b"VP8X", &wide)),
+            Sniffed::Raster(Format::Webp, 65_537, 1)
+        );
+        // RIFF that is not WebP (a WAV file).
+        let mut wave = riff(b"VP8X", &extended);
+        wave.splice(8..12, *b"WAVE");
+        assert_eq!(sniff(&wave), Sniffed::Unknown);
     }
 
     #[test]

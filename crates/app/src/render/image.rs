@@ -295,6 +295,11 @@ pub(crate) mod tests {
             ..info(None, None)
         };
         assert_eq!(display_size(&empty, None, None, METRICS), (32, 20));
+        // A natural size with no height is no size.
+        assert_eq!(
+            display_size(&info(None, None), Some((100, 0)), None, METRICS),
+            (128, 20)
+        );
         // Zero attributes and sizes are ignored.
         assert_eq!(
             display_size(&info(Some(0), Some(0)), Some((0, 5)), None, METRICS),

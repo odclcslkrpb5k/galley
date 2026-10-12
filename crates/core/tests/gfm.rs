@@ -8,7 +8,7 @@ mod gfm {
     use std::path::Path;
 
     use gbk_markdown_core::model::{
-        AlertKind, Container, Inlines, Leaf, LeafKind, LinkTarget, Marker, Style,
+        AlertKind, Container, Inlines, Leaf, LeafKind, LinkTarget, Marker, Span, Style,
     };
     use gbk_markdown_core::{Document, load};
 
@@ -141,10 +141,24 @@ mod gfm {
 
     #[test]
     fn front_matter_is_on() {
-        let doc = doc("---\ntitle: x\n---\n\n# Body\n");
-        let block = doc.code_blocks().first().expect("front matter block");
+        // Flat front matter is a table of keys and values, as on GitHub.
+        let flat = doc("---\ntitle: x\n---\n\n# Body\n");
+        let table = flat.tables().first().expect("front matter table");
+        assert_eq!(table.header().len(), 0);
+        let row = table.rows().first().expect("one row");
+        let texts: Vec<&str> = row.iter().map(Inlines::text).collect();
+        assert_eq!(texts, vec!["title", "x"]);
+        assert_eq!(
+            row.first()
+                .and_then(|key| key.spans().first())
+                .map(Span::style),
+            Some(Style::STRONG)
+        );
+        // Anything else is the YAML as written.
+        let nested = doc("---\nnested:\n  key: value\n---\n\n# Body\n");
+        let block = nested.code_blocks().first().expect("front matter block");
         assert_eq!(block.info(), "yaml");
-        assert_eq!(block.text(), "title: x");
+        assert_eq!(block.text(), "nested:\n  key: value");
     }
 
     // Off.
@@ -358,6 +372,16 @@ mod gfm {
         assert_eq!(doc.anchor_leaf("top"), top);
         assert_eq!(doc.anchor_leaf("user-content-top"), top);
         assert_eq!(doc.anchor_leaf("missing"), None);
+        // Raw `<a id>` and `<a name>` anchors are targets too, on the leaf they start.
+        let raw = load(b"<a id=\"install\"></a>\n\n## Install\n\nSee <a name=\"here\">here</a>.\n");
+        let heading = raw.leaves_with_ids().next().map(|(id, _)| id);
+        assert_eq!(raw.anchor_leaf("install"), heading);
+        assert_eq!(raw.anchor_leaf("user-content-install"), heading);
+        assert_eq!(
+            raw.anchor_leaf("here"),
+            raw.leaves_with_ids().nth(1).map(|(id, _)| id)
+        );
+        assert_eq!(raw.anchor_leaf(""), None);
         assert_eq!(doc.notices(), &[]);
         assert_eq!(
             load(b"\xFF").notices(),
@@ -391,8 +415,15 @@ mod gfm {
             let expected = github_heading_ids(&github);
             let doc = load(&markdown);
             let actual: Vec<String> = doc
-                .anchors()
+                .leaves()
                 .iter()
+                .filter_map(|leaf| {
+                    if let LeafKind::Heading { anchor, .. } = leaf.kind() {
+                        doc.anchor(*anchor)
+                    } else {
+                        None
+                    }
+                })
                 .map(|anchor| anchor.slug().to_owned())
                 .collect();
             if expected != actual {

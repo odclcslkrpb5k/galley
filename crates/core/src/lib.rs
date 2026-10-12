@@ -5,6 +5,7 @@
 
 mod builder;
 mod decode;
+mod front_matter;
 mod html;
 mod link;
 pub mod model;

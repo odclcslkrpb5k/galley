@@ -12,13 +12,10 @@ spec:616 autolink extension links the URL inside an invalid <...> autolink
 spec:619 autolink extension links a bare URL
 spec:620 autolink extension links a bare email address
 
-# Raw HTML tables are shown as text, cells separated by spaces (v1; plan §5.1). Revisit in M3:
-# READMEs use them for sponsor and contributor grids.
-spec:118 raw HTML table shown as text
-spec:119 raw HTML table shown as text
-spec:130 raw HTML table shown as text
-spec:159 raw HTML table shown as text
-spec:160 raw HTML table shown as text
+# Raw HTML tables are tables (M3). This example's only cell is indented into a code block, so
+# the table has no cells and makes no table block; the expected HTML still has its empty
+# <table>, which the oracle counts as a block.
+spec:160 an HTML table with no cells is not a table block
 
 # Tag filter (on, as on GitHub): <script>, <style>, <title>, <textarea>, <xmp> and similar are
 # shown as literal text, as github.com shows them (checked against its rendering of the
@@ -32,3 +29,13 @@ spec:147 tag filter shows <script> as text, as GitHub does
 # comrak and cmark-gfm (GitHub) differ: comrak does not autolink a URL right after an
 # apostrophe ('http://google.com'). An upstream difference.
 ext:19 comrak does not autolink a URL after an apostrophe; cmark-gfm does
+
+# GitHub's sanitiser keeps only http, https and mailto links (http and https images), and takes
+# the protocol to be whatever precedes the first colon that has no slash or hash before it.
+# Other links show as text there, and here.
+spec:508 link destination foo\):, whose protocol "foo)" GitHub does not allow
+spec:604 irc: autolink, a protocol GitHub does not allow
+spec:606 a+b+c: autolink, a protocol GitHub does not allow
+spec:607 made-up-scheme: autolink, a protocol GitHub does not allow
+spec:609 localhost: autolink, a protocol GitHub does not allow
+spec:628 ftp: autolink, a protocol GitHub does not allow

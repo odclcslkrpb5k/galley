@@ -1,0 +1,12 @@
+# Known differences between GitHub's rendering of the corpus and ours (crates/core/tests/corpus.rs).
+# One per line, tab-separated: <corpus dir> <GitHub's text> <our text> <reason>.
+# Text as the oracle shows it: ⏎ is a hard line break, ▣ an image.
+
+_synthetic-features	\int_0^1 x^2 , dx	\int_0^1 x^2 \, dx	GitHub applies Markdown escapes inside $$ math in a paragraph (\, becomes ,); the model keeps the math as written
+junegunn__fzf	#1750	https://github.com/junegunn/fzf/issues/1750	GitHub shortens links to its own issues to #N, which needs to know the repository (plan §5: out of scope)
+_synthetic-features	</script> <style>	</script><style>	Two HTML blocks of tag-filtered text (<script>, then <style> on the next line) are two paragraphs here; GitHub runs them into one line
+_synthetic-features	▣ :not_a	:octocat: :not_a	GitHub shows :octocat: and its other custom emoji as images; the viewer keeps the shortcode as text (plan §5)
+_synthetic-front-matter	tagsa b	tags a, b	a list in front matter shows as "a, b" in its cell; GitHub shows a nested table
+sindresorhus__awesome	to:⏎⏎▣Fast remote container builds and GitHub Actions runners.	to:⏎⏎▣Fast remote container builds and GitHub Actions runners.	GitHub's HTML ends an <a> at the <div> inside it, so this sponsor logo is not a link there; the viewer keeps the link around it
+rust-unofficial__awesome-rust	easily. ▣Epic	easily. ▣Epic	a badge link whose destination is written [url](url) is a relative link here; GitHub drops the link
+_synthetic-front-matter	title Front matter test tags	title Front matter test tags	keys are bold text here, header cells (<th>) on GitHub; they look the same

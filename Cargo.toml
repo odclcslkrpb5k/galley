@@ -16,7 +16,7 @@ gtk = { package = "gtk4", version = "0.11.5", features = ["v4_22"] }
 pangocairo = "0.22.9"
 thiserror = "2.0.21"
 # Exact: core calls comrak::Anchorizer, which is #[doc(hidden)] and so outside semver (plan §2).
-comrak = { version = "=0.56.0", default-features = false }
+comrak = { version = "=0.56.0", default-features = false, features = ["shortcodes"] }
 html5gum = "0.8.4"
 proptest = "1.11.0"
 

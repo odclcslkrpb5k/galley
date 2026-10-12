@@ -16,7 +16,10 @@
 use std::fmt;
 
 use gbk_markdown_core::Document;
+use std::ops::Range;
+
 use gbk_markdown_core::model::{Container, Inlines, LeafKind, LinkTarget, Marker, Style};
+use gbk_markdown_core::units::{RowNo, TableId};
 use html5gum::{Token, Tokenizer};
 
 /// The styles the oracles compare. Others (keyboard, sub/superscript, ...) only come from raw
@@ -31,6 +34,8 @@ const COMPARED: [Style; 5] = [
 
 /// Stands for a hard line break in the character view.
 const HARD_BREAK: char = '\u{2}';
+/// Stands for an image: content, so a `<br>` before one is not a block's last.
+const OBJECT: char = Inlines::OBJECT;
 /// Marks where a new block's characters start; removed by `normalise`.
 const BOUNDARY: char = '\u{1}';
 
@@ -78,7 +83,11 @@ impl fmt::Display for Block {
 pub(crate) fn text(chars: &[StyledChar]) -> String {
     chars
         .iter()
-        .map(|c| if c.c == HARD_BREAK { '⏎' } else { c.c })
+        .map(|c| match c.c {
+            HARD_BREAK => '⏎',
+            OBJECT => '▣',
+            c => c,
+        })
         .collect()
 }
 
@@ -273,25 +282,13 @@ pub(crate) fn model_view(doc: &Document) -> View {
                 table,
                 rows,
                 with_header,
-            } => {
-                let table = doc.table(*table).expect("table exists");
-                if *with_header {
-                    view.blocks.push(Block {
-                        path,
-                        kind: format!("table{}", table.rows().len() + 1),
-                    });
-                    for cell in table.header() {
-                        push_char(&mut view, &mut seen, StyledChar::plain(' '));
-                        push_inlines(&mut view, &mut seen, doc, cell);
-                    }
-                }
-                for row in table.row_range(rows).expect("rows") {
-                    for cell in row {
-                        push_char(&mut view, &mut seen, StyledChar::plain(' '));
-                        push_inlines(&mut view, &mut seen, doc, cell);
-                    }
-                }
-            }
+            } => push_table_rows(
+                &mut view,
+                &mut seen,
+                doc,
+                (*table, rows, *with_header),
+                path,
+            ),
             LeafKind::ThematicBreak => {
                 view.blocks.push(Block {
                     path,
@@ -318,6 +315,36 @@ pub(crate) fn model_view(doc: &Document) -> View {
     }
     view.chars = normalise(view.chars);
     view
+}
+
+/// A table leaf: its block (with the table's row count) if it has the header, then its cells.
+fn push_table_rows(
+    view: &mut View,
+    seen: &mut usize,
+    doc: &Document,
+    (table, rows, with_header): (TableId, &Range<RowNo>, bool),
+    path: Vec<String>,
+) {
+    let table = doc.table(table).expect("table exists");
+    if with_header {
+        view.blocks.push(Block {
+            path,
+            kind: format!(
+                "table{}",
+                table.rows().len() + usize::from(!table.header().is_empty())
+            ),
+        });
+        for cell in table.header() {
+            push_char(view, seen, StyledChar::plain(' '));
+            push_inlines(view, seen, doc, cell);
+        }
+    }
+    for row in table.row_range(rows).expect("rows") {
+        for cell in row {
+            push_char(view, seen, StyledChar::plain(' '));
+            push_inlines(view, seen, doc, cell);
+        }
+    }
 }
 
 fn model_path(doc: &Document, leaf: &gbk_markdown_core::model::Leaf) -> Vec<String> {
@@ -396,9 +423,6 @@ fn normalise(chars: Vec<StyledChar>) -> Vec<StyledChar> {
 
 fn push_inlines(view: &mut View, seen: &mut usize, doc: &Document, inlines: &Inlines) {
     for (at, c) in inlines.text().char_indices() {
-        if c == Inlines::OBJECT {
-            continue;
-        }
         let span = inlines
             .spans()
             .iter()
@@ -421,8 +445,12 @@ fn push_inlines(view: &mut View, seen: &mut usize, doc: &Document, inlines: &Inl
     for (_at, object) in inlines.objects() {
         let gbk_markdown_core::model::InlineObject::Image(id) = object;
         if let Some(image) = doc.image(*id) {
-            view.images
-                .push((image.alt().to_owned(), model_target(doc, image.source())));
+            view.images.push((
+                image.alt().to_owned(),
+                image
+                    .source()
+                    .map_or_else(String::new, |source| model_target(doc, source)),
+            ));
         }
     }
 }
@@ -440,6 +468,8 @@ fn push_code(view: &mut View, seen: &mut usize, text: &str) {
 /// shown.
 fn skips_content(name: &str, attributes: &[(String, String)]) -> bool {
     has_class(attributes, "footnote-backref")
+        // Text for screen readers only (GitHub's "Loading" on a diagram being drawn).
+        || has_class(attributes, "sr-only")
         || attributes
             .iter()
             .any(|(name, _)| name == "data-footnote-backref")
@@ -519,6 +549,16 @@ fn is_block_level(name: &str) -> bool {
     )
 }
 
+/// What happens to an element's text.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Content {
+    Shown,
+    /// Never shown (see `skips_content`).
+    Skipped,
+    /// GitHub's `<math-renderer>`: its text keeps the `$` delimiters, which the model drops.
+    Math,
+}
+
 struct Open {
     name: String,
     /// Container this element contributes to the path, if any.
@@ -529,7 +569,7 @@ struct Open {
     block: bool,
     /// The `<ol>` of a footnote section, whose items are footnotes, not list items.
     footnote_list: bool,
-    skip: bool,
+    content: Content,
     /// For a recorded <p>: the block count and text bytes seen when it opened, to drop it on
     /// close if it showed nothing (a paragraph of only HTML tags).
     content_at: Option<(usize, usize)>,
@@ -557,6 +597,8 @@ pub(crate) fn html_view(html: &str) -> View {
     let mut images = 0_usize;
     let mut images_at_open: Vec<usize> = Vec::new();
     let mut seen = 0;
+    // `view.chars.len()` when a block last ended, so one ending block drops at most one break.
+    let mut ended_at = None;
     for token in Tokenizer::new(html) {
         let Ok(token) = token;
         match token {
@@ -564,6 +606,7 @@ pub(crate) fn html_view(html: &str) -> View {
                 let name = String::from_utf8_lossy(&tag.name).to_ascii_lowercase();
                 if is_block_level(&name) {
                     implicit_open = false;
+                    end_line_box(&mut view, &mut ended_at);
                 }
                 let attributes: Vec<(String, String)> = tag
                     .attributes
@@ -589,7 +632,13 @@ pub(crate) fn html_view(html: &str) -> View {
                     link: None,
                     block: false,
                     footnote_list: false,
-                    skip: skips_content(&name, &attributes),
+                    content: if skips_content(&name, &attributes) {
+                        Content::Skipped
+                    } else if name == "math-renderer" {
+                        Content::Math
+                    } else {
+                        Content::Shown
+                    },
                     content_at: None,
                     next_number: 1,
                 };
@@ -640,6 +689,34 @@ pub(crate) fn html_view(html: &str) -> View {
                             })
                             .unwrap_or("?");
                         element.container = Some(format!("alert:{kind}"));
+                    }
+                    // GitHub wraps an uploaded video in a `details-reset` box whose summary is
+                    // the file name; the viewer shows the video as a "▶ video" link.
+                    "details" if has_class(&attributes, "details-reset") => {}
+                    "summary"
+                        if open
+                            .last()
+                            .is_some_and(|o| o.name == "details" && o.container.is_none()) =>
+                    {
+                        element.content = Content::Skipped;
+                    }
+                    "video" | "audio" => {
+                        start_implicit_paragraph(&mut view, &open, &mut implicit_open);
+                        let link = attribute(&attributes, "src").map(normalise_target);
+                        let label = if name == "video" {
+                            "▶ video"
+                        } else {
+                            "▶ audio"
+                        };
+                        for c in label.chars() {
+                            let character = StyledChar {
+                                c,
+                                styles: 0,
+                                link: link.clone(),
+                            };
+                            push_char(&mut view, &mut seen, character);
+                        }
+                        element.content = Content::Skipped;
                     }
                     "details" => element.container = Some("details".to_owned()),
                     "summary" => {
@@ -709,9 +786,20 @@ pub(crate) fn html_view(html: &str) -> View {
                     }
                     "img" => {
                         images += 1;
+                        start_implicit_paragraph(&mut view, &open, &mut implicit_open);
+                        let character = StyledChar {
+                            c: OBJECT,
+                            styles: style_bits(open_styles(&open)),
+                            link: open.iter().rev().find_map(|o| o.link.clone()),
+                        };
+                        push_char(&mut view, &mut seen, character);
                         view.images.push((
                             attribute(&attributes, "alt").unwrap_or("").to_owned(),
-                            normalise_target(attribute(&attributes, "src").unwrap_or("")),
+                            normalise_target(
+                                attribute(&attributes, "data-canonical-src")
+                                    .or_else(|| attribute(&attributes, "src"))
+                                    .unwrap_or(""),
+                            ),
                         ));
                     }
                     "em" | "i" => element.style = Some(Style::EMPHASIS),
@@ -720,6 +808,23 @@ pub(crate) fn html_view(html: &str) -> View {
                     "code" => element.style = Some(Style::CODE),
                     "sup" if has_class(&attributes, "footnote-ref") => {
                         element.style = Some(Style::FOOTNOTE_REFERENCE);
+                    }
+                    // GitHub wraps each image in a `target="_blank"` link to the image itself;
+                    // links written in the Markdown never carry a target (GitHub strips it).
+                    "a" if attribute(&attributes, "target").is_some() => {}
+                    // GitHub's footnote references: `#user-content-fn-<label>-<document hash>`.
+                    "a" if attribute(&attributes, "data-footnote-ref").is_some() => {
+                        element.style = Some(Style::FOOTNOTE_REFERENCE);
+                        element.link = attribute(&attributes, "href").map(|href| {
+                            let href = href.replacen("#user-content-", "#", 1);
+                            let label = href
+                                .rsplit_once('-')
+                                .filter(|(_label, hash)| {
+                                    hash.len() == 32 && hash.chars().all(|c| c.is_ascii_hexdigit())
+                                })
+                                .map_or(href.as_str(), |(label, _hash)| label);
+                            normalise_target(label)
+                        });
                     }
                     "a" => element.link = attribute(&attributes, "href").map(normalise_target),
                     _ => {}
@@ -736,6 +841,7 @@ pub(crate) fn html_view(html: &str) -> View {
                 let name = String::from_utf8_lossy(&tag.name).to_ascii_lowercase();
                 if is_block_level(&name) {
                     implicit_open = false;
+                    end_line_box(&mut view, &mut ended_at);
                 }
                 if let Some(at) = open.iter().rposition(|o| o.name == name) {
                     let element = open.get(at).expect("position is in range");
@@ -753,32 +859,21 @@ pub(crate) fn html_view(html: &str) -> View {
                 }
             }
             Token::String(text) => {
-                if open.iter().any(|o| o.skip) {
+                if open.iter().any(|o| o.content == Content::Skipped) {
                     continue;
                 }
-                let text = String::from_utf8_lossy(&text).into_owned();
+                let mut text = String::from_utf8_lossy(&text).into_owned();
+                if open.iter().any(|o| o.content == Content::Math) {
+                    text = text.trim().trim_matches('$').to_owned();
+                }
                 text_seen += text.len();
                 if text.chars().all(char::is_whitespace) {
                     // Whitespace between elements separates words but starts no block.
                     push_char(&mut view, &mut seen, StyledChar::plain(' '));
                     continue;
                 }
-                // Text outside any block element is a paragraph of its own: a tight list
-                // item's, or text in raw block HTML.
-                let in_block = open.iter().any(|o| o.block);
-                if !in_block && !implicit_open {
-                    let path = html_path(&open);
-                    let tight = path.last().is_some_and(|last| last.starts_with("li"));
-                    view.blocks.push(Block {
-                        path,
-                        kind: if tight { "p-tight" } else { "p" }.to_owned(),
-                    });
-                    implicit_open = true;
-                }
-                let styles = open
-                    .iter()
-                    .filter_map(|o| o.style)
-                    .fold(Style::PLAIN, Style::union);
+                start_implicit_paragraph(&mut view, &open, &mut implicit_open);
+                let styles = open_styles(&open);
                 let link = open.iter().rev().find_map(|o| o.link.clone());
                 for c in text.chars() {
                     let character = StyledChar {
@@ -794,6 +889,52 @@ pub(crate) fn html_view(html: &str) -> View {
     }
     view.chars = normalise(view.chars);
     view
+}
+
+/// A block ends: a `<br>` that was its last content shows nothing (the line it ends is the
+/// block's last), so it is dropped, with the whitespace after it. `ended_at` is where content
+/// ended when a block last ended: blocks ending one after another drop one break between them.
+fn end_line_box(view: &mut View, ended_at: &mut Option<usize>) {
+    let content_end = |chars: &[StyledChar]| {
+        chars
+            .iter()
+            .rposition(|c| c.c != ' ')
+            .map_or(0, |at| at + 1)
+    };
+    let content = content_end(&view.chars);
+    if *ended_at == Some(content) {
+        return;
+    }
+    if content > 0
+        && view
+            .chars
+            .get(content - 1)
+            .is_some_and(|c| c.c == HARD_BREAK)
+    {
+        view.chars.truncate(content - 1);
+    }
+    *ended_at = Some(content_end(&view.chars));
+}
+
+/// Content outside any block element is a paragraph of its own: a tight list item's, or raw
+/// block HTML's, until a block-level tag ends it.
+fn start_implicit_paragraph(view: &mut View, open: &[Open], implicit_open: &mut bool) {
+    let in_block = open.iter().any(|o| o.block);
+    if !in_block && !*implicit_open {
+        let path = html_path(open);
+        let tight = path.last().is_some_and(|last| last.starts_with("li"));
+        view.blocks.push(Block {
+            path,
+            kind: if tight { "p-tight" } else { "p" }.to_owned(),
+        });
+        *implicit_open = true;
+    }
+}
+
+fn open_styles(open: &[Open]) -> Style {
+    open.iter()
+        .filter_map(|o| o.style)
+        .fold(Style::PLAIN, Style::union)
 }
 
 fn html_path(open: &[Open]) -> Vec<String> {

@@ -2,8 +2,41 @@
 
 use crate::model::LinkTarget;
 
-/// Classifies a destination as written in Markdown or HTML.
-pub(crate) fn classify(destination: &str) -> LinkTarget {
+/// What a destination is for: GitHub's sanitiser allows different schemes for each.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Use {
+    Link,
+    Image,
+}
+
+impl Use {
+    fn allows(self, scheme: &str) -> bool {
+        let scheme = scheme.to_ascii_lowercase();
+        match self {
+            Self::Link => matches!(scheme.as_str(), "http" | "https" | "mailto"),
+            Self::Image => matches!(scheme.as_str(), "http" | "https"),
+        }
+    }
+}
+
+/// Classifies a destination as written in Markdown or HTML, or `None` where GitHub's sanitiser
+/// would drop it: a protocol it does not allow for this use (`javascript:`, `data:`, `file:`,
+/// or something unparseable like `[https://x](y)`). As there, the protocol is whatever comes
+/// before the first `:` that has no `/` or `#` before it.
+pub(crate) fn classify(destination: &str, used_for: Use) -> Option<LinkTarget> {
+    let trimmed = destination.trim_start();
+    let colon = trimmed.find(':');
+    let path_start = trimmed.find(['/', '#']);
+    if let Some(colon) = colon
+        && path_start.is_none_or(|start| colon < start)
+        && !used_for.allows(trimmed.get(..colon).unwrap_or_default())
+    {
+        return None;
+    }
+    Some(target(destination))
+}
+
+fn target(destination: &str) -> LinkTarget {
     if let Some(fragment) = destination.strip_prefix('#') {
         return LinkTarget::Fragment(percent_decode(fragment));
     }
@@ -30,8 +63,7 @@ pub(crate) fn classify(destination: &str) -> LinkTarget {
 }
 
 /// Whether `destination` starts with a URI scheme (RFC 3986: a letter, then letters, digits,
-/// `+`, `-` or `.`, then `:`). `C:\path` counts as a scheme too, which is harmless here: it is
-/// handed to the system to open, like any other absolute URL.
+/// `+`, `-` or `.`, then `:`). Only allowed schemes reach here (see `classify`).
 fn has_scheme(destination: &str) -> bool {
     let Some((scheme, _rest)) = destination.split_once(':') else {
         return false;
@@ -85,46 +117,74 @@ mod tests {
         }
     }
 
+    fn link(destination: &str) -> LinkTarget {
+        classify(destination, Use::Link).expect("allowed")
+    }
+
     #[test]
     fn fragments() {
-        assert_eq!(classify("#usage"), LinkTarget::Fragment("usage".to_owned()));
+        assert_eq!(link("#usage"), LinkTarget::Fragment("usage".to_owned()));
         assert_eq!(
-            classify("#h%C3%A9ading"),
+            link("#h%C3%A9ading"),
             LinkTarget::Fragment("héading".to_owned())
         );
-        assert_eq!(classify("#"), LinkTarget::Fragment(String::new()));
+        assert_eq!(link("#"), LinkTarget::Fragment(String::new()));
+        assert_eq!(link("#a:b"), LinkTarget::Fragment("a:b".to_owned()));
     }
 
     #[test]
     fn absolute_urls() {
         for url in [
             "https://example.com/a%20b",
+            "HTTP://example.com",
             "mailto:me@example.com",
-            "ftp://x",
-            "a+b.c-d:x",
         ] {
-            assert_eq!(classify(url), LinkTarget::Absolute(url.to_owned()));
+            assert_eq!(link(url), LinkTarget::Absolute(url.to_owned()));
         }
+        assert_eq!(
+            classify("http://x/y.png", Use::Image),
+            Some(LinkTarget::Absolute("http://x/y.png".to_owned()))
+        );
+    }
+
+    #[test]
+    fn protocols_github_drops_are_not_links() {
+        for url in [
+            "javascript:alert(1)",
+            " JavaScript:alert(1)",
+            "ftp://x",
+            "file:///etc/passwd",
+            "data:text/html,x",
+            "a+b.c-d:x",
+            "[https://x](https://y)",
+            "1x:y",
+            ":y",
+            "a?b:c",
+        ] {
+            assert_eq!(classify(url, Use::Link), None, "{url}");
+        }
+        assert_eq!(classify("mailto:a@b", Use::Image), None);
+        assert_eq!(classify("data:image/png;base64,x", Use::Image), None);
     }
 
     #[test]
     fn relative_paths() {
         assert_eq!(
-            classify("docs/my%20doc.md#Section"),
+            link("docs/my%20doc.md#Section"),
             relative("docs/my doc.md", None, Some("Section"))
         );
         assert_eq!(
-            classify("/root.md?plain=1#L5"),
+            link("/root.md?plain=1#L5"),
             relative("/root.md", Some("plain=1"), Some("L5"))
         );
-        assert_eq!(classify("img.png"), relative("img.png", None, None));
+        assert_eq!(link("img.png"), relative("img.png", None, None));
         assert_eq!(
-            classify("//example.com/x"),
+            link("//example.com/x"),
             LinkTarget::Absolute("https://example.com/x".to_owned())
         );
-        // Not schemes: a digit first, or nothing before the colon.
-        assert_eq!(classify("1x:y"), relative("1x:y", None, None));
-        assert_eq!(classify(":y"), relative(":y", None, None));
+        // A colon after a slash or hash is part of the path, not a protocol.
+        assert_eq!(link("a/b:c"), relative("a/b:c", None, None));
+        assert_eq!(link("a#b:c"), relative("a", None, Some("b:c")));
     }
 
     #[test]

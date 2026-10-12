@@ -487,7 +487,8 @@ impl Link {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LinkTarget {
-    /// `#section`: a heading anchor in this document. The fragment is percent-decoded.
+    /// `#section`: a heading or a raw `<a id>` / `<a name>` in this document. The fragment is
+    /// percent-decoded.
     Fragment(String),
     /// A path relative to the document (or, starting with `/`, to the repository root).
     Relative {
@@ -504,7 +505,8 @@ pub enum LinkTarget {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Image {
-    pub(crate) source: LinkTarget,
+    /// `None` where GitHub's sanitiser drops the source (a protocol other than http or https).
+    pub(crate) source: Option<LinkTarget>,
     pub(crate) alt: String,
     pub(crate) title: Option<String>,
     /// Size from `width`/`height` attributes of an HTML `<img>`, in CSS pixels.
@@ -514,8 +516,8 @@ pub struct Image {
 
 impl Image {
     #[must_use]
-    pub fn source(&self) -> &LinkTarget {
-        &self.source
+    pub fn source(&self) -> Option<&LinkTarget> {
+        self.source.as_ref()
     }
 
     #[must_use]

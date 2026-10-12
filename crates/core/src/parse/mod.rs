@@ -16,8 +16,8 @@ use crate::units::FootnoteId;
 
 /// The comrak options matching what github.com renders (docs/plan.md §5). Every option GitHub
 /// does not support is set off explicitly, so a changed comrak default cannot turn it on.
-/// Shortcodes, Phoenix `HEEx` and attribute syntax are cargo features of comrak, left out of the
-/// build entirely (`default-features = false`); shortcodes come in M3.
+/// Phoenix `HEEx` and attribute syntax are cargo features of comrak, left out of the build
+/// entirely (`default-features = false`); `shortcodes` is the one feature on.
 pub(crate) fn gfm_options() -> Options<'static> {
     let mut options = Options::default();
     let extension = &mut options.extension;
@@ -30,6 +30,9 @@ pub(crate) fn gfm_options() -> Options<'static> {
     extension.math_dollars = true;
     extension.math_code = true;
     extension.front_matter_delimiter = Some("---".to_owned());
+    // `:smile:` → 😄; unknown names stay as written. GitHub shows a few (`:octocat:`) as images,
+    // which stay text here.
+    extension.shortcodes = true;
     // Off: GitHub has none of these.
     extension.superscript = false;
     extension.subscript = false;
@@ -150,19 +153,11 @@ impl Walker<'_> {
             | NodeValue::BlockDirective(_)
             | NodeValue::Subtext => self.children(node),
             NodeValue::FrontMatter(text) => {
-                // GitHub shows front matter as a table; v1 shows it as YAML (a known deviation).
                 let lines: Vec<&str> = text
                     .lines()
                     .filter(|line| line.trim_end() != "---")
                     .collect();
-                let body = lines.join("\n");
-                let body = body.trim_end_matches('\n');
-                let literal = if body.is_empty() {
-                    String::new()
-                } else {
-                    format!("{body}\n")
-                };
-                self.builder.code_block("yaml", &literal);
+                self.builder.front_matter(&lines.join("\n"));
             }
             NodeValue::BlockQuote | NodeValue::MultilineBlockQuote(_) => {
                 if let Some(kind) = unspaced_alert(node) {
@@ -292,7 +287,8 @@ impl Walker<'_> {
             | NodeValue::Underline
             | NodeValue::Subscript
             | NodeValue::SpoileredText
-            | NodeValue::EscapedTag(_) => {
+            | NodeValue::EscapedTag(_)
+            | NodeValue::ShortCode(_) => {
                 let mut inlines = self.builder.inline_builder();
                 self.inline(node, &mut inlines);
                 self.builder.paragraph(inlines);
@@ -407,9 +403,11 @@ impl Walker<'_> {
             NodeValue::Highlight => self.styled(node, inlines, Style::HIGHLIGHT),
             NodeValue::Link(link) => {
                 let id = self.builder.add_link(&link.url, &link.title);
-                let token = inlines.begin_link(id);
+                let token = id.map(|id| inlines.begin_link(id));
                 self.inlines(node, inlines);
-                inlines.end_link(token);
+                if let Some(token) = token {
+                    inlines.end_link(token);
+                }
             }
             NodeValue::Image(link) => {
                 let id = self
@@ -433,6 +431,7 @@ impl Walker<'_> {
             }
             NodeValue::EscapedTag(tag) => inlines.text(tag),
             NodeValue::Raw(text) => inlines.text(text),
+            NodeValue::ShortCode(code) => inlines.text(&code.emoji),
             // Containers of inline content; blocks never appear inside inline content, but if
             // one did, its text is still kept.
             NodeValue::Escaped
@@ -473,6 +472,12 @@ fn github_text<'a>(node: &'a AstNode<'a>, out: &mut String) {
         let data = child.data();
         match &data.value {
             NodeValue::Text(text) => out.push_str(text),
+            // GitHub slugs the shortcode as written (`:heart:` → `heart`), not the emoji.
+            NodeValue::ShortCode(code) => {
+                out.push(':');
+                out.push_str(&code.code);
+                out.push(':');
+            }
             NodeValue::Code(code) => out.push_str(&code.literal),
             NodeValue::Math(math) => out.push_str(&math.literal),
             NodeValue::SoftBreak | NodeValue::LineBreak => out.push('\n'),

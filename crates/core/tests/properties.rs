@@ -73,13 +73,20 @@ mod properties {
                 LeafKind::ThematicBreak | LeafKind::AlertTitle(_) => {}
             }
         }
+        // Every anchor names a leaf, and every heading's anchor names that heading.
         for (index, anchor) in doc.anchors().iter().enumerate() {
-            match doc
-                .leaf(anchor.leaf())
-                .map(gbk_markdown_core::model::Leaf::kind)
+            if doc.leaf(anchor.leaf()).is_none() {
+                return Err(format!("anchor {index} has no leaf"));
+            }
+        }
+        for (id, leaf) in doc.leaves_with_ids() {
+            if let LeafKind::Heading { anchor, .. } = leaf.kind()
+                && doc
+                    .anchor(*anchor)
+                    .map(gbk_markdown_core::model::Anchor::leaf)
+                    != Some(id)
             {
-                Some(LeafKind::Heading { anchor: id, .. }) if id.index() == index => {}
-                _ => return Err(format!("anchor {index} is not its heading's")),
+                return Err(format!("heading {} has another's anchor", id.index()));
             }
         }
         for link in doc.links() {

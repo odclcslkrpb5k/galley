@@ -28,6 +28,9 @@ scripts/check-boundaries
 step "push guard"
 .claude/hooks/test-guard-push
 
+step "wait guard"
+.claude/hooks/test-guard-wait
+
 step "tests"
 cargo nextest run --locked --no-fail-fast
 scripts/check-test-floor

@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# Waits for a condition, but never for ever: scripts/wait-for SECONDS COMMAND...
+# Runs COMMAND every 5 s until it succeeds (exit 0), or gives up after SECONDS (exit 124).
+# For Claude's waits on background work (docs/claude-notes.md): a polling loop whose condition
+# can never become true (it once waited for "no Docker container at all" on a machine that
+# always has some, for three hours) ends at its deadline. .claude/hooks/guard-wait refuses
+# polling loops that are not bounded like this.
+set -euo pipefail
+if (($# < 2)) || ! [[ "$1" =~ ^[0-9]+$ ]] || (($1 == 0)); then
+  echo "usage: scripts/wait-for SECONDS COMMAND..." >&2
+  exit 2
+fi
+deadline=$((SECONDS + $1))
+shift
+until "$@"; do
+  if ((SECONDS >= deadline)); then
+    echo "wait-for: gave up after the deadline: $*" >&2
+    exit 124
+  fi
+  sleep 5
+done

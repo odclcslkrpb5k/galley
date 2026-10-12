@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# Claude Code PreToolUse hook (Bash): refuse a polling loop with no deadline. A `while` or
+# `until` loop that sleeps must be the body of a command that starts with `timeout N`, or use
+# scripts/wait-for, which takes its deadline as an argument. A loop whose condition can never
+# come true then ends at its deadline instead of running unseen for hours (one waited three
+# hours for "no Docker container at all"; docs/claude-notes.md). It matches command text, so it
+# stops a convenient mistake, not a determined one. Cases are in .claude/hooks/test-guard-wait.
+set -euo pipefail
+
+cmd=$(jq -r '.tool_input.command // ""')
+loop='(^|[^[:alnum:]_])(while|until)([^[:alnum:]_]|$)'
+sleeps='(^|[^[:alnum:]_])sleep([^[:alnum:]_]|$)'
+# The whole command is bounded: it starts with `timeout`, its options, then a duration.
+bounded='^[[:space:]]*timeout([[:space:]]+-[^[:space:]]+)*[[:space:]]+[0-9]'
+
+if grep -qE -- "$loop" <<<"$cmd" && grep -qE -- "$sleeps" <<<"$cmd" && ! [[ "$cmd" =~ $bounded ]]; then
+  jq -n --arg r "A polling loop needs a deadline: start the command with \`timeout SECONDS bash -c '...'\`, or use scripts/wait-for SECONDS COMMAND, and wait for something this session owns (a log line, a PID), not global state." \
+    '{hookSpecificOutput: {hookEventName: "PreToolUse", permissionDecision: "deny",
+      permissionDecisionReason: $r}}'
+fi

@@ -286,3 +286,8 @@ Not repeated here, so there is one source each (an earlier copy here drifted fro
   Known gap, not M5's: 9 surviving mutants in text.rs measure_table (M3/M4: the stale-widths
   check `measured < arrived`, cell wrap width, `left` advance), found by M5's filtered run.
   Next: M6 (viewer features), awaiting the user's go-ahead.
+- 2026-10-12: A wait loop from M4 ("until no Docker container is running") ran three hours:
+  this machine always has other containers. Engineer control (user-approved):
+  .claude/hooks/guard-wait refuses unbounded polling loops; use
+  `scripts/wait-for SECONDS COMMAND`, or `timeout N bash -c '...'`, and wait on something this
+  session owns (a log line, a PID), never on global state.

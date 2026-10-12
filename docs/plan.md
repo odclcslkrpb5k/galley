@@ -622,6 +622,13 @@ M5. The viewer is not distributed; review them before it is.
   It matches command text, so a shell command that merely mentions those strings (a heredoc
   editing docs) is refused too; use the Edit tool for such text. It stops a convenient bypass,
   not a determined one (a wrapper script, or deleting the hook file).
+- Claude's waits on background work are bounded (Engineer, 2026-10-12, after a wait loop whose
+  condition could never come true ran unseen for three hours): `.claude/hooks/guard-wait`
+  refuses a Bash command with a `while`/`until` loop that sleeps unless the whole command
+  starts with `timeout N`; `scripts/wait-for SECONDS COMMAND` polls with a deadline. It fails
+  closed; `.claude/hooks/test-guard-wait` is its table test (hand-mutated: every planted bug
+  caught) and runs in the gate after the push guard's. Like guard-push it matches text, so a
+  command that only mentions such a loop is refused too.
 
 ### Not in the gate
 

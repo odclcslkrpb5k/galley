@@ -386,6 +386,21 @@ mod gfm {
         let text = prefixed.leaves_with_ids().next().map(|(id, _)| id);
         assert_eq!(prefixed.anchor_leaf("x"), text);
         assert_eq!(prefixed.anchor_leaf("user-content-x"), text);
+        let names: Vec<&str> = raw
+            .anchors()
+            .iter()
+            .map(gbk_markdown_core::model::Anchor::slug)
+            .collect();
+        assert_eq!(names, vec!["install", "install", "here"]);
+        // A footnote's context knows its first leaf, where links to it go.
+        let note = load(b"x[^1]\n\n[^1]: The note.\n");
+        let first = note.contexts_with_ids().find_map(|(_id, context)| {
+            matches!(context.container(), Container::Footnote(_)).then(|| context.first_leaf())
+        });
+        assert_eq!(
+            first.flatten(),
+            note.leaves_with_ids().nth(1).map(|(id, _)| id)
+        );
         assert_eq!(doc.notices(), &[]);
         assert_eq!(
             load(b"\xFF").notices(),

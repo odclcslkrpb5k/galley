@@ -175,6 +175,12 @@ mod tests {
         assert_eq!(rows("  - orphan item\n"), None);
         assert_eq!(rows("a: [x, {y: 1}]\n"), None);
         assert_eq!(rows("people:\n  - name: x\n"), None);
+        assert_eq!(rows("people:\n  - name:\tx\n"), None);
+        assert_eq!(rows("people:\n  - name:\n"), None);
         assert_eq!(rows("odd: \"\\q\"\n"), None);
+        assert_eq!(
+            rows("e: \"a\\\\b\\/c\\nd\\te\"\n"),
+            Some(pairs(&[("e", "a\\b/c\nd\te")]))
+        );
     }
 }

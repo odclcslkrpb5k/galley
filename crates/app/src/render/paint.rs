@@ -796,19 +796,18 @@ impl LeafPaint {
     }
 }
 
-/// Whether inline content is display math and nothing else: its spans are all display math
-/// and cover the whole text.
+/// Whether inline content is display math and nothing else: display-math spans one after
+/// another from its start to its end.
 fn is_display_math(inlines: &Inlines) -> bool {
-    let spans = inlines.spans();
-    let covered: usize = spans
-        .iter()
-        .map(|span| span.range().end.index() - span.range().start.index())
-        .sum();
-    !spans.is_empty()
-        && spans
-            .iter()
-            .all(|span| span.style().contains(Style::DISPLAY_MATH))
-        && covered == inlines.text().len()
+    let mut at = 0;
+    for span in inlines.spans() {
+        let range = span.range();
+        if range.start.index() != at || !span.style().contains(Style::DISPLAY_MATH) {
+            return false;
+        }
+        at = range.end.index();
+    }
+    at > 0 && at == inlines.text().len()
 }
 
 /// Cuts a cell's text to `max` bytes, with an ellipsis.
@@ -1521,6 +1520,87 @@ mod tests {
     }
 
     #[test]
+    fn has_links_finds_links_in_text_cells_and_footnote_numbers() {
+        let paints = paints(
+            "plain\n\n[a](https://x.org)\n\n| [c](#t) |\n|---|\n\n| d |\n|---|\n\nx[^1]\n\n[^1]: note\n",
+        );
+        let has: Vec<bool> = paints.iter().map(LeafPaint::has_links).collect();
+        // The reference paragraph links to the note; the note's number links back.
+        assert_eq!(has, vec![false, true, true, false, true, true]);
+    }
+
+    #[test]
+    fn first_paints_and_anchors_name_the_right_leaves() {
+        let code = format!(
+            "# Top\n\n```\n{}```\n\n<a id=\"x\"></a>after\n",
+            "line\n".repeat(1000)
+        );
+        let doc = gbk_markdown_core::load(code.as_bytes());
+        let paints = paint_document(&doc);
+        assert!(paints.len() > 3, "the code is split");
+        let last_leaf = paints.last().expect("paints").source;
+        assert_eq!(first_paint_of(&paints, 0), Some(0));
+        assert_eq!(first_paint_of(&paints, 1), Some(1));
+        assert_eq!(first_paint_of(&paints, last_leaf), Some(paints.len() - 1));
+        assert_eq!(first_paint_of(&paints, last_leaf + 1), None);
+        let anchors = anchor_leaves(&doc);
+        assert_eq!(anchors.get("top").map(|leaf| leaf.index()), Some(0));
+        assert_eq!(anchors.get("x").map(|leaf| leaf.index()), Some(last_leaf));
+        assert_eq!(anchors.len(), 2);
+    }
+
+    #[test]
+    fn adjacent_links_stay_apart_unless_they_are_one() {
+        let paints = paints("[a](https://x.org)[b](https://y.org) [c](https://x.org)\n");
+        let spans: Vec<(usize, usize)> = paints
+            .first()
+            .expect("paragraph")
+            .links
+            .iter()
+            .map(|link| (link.start, link.end))
+            .collect();
+        assert_eq!(spans, vec![(0, 1), (1, 2), (3, 4)]);
+    }
+
+    #[test]
+    fn pieces_never_start_empty_and_cut_past_the_limits_not_at_them() {
+        // A first row over 2 KiB is a piece of its own, with no empty piece before it.
+        let big = paints(&format!("| {} |\n|---|\n| a |\n", "h".repeat(2500)));
+        let sizes: Vec<usize> = big.iter().map(|paint| cell_texts(paint).len()).collect();
+        assert_eq!(sizes, vec![1, 1]);
+        // Two rows of exactly 1 KiB make 2 KiB: one piece.
+        let kib = "k".repeat(1024);
+        let exact = paints(&format!("| {kib} |\n|---|\n| {kib} |\n"));
+        assert_eq!(exact.len(), 1);
+        // The 2 KiB cap on a cell is 2048 bytes, then the ellipsis.
+        let cell = big
+            .first()
+            .map(cell_texts)
+            .and_then(|rows| rows.into_iter().next());
+        assert_eq!(
+            cell.and_then(|row| row.into_iter().next())
+                .map(|text| text.len()),
+            Some(2048 + 3)
+        );
+    }
+
+    #[test]
+    fn samples_stop_at_128_cells() {
+        let rows = (0..60)
+            .map(|i| format!("| {i} | a | b | c |\n"))
+            .collect::<Vec<_>>()
+            .concat();
+        let pieces = paints(&format!("| H | I | J | K |\n|---|---|---|---|\n{rows}"));
+        let sample = &pieces
+            .first()
+            .and_then(|p| p.table.as_ref())
+            .expect("table")
+            .columns;
+        // Header and 31 rows of 4 cells: 128; the next would be 132.
+        assert_eq!(sample.rows.len(), 32);
+    }
+
+    #[test]
     fn targets_have_one_word_labels() {
         let doc = gbk_markdown_core::load(b"a\n\nb\n\nc\n\nd\n");
         let fourth = doc
@@ -1587,7 +1667,8 @@ mod tests {
             .flat_map(|row| row.cells.iter().map(|cell| cell.text.len()))
             .sum();
         assert!(total <= SAMPLE_BYTES, "{total}");
-        assert!(sample.rows.len() < 1 + 50, "{}", sample.rows.len());
+        // Header (2 bytes) and rows of 256 + 3 + 1 bytes while the total stays within 8192.
+        assert_eq!(sample.rows.len(), 1 + 31);
         // The rows drawn are not cut to the sample's length.
         let drawn = pieces
             .iter()
@@ -1659,6 +1740,16 @@ mod tests {
             .flat_map(|paint| paint.links.iter().map(|link| (link.start, link.end)))
             .collect();
         assert_eq!(spans, vec![(0, 2048), (0, 952)]);
+        // A link ending exactly at a cut is not in the next piece, nor one starting at it in
+        // the one before.
+        let at_cut = format!(
+            "[{}](https://x.org)[{}](https://y.org)\n",
+            "a".repeat(2048),
+            "b".repeat(100)
+        );
+        let pieces = paints(&at_cut);
+        let per_piece: Vec<usize> = pieces.iter().map(|paint| paint.links.len()).collect();
+        assert_eq!(per_piece, vec![1, 1]);
     }
 
     #[test]

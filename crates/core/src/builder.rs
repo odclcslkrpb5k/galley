@@ -384,7 +384,7 @@ impl Builder {
                         inlines.text(&collapse_whitespace(source));
                     } else if let Some(void) = self.void_element(name, &token) {
                         match void {
-                            Void::Break => inlines.text("\n"),
+                            Void::Break => inlines.line_break(),
                             Void::Object(object) => inlines.object(object),
                         }
                     } else if matches!(name.as_str(), "video" | "audio") {
@@ -465,7 +465,7 @@ impl Builder {
         if let Some(void) = self.void_element(name, token) {
             let inlines = self.pending_inlines();
             match void {
-                Void::Break => inlines.text("\n"),
+                Void::Break => inlines.line_break(),
                 Void::Object(object) => inlines.object(object),
             }
             return;
@@ -1507,6 +1507,23 @@ impl InlineBuilder {
         self.spans.push(Span { range, style, link });
     }
 
+    /// A hard line break. Spaces before it are dropped: a browser removes whitespace at the end
+    /// of a line, so a link's underline does not run on past its text.
+    pub(crate) fn line_break(&mut self) {
+        if self.html.hidden {
+            return;
+        }
+        let kept = self.text.trim_end_matches(' ').len();
+        self.text.truncate(kept);
+        for span in &mut self.spans {
+            if span.range.end.index() > kept {
+                span.range.end = ByteOffset::new(kept);
+            }
+        }
+        self.spans.retain(|span| span.range.start < span.range.end);
+        self.text("\n");
+    }
+
     pub(crate) fn object(&mut self, object: InlineObject) {
         if self.html.hidden {
             return;
@@ -2137,8 +2154,20 @@ mod tests {
         builder.html_block("<p>Check out my app <br></p>");
         builder.html_block("<p>two <br> <br> </p>");
         builder.html_block("<div><br><br><br></div>");
+        builder.html_block("<a href=\"x\">linked </a><br>after");
         let doc = builder.finish();
-        assert_eq!(texts(&doc), vec!["Check out my app", "two \n", "\n\n"]);
+        assert_eq!(
+            texts(&doc),
+            vec!["Check out my app", "two\n", "\n\n", "linked\nafter"]
+        );
+        // The link's span ends with its text, not over the dropped space.
+        let LeafKind::Paragraph(linked) = &doc.leaves.last().expect("linked").kind else {
+            panic!("a paragraph");
+        };
+        assert_eq!(
+            linked.spans.first().map(|span| span.range.end.index()),
+            Some("linked".len())
+        );
     }
 
     #[test]

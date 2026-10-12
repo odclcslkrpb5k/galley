@@ -270,6 +270,8 @@ mod tests {
         assert_eq!(positions.estimate(1, 0, Some(3)), -120);
         assert!(!positions.is_exact(1));
         assert_eq!(positions.estimate(4, 0, Some(3)), 0);
+        // The anchor itself is not above the anchor.
+        assert_eq!(positions.estimate(3, 50, Some(3)), 0);
         assert_eq!(positions.set_measured(1, 70, None, false), 0);
         assert_eq!(positions.height(1), Some(70));
     }

@@ -374,7 +374,7 @@ impl Walker<'_> {
                 }
             }
             NodeValue::SoftBreak => inlines.text(" "),
-            NodeValue::LineBreak => inlines.text("\n"),
+            NodeValue::LineBreak => inlines.line_break(),
             NodeValue::Code(code) => {
                 let token = inlines.begin_style(Style::CODE);
                 inlines.text(&code.literal);

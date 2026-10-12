@@ -452,6 +452,52 @@ mod tests {
     }
 
     #[test]
+    fn table_estimates_wrap_where_the_fitted_column_does() {
+        // 16 px em: 8 px characters, 13 px side padding, 6 px top and bottom, 22 px lines. A
+        // second column of "b" and "2" is 34 px. 67 characters fit at their natural 562 px
+        // (one line); 68 and 70 make the table too wide, so the column shares 597 - 34 = 563
+        // px, 67 characters to a line, and they take two.
+        let estimate = |chars: usize| {
+            let markdown = format!("| a | b |\n|---|---|\n| {} | 2 |\n", "x".repeat(chars));
+            METRICS.estimate(paints(&markdown).first().expect("table"), 600)
+        };
+        let row = |lines: i64| lines * 22 + 12 + 1;
+        let one = row(1) + row(1) + 1 + 12;
+        let two = row(1) + row(2) + 1 + 12;
+        assert_eq!(estimate(67), one);
+        assert_eq!(estimate(68), two);
+        assert_eq!(estimate(70), two);
+    }
+
+    #[test]
+    fn a_grid_and_markers_move_with_the_text_origin() {
+        let mut item = paints("- | a | b |\n  |---|---|\n")
+            .into_iter()
+            .next()
+            .expect("table in item");
+        item.gap_above_em = 1.0;
+        let grid = small_grid(&item);
+        let geometry = METRICS.geometry(&item, grid.height, Some(&grid), 600);
+        let origin = (geometry.text_x, geometry.text_y);
+        assert_eq!(origin.1, 16);
+        assert_eq!(
+            geometry.cells,
+            vec![vec![(origin.0 + 14, 16 + 7), (origin.0 + 55, 16 + 7)]]
+        );
+        let top_line = geometry
+            .fills
+            .iter()
+            .find(|(rect, shade)| *shade == Shade::TableLine && rect.height == 1)
+            .map(|(rect, _shade)| (rect.x, rect.y));
+        assert_eq!(top_line, Some(origin));
+        // The bullet is level with the first cell's text, not the grid's top line.
+        assert_eq!(
+            geometry.markers.first().map(|marker| marker.top),
+            Some(16 + 7)
+        );
+    }
+
+    #[test]
     fn table_estimates_fit_columns_to_their_sampled_text() {
         let short = paints("| a | b |\n|---|---|\n| 1 | 2 |\n");
         let long_cell = format!("| a | b |\n|---|---|\n| {} | 2 |\n", "word ".repeat(80));

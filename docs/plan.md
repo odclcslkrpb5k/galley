@@ -367,6 +367,41 @@ added later without changing the model.
   coloured about 60 ms after the first frame; its end, jumped to directly, after about 3 s
   (6 500 lines a second). Tokens take 24 bytes each, about 2.5 MB for 1 MB of code.
 
+### As built in M6, and why
+
+- **Keys** (`navigation.rs`, pure and tested; listed in `--help`): Up and Down scroll three
+  lines, Page Up/Down and Space/Shift+Space a page less two lines, Home/End and Ctrl+Home/End
+  the ends, Alt+Left and Backspace go back after a link inside the document, Ctrl+R and F5
+  reload, Ctrl+W and Ctrl+Q close. A key scroll sets the adjustment as the wheel does, so it is
+  user scrolling to anchoring (held height changes wait until it stops). No smooth-scroll
+  animation.
+- **Zoom**: Ctrl+plus, Ctrl+minus, Ctrl+0 and Ctrl+wheel step through browser-like sizes from
+  50% to 400%; `--zoom=PERCENT` starts there. Zoom multiplies the text setup's font size, so
+  it goes through the path a DPI or font change takes: every size is in em, the height worker
+  measures again, and the paint at the top stays there. Images keep their pixel size.
+- **Light or dark** (`appearance.rs`, pure and tested): `--theme=system|light|dark`, default
+  system. GTK's default theme follows its interface colour scheme (measured: Dark turns the
+  text colour from 0.18 to 0.93 grey), which GTK reads from the desktop portal; Xfce's portal
+  here states no preference, so with none a GTK theme named `*-dark` means dark. The palette
+  already followed the theme's text colour, so the document, code colours included (GitHub's
+  dark set), follows with no other change.
+- **Reload on change**: a `gio::FileMonitor` on the file (`WATCH_MOVES`, so an editor's
+  write-and-rename save is seen) reloads it 200 ms after the last change event, reading and
+  parsing on a thread (`loading.rs`, the startup loader's function), then replaces the
+  document with the same zoom and the same paint (by position) at the top; images and code
+  load again. A change while reading reads once more. A removed file leaves the last version
+  shown, with a notice, and is loaded again if it comes back.
+- **Notices**: a message at the bottom of the view for 6 s, and on stderr: links that fail (a
+  missing anchor, a program refused, a launch error) and reloads that fail. Drawn by the view
+  like its scroll indicator; its layout is made when it is set, never inside a frame.
+- **Install** (`scripts/install`): the release binary to `~/.local/bin`, `data/gbk-markdown.desktop`
+  (validated in the gate) to `~/.local/share/applications`, and the default for `text/markdown`
+  and `text/x-markdown` (unless `--no-default`). The defaults it replaces are recorded and given
+  back by `--uninstall`, which removes only its own entries from `mimeapps.list`.
+  `scripts/test-install` runs it against a throwaway home with stub `xdg-mime` (the real one
+  ignores entries whose desktop file is missing and falls back to the machine's defaults, so a
+  test using it passed or failed by machine).
+
 ### 4.6 Deferred work
 
 - Syntax highlighting: built in M5 (§4.5 "As built in M5").
@@ -499,7 +534,13 @@ table, and checks links and clicks through the probe: `--link-at=X,Y` reports th
 point after the first frame (`link_at=leaf:N|uri:…|relative:…|missing:…|none`), and
 `--wait-images` reports `images_loaded`, `images_failed` and `images_loading` once nothing is
 loading (M4; smoke checks images.md loads 5 and fails 2, and compares heights after images
-load), `--wait-highlights` highlights all code and reports `code_highlighted`,
+load), `--press=KEY,...` presses keys through the view after the first frame and reports the next
+(`pressed=`, `document_height=`, `top_leaf=`; M6: smoke pages down, goes to the end and back
+to the top, and zooms), `--rewrite-with=PATH` writes PATH over the file after the first frame and
+reports once it has reloaded (`rewritten=`, `reloads=`), every first-frame report says
+`theme=light|dark` from the theme's text colour (smoke: dark with `--theme=dark`), and
+`notices=` counts notices (smoke: clicking a link to a missing anchor shows one).
+`--wait-highlights` highlights all code and reports `code_highlighted`,
 `code_no_grammar`, `code_stopped`, `code_pending` and `highlights_sent_in_frames` once done (M5;
 smoke checks code.md's 6, 1, 1 and 0 sends, and compares heights with code coloured, requiring
 the check's `code_highlighted` above 0; scroll reports add `recoloured` since scrolling began,
@@ -573,8 +614,9 @@ M5. The viewer is not distributed; review them before it is.
 ### Docker
 
 - `FROM ubuntu:26.04@sha256:<pinned>`. apt: `build-essential pkg-config libgtk-4-dev curl
-  ca-certificates xvfb`, and `librsvg2-common` (gdk-pixbuf's SVG loader, for image tests and
-  smoke). Smoke and bench-startup run `--offline`: the gate contacts no network.
+  ca-certificates xvfb`, `librsvg2-common` (gdk-pixbuf's SVG loader, for image tests and
+  smoke) and `desktop-file-utils` (M6: the desktop file is validated). Smoke and bench-startup
+  run `--offline`: the gate contacts no network.
 - `RUSTUP_HOME=/rustup`, `CARGO_HOME=/cargo`; `rustup-init` downloaded with a pinned sha256;
   toolchain from the copied `rust-toolchain.toml`. `/cargo/{registry,git,advisory-dbs}` created in
   the image with mode 1777 and `/rustup` world-readable, so the build can run as the host UID.
@@ -584,7 +626,11 @@ M5. The viewer is not distributed; review them before it is.
 - Run as `--user $(id -u):$(id -g)`; repo at `/work`; named volumes on `/cargo/registry`, `/cargo/git` and `/cargo/advisory-dbs` (registry, git,
   advisory database); `CARGO_TARGET_DIR=/work/target/docker` so host tools (rust-analyzer) do not
   contend for the same lock.
-- Image tag = hash of `Dockerfile` + `rust-toolchain.toml`; `scripts/check` builds it if missing.
+- Image tag = hash of `Dockerfile` + `rust-toolchain.toml`; `scripts/in-docker` builds it if
+  missing, and then removes this project's images it replaces (each was 2.4 GB).
+- `scripts/in-docker` refuses to start with under 5 GiB free on the repo's disk (Engineer, M6:
+  scratch builds, superseded images and mutation runs' stale test binaries filled the disk,
+  which every program on the machine shares).
 - `docker run --init`: otherwise the first command is PID 1, and `xvfb-run` as PID 1 waits
   forever for its X server (it hung three times in M3).
 
@@ -594,14 +640,15 @@ M5. The viewer is not distributed; review them before it is.
    working tree).
 2. `cargo fmt --all --check`
 3. `cargo clippy --workspace --exclude gbk-markdown-lint-canary --all-targets --locked -- -D warnings`
-4. Lint canary (§7), the boundary grep (§3), `.claude/hooks/test-guard-push`, plus the `unsafe`
-   count check if §4.4 needs it.
+4. Lint canary (§7), the boundary grep (§3), `.claude/hooks/test-guard-push` and
+   `test-guard-wait`, plus the `unsafe` count check if §4.4 needs it.
 5. `cargo nextest run --locked` over the default members (the canary is excluded via
    `default-members`). nextest fails when it finds
    no tests; a committed minimum test count per binary catches a test suite that shrinks
    silently.
 6. `cargo deny check`
-7. `cargo build --release --locked`
+7. `cargo build --release --locked`, then `scripts/test-install` (M6: install into a throwaway
+   home and uninstall again).
 8. Xvfb smoke: `--exit-after-first-frame` on every fixture; asserts exit 0 and the work counters
    (§6); saves a screenshot per fixture to `target/docker/screens/` for before/after comparison
    at each milestone.
@@ -728,7 +775,7 @@ replaces review.)
 - **M5 syntax highlighting.** Lazy syntect. *Done 2026-10-12:* §4.5 "As built in M5".
 - **M6 viewer features.** Reload on
   change (`gio::FileMonitor`); keyboard navigation; zoom; dark mode; `.desktop` file and MIME
-  association; install to `~/.local`.
+  association; install to `~/.local`. *Done 2026-10-12:* §4.5 "As built in M6".
 - **After v1:** text selection and copy, find (Ctrl+F), accessibility (`AccessibleTextImpl`).
 
 ## 11. Decisions from the user
@@ -769,7 +816,6 @@ Open: none.
 - Theming: GTK4 defaults to Adwaita on Xfce; a small stylesheet aligns it.
 - A relative `.md` link starts a new viewer process: fast (it is the startup path), but each
   is a window of its own; in-place navigation with history is a possible later change.
-- Link failures are invisible without a terminal until M6 adds an in-window notice.
 - The highlighter runs third-party parsing (syntect, fancy-regex, 213 grammars) on a thread,
   and the release profile aborts on panic, so a panic there closes the viewer; the panic hook's
   message is the only record (Protect). A higher rung would need `panic = "unwind"` and

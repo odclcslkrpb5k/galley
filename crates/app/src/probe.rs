@@ -12,7 +12,7 @@
 //! compositor or GPU miss are not visible here.
 
 use std::cell::{Cell, RefCell};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
@@ -66,6 +66,11 @@ pub(crate) struct Probe {
     /// Code sent to the highlighter inside a frame (starting its thread there would delay the
     /// frame): gated at 0.
     highlights_sent_in_frames: Cell<usize>,
+    /// The file shown.
+    document: Option<PathBuf>,
+    /// Notices shown, and reloads of the file done.
+    notices: Cell<usize>,
+    reloads: Cell<usize>,
     /// When the height worker finished, after `main` began.
     heights_measured: Cell<Option<Duration>>,
     /// The vertical adjustment --bench-scroll drives.
@@ -90,6 +95,8 @@ pub(crate) struct ViewProbe {
     pub(crate) images: Box<dyn Fn() -> ImageCounts>,
     /// Code blocks highlighted, plain and pending; paints still to be drawn in colour.
     pub(crate) highlights: Box<dyn Fn() -> (HighlightCounts, usize)>,
+    /// Presses a key (`ctrl+plus`); describes what it did.
+    pub(crate) press: Box<dyn Fn(&str) -> String>,
 }
 
 impl std::fmt::Debug for ViewProbe {
@@ -111,11 +118,18 @@ struct ScrollRecord {
 }
 
 impl Probe {
-    pub(crate) fn new(args: ProbeArgs, main_started: Instant, expect_document: bool) -> Rc<Self> {
+    /// `document` is the file shown, if any (`--rewrite-with` writes over it).
+    pub(crate) fn new(
+        args: ProbeArgs,
+        main_started: Instant,
+        expect_document: bool,
+        document: Option<PathBuf>,
+    ) -> Rc<Self> {
         Rc::new(Self {
             args,
             main_started,
             expect_document,
+            document,
             document_drawn: Cell::new(false),
             first_frame_done: Cell::new(false),
             layouts_created: Cell::new(0),
@@ -130,6 +144,8 @@ impl Probe {
             layouts_in_scroll_frames: Cell::new(0),
             recoloured: Cell::new(0),
             highlights_sent_in_frames: Cell::new(0),
+            notices: Cell::new(0),
+            reloads: Cell::new(0),
             heights_measured: Cell::new(None),
             scroll_target: RefCell::new(None),
             scroll: RefCell::new(ScrollRecord::default()),
@@ -216,6 +232,14 @@ impl Probe {
         }
     }
 
+    pub(crate) fn notice_shown(&self) {
+        increment(&self.notices, 1);
+    }
+
+    pub(crate) fn reloaded(&self) {
+        increment(&self.reloads, 1);
+    }
+
     /// Counts one Pango layout of `bytes` bytes of text.
     pub(crate) fn layout_created(&self, bytes: usize) {
         increment(&self.layouts_created, 1);
@@ -271,55 +295,7 @@ impl Probe {
     fn after_paint(self: &Rc<Self>, window: &gtk::Window) {
         self.in_frame.set(false);
         if self.first_frame_done.get() {
-            // A frame after a --click-at click, or once --wait-images has nothing loading:
-            // report what it shows.
-            let view = self.view.borrow();
-            let images = view
-                .as_ref()
-                .map(|view| (view.images)())
-                .unwrap_or_default();
-            let (highlights, recolouring) = view
-                .as_ref()
-                .map(|view| (view.highlights)())
-                .unwrap_or_default();
-            if self.args.wait_images && images.loading > 0 {
-                return;
-            }
-            if self.args.wait_highlights && (highlights.pending > 0 || recolouring > 0) {
-                return;
-            }
-            let Some(mut report) = self.deferred.take() else {
-                return;
-            };
-            if self.args.click_at.is_some() {
-                let (height, top) = view.as_ref().map(|view| (view.state)()).unwrap_or_default();
-                report = format!("{report} document_height={height} top_leaf={top}");
-            }
-            if self.args.wait_images {
-                let ImageCounts {
-                    loaded,
-                    failed,
-                    loading,
-                } = images;
-                report = format!(
-                    "{report} images_loaded={loaded} images_failed={failed} images_loading={loading}"
-                );
-            }
-            if self.args.wait_highlights {
-                let HighlightCounts {
-                    highlighted,
-                    no_grammar,
-                    stopped,
-                    pending,
-                } = highlights;
-                report = format!(
-                    "{report} code_highlighted={highlighted} code_no_grammar={no_grammar} \
-                     code_stopped={stopped} code_pending={pending} highlights_sent_in_frames={}",
-                    self.highlights_sent_in_frames.get()
-                );
-            }
-            drop(view);
-            self.finish(window, report);
+            self.report_deferred(window);
             return;
         }
         if self.expect_document && !self.document_drawn.get() {
@@ -335,7 +311,24 @@ impl Probe {
         }
         // Measure first: the screenshot and report are not part of startup.
         let report = self.startup_report(window);
-        let mut report = report;
+        let report = self.act_after_first_frame(report);
+        if self.args.click_at.is_some()
+            || !self.args.press.is_empty()
+            || self.args.rewrite_with.is_some()
+            || self.args.wait_images
+            || self.args.wait_highlights
+        {
+            self.deferred.replace(Some(report));
+            // A click that changes nothing, or no images, would otherwise leave no next frame.
+            window.queue_draw();
+            return;
+        }
+        self.finish(window, report);
+    }
+
+    /// Clicks, presses keys and rewrites the file as asked, after the first frame; adds what
+    /// each did to `report`.
+    fn act_after_first_frame(&self, mut report: String) -> String {
         if let Some((x, y)) = self.args.click_at {
             let clicked = self.view.borrow().as_ref().map_or_else(
                 || "no-view".to_owned(),
@@ -343,12 +336,91 @@ impl Probe {
             );
             report = format!("{report} clicked={clicked}");
         }
-        if self.args.click_at.is_some() || self.args.wait_images || self.args.wait_highlights {
-            self.deferred.replace(Some(report));
-            // A click that changes nothing, or no images, would otherwise leave no next frame.
-            window.queue_draw();
+        if !self.args.press.is_empty() {
+            let pressed: Vec<String> = self.view.borrow().as_ref().map_or_else(
+                || vec!["no-view".to_owned()],
+                |view| {
+                    self.args
+                        .press
+                        .iter()
+                        .map(|key| (view.press)(key))
+                        .collect()
+                },
+            );
+            report = format!("{report} pressed={}", pressed.join(","));
+        }
+        if let Some(source) = &self.args.rewrite_with {
+            let written = self
+                .document
+                .as_deref()
+                .map(|file| std::fs::copy(source, file).map(|_bytes| ()));
+            report = format!(
+                "{report} rewritten={}",
+                written.is_some_and(|written| written.is_ok())
+            );
+        }
+        report
+    }
+
+    /// A frame after a --click-at click, --press or --rewrite-with, or once --wait-images or
+    /// --wait-highlights has nothing left to wait for: reports what it shows, and exits.
+    fn report_deferred(&self, window: &gtk::Window) {
+        let view = self.view.borrow();
+        let images = view
+            .as_ref()
+            .map(|view| (view.images)())
+            .unwrap_or_default();
+        let (highlights, recolouring) = view
+            .as_ref()
+            .map(|view| (view.highlights)())
+            .unwrap_or_default();
+        if self.args.wait_images && images.loading > 0 {
             return;
         }
+        if self.args.wait_highlights && (highlights.pending > 0 || recolouring > 0) {
+            return;
+        }
+        if self.args.rewrite_with.is_some() && self.reloads.get() == 0 {
+            return;
+        }
+        let Some(mut report) = self.deferred.take() else {
+            return;
+        };
+        if self.args.click_at.is_some()
+            || !self.args.press.is_empty()
+            || self.args.rewrite_with.is_some()
+        {
+            let (height, top) = view.as_ref().map(|view| (view.state)()).unwrap_or_default();
+            report = format!(
+                "{report} document_height={height} top_leaf={top} notices={} reloads={}",
+                self.notices.get(),
+                self.reloads.get()
+            );
+        }
+        if self.args.wait_images {
+            let ImageCounts {
+                loaded,
+                failed,
+                loading,
+            } = images;
+            report = format!(
+                "{report} images_loaded={loaded} images_failed={failed} images_loading={loading}"
+            );
+        }
+        if self.args.wait_highlights {
+            let HighlightCounts {
+                highlighted,
+                no_grammar,
+                stopped,
+                pending,
+            } = highlights;
+            report = format!(
+                "{report} code_highlighted={highlighted} code_no_grammar={no_grammar} \
+                 code_stopped={stopped} code_pending={pending} highlights_sent_in_frames={}",
+                self.highlights_sent_in_frames.get()
+            );
+        }
+        drop(view);
         self.finish(window, report);
     }
 
@@ -391,7 +463,7 @@ impl Probe {
             "first_frame_us={since_t0} since_main_us={} gtk_ready_us={} presented_us={} \
              loader_wait_us={} layouts_created={} laid_out_before_first_frame={} \
              bytes_laid_out_before_first_frame={} width_resets_before_first_frame={} leaves={} \
-             renderer={}{link}",
+             renderer={} theme={}{link}",
             micros(self.main_started.elapsed()),
             optional_micros(self.gtk_ready.get()),
             optional_micros(self.presented.get()),
@@ -402,6 +474,12 @@ impl Probe {
             self.width_resets_before_first_frame.get(),
             self.leaves.get(),
             renderer_name(window),
+            // As the view's palette decides it: from the text colour the theme gives.
+            if crate::render::text::Palette::for_foreground(window.color()).dark {
+                "dark"
+            } else {
+                "light"
+            },
         )
     }
 

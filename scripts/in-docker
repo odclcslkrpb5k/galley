@@ -9,9 +9,22 @@ set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
 tag="gbk-markdown-build:$(cat "$root/Dockerfile" "$root/rust-toolchain.toml" | sha256sum | cut -c1-16)"
 
+# A full disk breaks more than the build (M6: scratch builds filled it, and every program on the
+# machine was out of space). Refuse to start below this much free space.
+min_free_kib=$((5 * 1024 * 1024))
+free_kib=$(df --output=avail -k "$root" | tail -1 | tr -d ' ')
+if ((free_kib < min_free_kib)); then
+  echo "in-docker: only $((free_kib / 1024)) MiB free on the disk holding $root; need 5 GiB." >&2
+  echo "in-docker: target/docker/debug and scratch directories under target/ can go." >&2
+  exit 1
+fi
+
 if ! docker image inspect "$tag" >/dev/null 2>&1; then
   echo "in-docker: building $tag" >&2
   docker build -q -t "$tag" "$root" >&2
+  # Each Dockerfile change makes a new image: the ones it replaces go.
+  docker images --format '{{.Repository}}:{{.Tag}}' gbk-markdown-build | grep -vxF "$tag" |
+    xargs -r docker rmi >/dev/null 2>&1 || true
 fi
 
 tty=()

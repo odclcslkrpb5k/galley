@@ -68,6 +68,14 @@ impl TextSetup {
         }
     }
 
+    /// This setup with its text `zoom` times larger.
+    pub(crate) fn zoomed(self, zoom: f64) -> Self {
+        Self {
+            size_pt: self.size_pt * zoom,
+            ..self
+        }
+    }
+
     /// Applies this setup to a context the worker made.
     pub(crate) fn apply(self, context: &pango::Context) {
         pangocairo::functions::context_set_resolution(context, self.resolution);
@@ -122,6 +130,15 @@ impl Palette {
                 rgba(0x09, 0x69, 0xda)
             },
             dark,
+        }
+    }
+
+    /// Text on a box of the foreground colour (a notice): black on a light box, else white.
+    pub(crate) fn inverse(self) -> gtk::gdk::RGBA {
+        if self.dark {
+            gtk::gdk::RGBA::BLACK
+        } else {
+            gtk::gdk::RGBA::WHITE
         }
     }
 
@@ -1052,6 +1069,8 @@ mod tests {
     fn a_light_foreground_means_a_dark_scheme() {
         let light_text = Palette::for_foreground(gtk::gdk::RGBA::WHITE);
         let dark_text = Palette::default();
+        assert_eq!(light_text.inverse(), gtk::gdk::RGBA::BLACK);
+        assert_eq!(dark_text.inverse(), gtk::gdk::RGBA::WHITE);
         assert!(light_text.dark);
         assert!(!dark_text.dark);
         assert_eq!(light_text.link, rgba(0x44, 0x93, 0xf8));

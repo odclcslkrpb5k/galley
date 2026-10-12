@@ -173,6 +173,54 @@ if [[ "$(field code_highlighted "$coloured")" != 6 || "$(field code_no_grammar "
   fail=1
 fi
 
+# Keys: two Page Downs move the view down; End then Ctrl+Home is the top again. Ctrl+plus
+# zooms in (the document grows taller than after a key that changes nothing about size).
+readme=target/fixtures/readme-200kb.md
+probe_run paged --press=Page_Down,Page_Down "$readme"
+probe_run homed --press=End,ctrl+Home "$readme"
+probe_run zoomed --press=ctrl+plus --screenshot="$screens/zoomed.png" "$readme"
+probe_run unzoomed --press=Down "$readme"
+paged_top=$(field top_leaf "$paged")
+zoomed_height=$(field document_height "$zoomed")
+plain_height=$(field document_height "$unzoomed")
+if ! [[ "$paged_top" =~ ^[0-9]+$ ]] || ((paged_top == 0)); then
+  echo "smoke: Page_Down did not move the view: $paged" >&2
+  fail=1
+elif [[ "$(field top_leaf "$homed")" != 0 ]]; then
+  echo "smoke: End then Ctrl+Home did not come back to the top: $homed" >&2
+  fail=1
+elif [[ "$(field pressed "$zoomed")" != ctrl+plus:handled:zoom110 ]] ||
+  ! [[ "$zoomed_height" =~ ^[0-9]+$ && "$plain_height" =~ ^[0-9]+$ ]] ||
+  ((zoomed_height <= plain_height)); then
+  echo "smoke: Ctrl+plus did not zoom in: $zoomed / $unzoomed" >&2
+  fail=1
+fi
+
+# Theme: light by default here (no desktop portal in the container), dark when asked.
+probe_run lit "$readme"
+probe_run darkened --theme=dark --screenshot="$screens/dark.png" target/fixtures/code.md
+if [[ "$(field theme "$lit")" != light || "$(field theme "$darkened")" != dark ]]; then
+  echo "smoke: --theme did not give light by default and dark when asked: $lit / $darkened" >&2
+  fail=1
+fi
+
+# Reload: the file is written over after the first frame; the view reloads it.
+reloading=$(mktemp --suffix=.md)
+cp target/fixtures/code.md "$reloading"
+probe_run reloaded --rewrite-with=target/fixtures/links.md "$reloading"
+rm -f "$reloading"
+if [[ "$(field rewritten "$reloaded")" != true || "$(field reloads "$reloaded")" != 1 ]]; then
+  echo "smoke: the rewritten file was not reloaded: $reloaded" >&2
+  fail=1
+fi
+
+# A link to an anchor that does not exist shows a notice in the window.
+probe_run noticed --click-at=120,44 --screenshot="$screens/notice.png" target/fixtures/missing.md
+if [[ "$(field clicked "$noticed")" != missing:nowhere || "$(field notices "$noticed")" != 1 ]]; then
+  echo "smoke: a link to a missing anchor showed no notice: $noticed" >&2
+  fail=1
+fi
+
 # The GL fallback (--renderer=gl): it must really be GL, reach a first frame and scroll without
 # layout in frames.
 gl_fixture=target/fixtures/readme-200kb.md

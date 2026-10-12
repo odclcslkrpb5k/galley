@@ -1,10 +1,13 @@
 //! gbk-markdown: a lightweight Markdown viewer.
 
+mod appearance;
 mod args;
 mod document_view;
 mod highlighting;
 mod images;
 mod links;
+mod loading;
+mod navigation;
 mod output;
 mod probe;
 mod render;
@@ -12,7 +15,6 @@ mod renderer;
 mod units;
 
 use std::cell::{Cell, RefCell};
-use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use std::rc::Rc;
@@ -24,7 +26,7 @@ use gtk::{gio, glib};
 
 use args::{Args, Mode, Startup};
 use document_view::DocumentView;
-use gbk_markdown_core::units::LeafId;
+use loading::{LoadError, Loaded, load};
 use output::report_error;
 use probe::Probe;
 use renderer::EnvChange;
@@ -34,26 +36,6 @@ const APP_ID: &str = "io.github.odclcslkrpb5k.GbkMarkdown";
 const DEFAULT_WIDTH: i32 = 900;
 const DEFAULT_HEIGHT: i32 = 1000;
 
-/// Why the file could not be shown.
-#[derive(Debug, thiserror::Error)]
-enum LoadError {
-    #[error("cannot read the file ({0})")]
-    Read(std::io::ErrorKind),
-    #[error("the file loader stopped unexpectedly")]
-    LoaderPanicked,
-}
-
-/// What the loader thread makes of the file.
-struct Loaded {
-    paints: Vec<render::paint::LeafPaint>,
-    /// Anchor names and the leaves they name.
-    anchors: HashMap<String, LeafId>,
-    /// Whether each `<details>` starts open.
-    details: Vec<bool>,
-    images: Vec<render::image::ImageInfo>,
-    code: HashMap<gbk_markdown_core::units::CodeBlockId, render::highlight::CodeSource>,
-}
-
 type Loader = JoinHandle<Result<Loaded, LoadError>>;
 
 /// What `show` needs of the arguments.
@@ -62,6 +44,8 @@ struct Showing {
     file: Option<PathBuf>,
     anchor: Option<String>,
     offline: bool,
+    theme: appearance::Theme,
+    zoom: f64,
 }
 
 impl From<&Args> for Showing {
@@ -70,6 +54,8 @@ impl From<&Args> for Showing {
             file: args.file.clone(),
             anchor: args.anchor.clone(),
             offline: args.offline,
+            theme: args.theme,
+            zoom: args.zoom,
         }
     }
 }
@@ -84,6 +70,13 @@ fn main() -> ExitCode {
             return ExitCode::from(2);
         }
     };
+    if args.mode == Mode::Help {
+        return if output::print_line(args::USAGE) {
+            ExitCode::SUCCESS
+        } else {
+            ExitCode::FAILURE
+        };
+    }
     // Before any other thread exists: see `set_environment`.
     set_environment(renderer::env_changes(
         args.renderer,
@@ -94,9 +87,14 @@ fn main() -> ExitCode {
     // (docs/plan.md §4.4).
     let loader: Option<Loader> = match (args.mode, args.file.clone()) {
         (Mode::Document, Some(path)) => Some(thread::spawn(move || load(&path))),
-        (Mode::Document | Mode::EmptyWindow, _) => None,
+        (Mode::Document | Mode::EmptyWindow | Mode::Help, _) => None,
     };
-    let probe = Probe::new(args.probe.clone(), main_started, loader.is_some());
+    let probe = Probe::new(
+        args.probe.clone(),
+        main_started,
+        loader.is_some(),
+        args.file.clone(),
+    );
     match args.startup {
         Startup::Application => run_application(&args, loader, probe),
         Startup::PlainInit => run_plain(&args, loader, &probe),
@@ -123,24 +121,6 @@ fn set_environment(changes: Vec<EnvChange>) {
             EnvChange::Remove(name) => unsafe { std::env::remove_var(name) },
         }
     }
-}
-
-/// Reads, parses and paints the document: everything up to Pango, off the main thread.
-fn load(path: &Path) -> Result<Loaded, LoadError> {
-    let bytes = std::fs::read(path).map_err(|error| LoadError::Read(error.kind()))?;
-    let doc = gbk_markdown_core::load(&bytes);
-    let paints = render::paint::paint_document(&doc);
-    let anchors = render::paint::anchor_leaves(&doc);
-    let details = render::paint::details_open(&doc);
-    let images = render::paint::image_infos(&doc);
-    let code = render::highlight::code_sources(&doc);
-    Ok(Loaded {
-        paints,
-        anchors,
-        details,
-        images,
-        code,
-    })
 }
 
 fn run_application(args: &Args, loader: Option<Loader>, probe: Rc<Probe>) -> ExitCode {
@@ -221,7 +201,21 @@ fn show(
         file,
         anchor,
         offline,
+        theme,
+        zoom,
     } = showing;
+    // Before the window is styled: light or dark (appearance.rs).
+    if let Some(settings) = gtk::Settings::default() {
+        let name = settings.gtk_theme_name();
+        let scheme = appearance::color_scheme(
+            *theme,
+            name.as_deref(),
+            settings.gtk_interface_color_scheme(),
+        );
+        if let Some(scheme) = scheme {
+            settings.set_gtk_interface_color_scheme(scheme);
+        }
+    }
     window.set_title(Some(title));
     window.set_default_size(DEFAULT_WIDTH, DEFAULT_HEIGHT);
     probe.attach(window);
@@ -258,6 +252,7 @@ fn show(
                     .map(|file| std::path::absolute(file).unwrap_or_else(|_| file.to_path_buf())),
                 start,
                 offline: *offline,
+                zoom: *zoom,
             },
             Rc::clone(probe),
         );
@@ -268,7 +263,8 @@ fn show(
             .child(&view)
             .build();
         probe.set_scroll_target(scrolled.vadjustment());
-        let (looking, clicking, stating, counting, colouring) = (
+        let (looking, clicking, stating, counting, colouring, pressing) = (
+            view.clone(),
             view.clone(),
             view.clone(),
             view.clone(),
@@ -281,6 +277,7 @@ fn show(
             state: Box::new(move || stating.probe_state()),
             images: Box::new(move || counting.probe_images()),
             highlights: Box::new(move || colouring.probe_highlights()),
+            press: Box::new(move |key| pressing.probe_press(key)),
         });
         window.set_child(Some(&scrolled));
         if probe.prepare_enabled() {

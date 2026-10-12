@@ -41,6 +41,9 @@ cargo deny --locked check
 step "release build"
 cargo build --release --locked
 
+step "install"
+scripts/test-install
+
 step "smoke"
 scripts/gen-fixtures >/dev/null
 scripts/smoke

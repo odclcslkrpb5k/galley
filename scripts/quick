@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# The quick loop while working (not the gate): fmt, clippy and the app's tests in the build
+# container, printing only what failed. Exits with the real status, so a clean run is 0 and a
+# failure cannot hide behind a filter (grepping for errors exits 1 when there are none).
+set -uo pipefail
+cd "$(dirname "$0")/.."
+log=$(mktemp)
+trap 'rm -f "$log"' EXIT
+status=0
+run() { # name, command...
+  local name=$1
+  shift
+  if ! timeout 1500 scripts/in-docker "$@" >"$log" 2>&1; then
+    echo "== $name failed:"
+    grep -E "^(error|warning)|FAIL|panicked|left:|right:|-->" "$log" | head -40
+    status=1
+  fi
+}
+run fmt cargo fmt
+run clippy cargo clippy --workspace --exclude gbk-markdown-lint-canary --all-targets --locked -- -D warnings
+run tests cargo nextest run --workspace --exclude gbk-markdown-lint-canary --locked --no-fail-fast
+if ((status == 0)); then
+  echo "quick: fmt, clippy and $(grep -oE '[0-9]+ tests run: [0-9]+ passed' "$log" | tail -1) ok"
+fi
+exit "$status"

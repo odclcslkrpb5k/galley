@@ -1,0 +1,92 @@
+#!/usr/bin/env bash
+# Installs the viewer for this user (docs/plan.md §10, M6): the release binary to
+# ~/.local/bin, the desktop file to ~/.local/share/applications, and, unless --no-default,
+# makes it the default application for Markdown (text/markdown, text/x-markdown).
+#
+#   scripts/install [--no-default] [--home DIR]     build (in the container) and install
+#   scripts/install --uninstall [--home DIR]        remove both, and give Markdown back to the
+#                                                   applications that had it before
+#
+# --home installs under another directory instead of $HOME (scripts/test-install uses it).
+# Nothing outside that home is touched; the only system tools used are update-desktop-database
+# and xdg-mime, each only if present.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+home=$HOME default=1 uninstall=0
+while (($#)); do
+  case $1 in
+    --no-default) default=0 ;;
+    --uninstall) uninstall=1 ;;
+    --home)
+      home=${2:?--home needs a directory}
+      shift
+      ;;
+    *)
+      echo "usage: scripts/install [--no-default] [--uninstall] [--home DIR]" >&2
+      exit 2
+      ;;
+  esac
+  shift
+done
+bin=$home/.local/bin
+apps=$home/.local/share/applications
+desktop=gbk-markdown.desktop
+mimes=(text/markdown text/x-markdown)
+# xdg-mime and update-desktop-database work on the real home: with another one, they are told
+# about it through XDG_DATA_HOME and XDG_CONFIG_HOME.
+export XDG_DATA_HOME=$home/.local/share XDG_CONFIG_HOME=$home/.config
+have() { command -v "$1" >/dev/null 2>&1; }
+# The defaults before ours, one `mime=desktop` a line, for --uninstall to give back.
+previous=$XDG_DATA_HOME/gbk-markdown/previous-defaults
+
+if ((uninstall)); then
+  rm -f "$bin/gbk-markdown" "$apps/$desktop"
+  # Only our own entries: other applications' associations stay as they were.
+  list=$XDG_CONFIG_HOME/mimeapps.list
+  if [[ -f "$list" ]]; then
+    python3 -I - "$list" "$desktop" <<'PY'
+import sys
+path, ours = sys.argv[1], sys.argv[2]
+lines = []
+for line in open(path, encoding="utf-8").read().splitlines():
+    key, sep, value = line.partition("=")
+    if sep and ours in value.split(";"):
+        rest = [entry for entry in value.split(";") if entry and entry != ours]
+        if not rest:
+            continue
+        line = key + "=" + ";".join(rest) + ";"
+    lines.append(line)
+open(path, "w", encoding="utf-8").write("\n".join(lines) + "\n")
+PY
+  fi
+  if [[ -f "$previous" ]] && have xdg-mime; then
+    while IFS='=' read -r mime app; do
+      if [[ -n "$app" && "$app" != "$desktop" ]]; then xdg-mime default "$app" "$mime"; fi
+    done <"$previous"
+  fi
+  rm -rf "$(dirname "$previous")"
+  if have update-desktop-database; then update-desktop-database "$apps" 2>/dev/null || true; fi
+  echo "install: removed gbk-markdown from $home"
+  exit 0
+fi
+
+if [[ -z "${GBK_PREBUILT:-}" ]]; then
+  timeout 1800 scripts/in-docker cargo build --release --locked
+fi
+built=${GBK_PREBUILT:-target/docker/release/gbk-markdown}
+mkdir -p "$bin" "$apps"
+install -m 755 "$built" "$bin/gbk-markdown"
+install -m 644 data/$desktop "$apps/$desktop"
+if have update-desktop-database; then update-desktop-database "$apps"; fi
+if ((default)) && have xdg-mime; then
+  # Kept from the first install only: a second must not record ours as what was there before.
+  if [[ ! -f "$previous" ]]; then
+    mkdir -p "$(dirname "$previous")"
+    for mime in "${mimes[@]}"; do
+      echo "$mime=$(xdg-mime query default "$mime" 2>/dev/null || true)"
+    done >"$previous"
+  fi
+  xdg-mime default "$desktop" "${mimes[@]}"
+fi
+echo "install: gbk-markdown in $bin, $desktop in $apps$( ((default)) && echo ", default for Markdown")"
+case ":$PATH:" in *":$bin:"*) ;; *) echo "install: note: $bin is not on PATH" ;; esac

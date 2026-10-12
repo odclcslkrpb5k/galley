@@ -1,0 +1,66 @@
+#!/usr/bin/env bash
+# Installs into a throwaway home and uninstalls again (scripts/install). Gate step; needs the
+# release binary built. xdg-mime and update-desktop-database are stubs here, so the test checks
+# the script's own logic the same way wherever it runs: the real xdg-mime ignores entries whose
+# desktop file is missing and falls back to the machine's defaults (found in M6).
+set -euo pipefail
+cd "$(dirname "$0")/.."
+home=$(mktemp -d)
+trap 'rm -rf "$home"' EXIT
+fail() { echo "test-install: $*" >&2; exit 1; }
+desktop-file-validate data/gbk-markdown.desktop || fail "the desktop file is not valid"
+
+# Stubs: the defaults live one file per MIME type in $home/defaults.
+mkdir -p "$home/stubs" "$home/defaults"
+cat >"$home/stubs/xdg-mime" <<'STUB'
+#!/usr/bin/env bash
+set -euo pipefail
+db=$STUB_DEFAULTS
+case "$1 $2" in
+  "query default") cat "$db/${3//\//_}" 2>/dev/null || true ;;
+  "default "*)
+    app=$2
+    shift 2
+    for mime in "$@"; do echo "$app" >"$db/${mime//\//_}"; done
+    ;;
+  *) exit 1 ;;
+esac
+STUB
+printf '#!/bin/sh\nexit 0\n' >"$home/stubs/update-desktop-database"
+chmod +x "$home/stubs/xdg-mime" "$home/stubs/update-desktop-database"
+export PATH=$home/stubs:$PATH STUB_DEFAULTS=$home/defaults
+default() { cat "$home/defaults/${1//\//_}" 2>/dev/null || true; }
+
+# Before: another application has text/markdown, nothing has text/x-markdown; mimeapps.list
+# also lists ours (as an earlier install's xdg-mime would have left it) beside others.
+echo other.desktop >"$home/defaults/text_markdown"
+mkdir -p "$home/.config"
+printf '%s\n' '[Default Applications]' 'text/markdown=gbk-markdown.desktop;other.desktop;' \
+  'text/x-markdown=gbk-markdown.desktop;' 'text/html=browser.desktop;' >"$home/.config/mimeapps.list"
+
+GBK_PREBUILT=${CARGO_TARGET_DIR:-target}/release/gbk-markdown scripts/install --home "$home" >/dev/null
+[[ -x "$home/.local/bin/gbk-markdown" ]] || fail "no executable installed"
+cmp -s data/gbk-markdown.desktop "$home/.local/share/applications/gbk-markdown.desktop" ||
+  fail "the desktop file was not installed as it is"
+"$home/.local/bin/gbk-markdown" --help >/dev/null 2>&1 || [[ $? == 2 ]] ||
+  fail "the installed binary does not run"
+[[ "$(default text/markdown)" == gbk-markdown.desktop && "$(default text/x-markdown)" == gbk-markdown.desktop ]] ||
+  fail "not made the default for Markdown"
+# A second install must not record ours as what was there before.
+GBK_PREBUILT=${CARGO_TARGET_DIR:-target}/release/gbk-markdown scripts/install --home "$home" >/dev/null
+
+scripts/install --uninstall --home "$home" >/dev/null
+[[ ! -e "$home/.local/bin/gbk-markdown" && ! -e "$home/.local/share/applications/gbk-markdown.desktop" ]] ||
+  fail "uninstall left files behind"
+[[ ! -e "$home/.local/share/gbk-markdown" ]] || fail "uninstall left its record behind"
+[[ "$(default text/markdown)" == other.desktop ]] ||
+  fail "text/markdown was not given back to other.desktop: $(default text/markdown)"
+expected=$(printf '%s\n' '[Default Applications]' 'text/markdown=other.desktop;' 'text/html=browser.desktop;')
+[[ "$(cat "$home/.config/mimeapps.list")" == "$expected" ]] ||
+  fail "uninstall did not remove only its own associations: $(cat "$home/.config/mimeapps.list")"
+
+# --no-default touches no default.
+echo other.desktop >"$home/defaults/text_markdown"
+GBK_PREBUILT=${CARGO_TARGET_DIR:-target}/release/gbk-markdown scripts/install --no-default --home "$home" >/dev/null
+[[ "$(default text/markdown)" == other.desktop ]] || fail "--no-default changed the default"
+echo "test-install: ok"

@@ -38,6 +38,8 @@ pub(crate) struct Opened {
     pub(crate) start: Option<LeafId>,
     /// Fetch no remote images.
     pub(crate) offline: bool,
+    /// Text size, as a factor.
+    pub(crate) zoom: f64,
 }
 
 glib::wrapper! {
@@ -65,6 +67,12 @@ impl DocumentView {
     /// "none".
     pub(crate) fn probe_click(&self, x: f64, y: f64) -> String {
         self.imp().probe_click(x, y)
+    }
+
+    /// For --press: presses a key (`Page_Down`, `ctrl+plus`) as the keyboard would; describes
+    /// what it did.
+    pub(crate) fn probe_press(&self, key: &str) -> String {
+        self.imp().probe_press(key)
     }
 
     /// The document's height and the paint at the top of the view.

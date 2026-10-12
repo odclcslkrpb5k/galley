@@ -46,6 +46,9 @@ Optimisation goals, in priority order as stated:
 | 2026-10-12 | Cairo renderer by default, `--renderer=cairo\|gl` overrides GSK_RENDERER; `unsafe_code` deny with one exception (set_var in main) | User decision: 70-90 ms faster first frame, scrolling even; check-boundaries keeps it the only unsafe |
 | 2026-10-12 | Syntax highlighting with syntect 5.3 (fancy-regex, parsing only) + two-face 0.5.2 (bat's 213 grammars) | M5; syntect's own 75 lack TOML/TS/Dockerfile/fish/Nix; pure Rust, no Oniguruma; binary 4.3 -> 7.2 MB, startup unchanged |
 | 2026-10-12 | Tokens are colour only (GitHub's classes), highlighter thread started after the first frame, read ahead 16 KiB | M5; heights cannot change, so the worker measures uncoloured and check-heights proves it; nothing before first paint |
+| 2026-10-12 | Dark mode follows GTK's interface colour scheme (portal), else a `*-dark` GTK theme name; `--theme` overrides | M6; Xfce's portal states no preference; the palette already followed the theme |
+| 2026-10-12 | Zoom scales the text setup (em), browser steps 50-400%; images keep pixel size | M6; reuses the DPI-change path, so the worker and anchoring follow |
+| 2026-10-12 | Install records the Markdown defaults it replaces and gives them back on uninstall | M6; xdg-mime default replaces the whole list; run only with the user's go-ahead (writes outside the repo) |
 
 Push guard (installed 2026-10-11): `.claude/hooks/guard-push` refuses Bash commands whose text
 contains `--no-verify` with `git`, or mentions `core.hooksPath` (except setting it to

@@ -27,6 +27,9 @@ use crate::units::{
 /// Turns heading text into a GitHub anchor slug, unique within the document.
 pub(crate) type Slugger = Box<dyn FnMut(&str) -> String>;
 
+/// The widest `colspan` followed: more would only make empty columns.
+const MAX_COLSPAN: usize = 64;
+
 /// HTML tags followed deeper than this are ignored (with a notice): the stack is per document
 /// and a generated file could otherwise open tags without end.
 const MAX_HTML_DEPTH: usize = 256;
@@ -134,6 +137,16 @@ impl Builder {
         self.finish_html_table();
         self.flush_summary();
         self.default_summary();
+        // Anchors after the last leaf (`<a name="bottom">` at the end) name the last leaf.
+        if let Some(last) = self.doc.leaves.len().checked_sub(1) {
+            for slug in std::mem::take(&mut self.pending_anchors) {
+                self.doc.anchors.push(Anchor {
+                    slug,
+                    leaf: LeafId::new(last),
+                });
+            }
+        }
+        self.doc.index_anchors();
         self.doc
     }
 
@@ -480,6 +493,9 @@ impl Builder {
                     });
                 }
             }
+            // In a table cell, `<details>` and `<summary>` are lines of the cell: a cell holds
+            // text, and a summary leaf would end the table.
+            "details" | "summary" if self.in_cell() => self.open_block(name, token),
             "details" => {
                 self.flush_pending();
                 let id = DetailsId::new(self.next_details);
@@ -521,14 +537,16 @@ impl Builder {
 
     fn html_end(&mut self, name: &str) {
         match name {
-            "summary" => self.flush_summary(),
+            "summary" if !self.in_cell() => self.flush_summary(),
             "table" if self.html_table.is_some() => self.close_html_table(),
             "tr" if self.html_table.is_some() => self.end_html_table_row(),
             "td" | "th" if self.html_table.is_some() => self.end_html_table_cell(),
             "thead" | "tbody" | "tfoot" if self.html_table.is_some() => {}
             "pre" => {}
             name => {
-                let block = is_block(name) || heading_level(name).is_some() || name == "details";
+                let block = is_block(name)
+                    || heading_level(name).is_some()
+                    || matches!(name, "details" | "summary");
                 if block {
                     self.flush_pending();
                 }
@@ -806,6 +824,11 @@ impl Builder {
                         inlines: InlineBuilder::default(),
                         header,
                         align: token.attribute("align").and_then(parse_align),
+                        span: token
+                            .attribute("colspan")
+                            .and_then(|span| span.trim().parse::<usize>().ok())
+                            .unwrap_or(1)
+                            .clamp(1, MAX_COLSPAN),
                     });
                 }
             }
@@ -814,6 +837,12 @@ impl Builder {
     }
 
     /// A space after the text being read, unless there is none or it ends in one.
+    fn in_cell(&self) -> bool {
+        self.html_table
+            .as_ref()
+            .is_some_and(|table| table.cell.is_some())
+    }
+
     fn separate_words(&mut self) {
         if let Some(pending) = self.pending.as_mut()
             && !pending.inlines.ends_with_space()
@@ -840,6 +869,12 @@ impl Builder {
             row.cells.push(inlines);
             row.headers.push(cell.header);
             row.aligns.push(cell.align);
+            // A cell spanning columns: empty cells after it keep the columns after it in place.
+            for _spanned in 1..cell.span {
+                row.cells.push(Inlines::default());
+                row.headers.push(cell.header);
+                row.aligns.push(None);
+            }
         }
     }
 
@@ -945,6 +980,8 @@ impl Builder {
     }
 
     fn push_leaf(&mut self, kind: LeafKind) -> LeafId {
+        // Raw anchors belong to this leaf, not to a table or summary pushed before it here.
+        let anchors = std::mem::take(&mut self.pending_anchors);
         // A cell holds lines of text; anything else in it (a code block, a list) ends the table
         // there. Text outside any cell shows before the table, as a browser shows it.
         if self
@@ -969,7 +1006,7 @@ impl Builder {
             context: self.open.last().copied(),
             align: self.html.align(),
         });
-        for slug in std::mem::take(&mut self.pending_anchors) {
+        for slug in anchors {
             self.doc.anchors.push(Anchor { slug, leaf: id });
         }
         id
@@ -1004,6 +1041,8 @@ struct HtmlCell {
     inlines: InlineBuilder,
     header: bool,
     align: Option<Align>,
+    /// `colspan`: how many columns it covers.
+    span: usize,
 }
 
 /// Media cannot play here: a link to it takes its place.
@@ -1934,6 +1973,42 @@ mod tests {
             vec![vec!["first\nsecond", "p one\ndiv two", "in ner"]]
         );
         assert_eq!(doc.leaves.len(), 1);
+    }
+
+    #[test]
+    fn details_in_a_cell_are_lines_of_it_and_colspan_keeps_columns() {
+        let mut builder = builder();
+        builder.html_block(
+            "<table><tr><th colspan=\"2\">Sponsors</th></tr>\n\
+             <tr><td><details><summary>More</summary>body</details></td><td>x</td></tr></table>",
+        );
+        let doc = builder.finish();
+        let table = doc.tables.first().expect("one table");
+        let header: Vec<&str> = table.header.iter().map(|c| c.text.as_str()).collect();
+        assert_eq!(header, vec!["Sponsors", ""]);
+        let body: Vec<&str> = table
+            .rows
+            .first()
+            .expect("a body row")
+            .iter()
+            .map(|c| c.text.as_str())
+            .collect();
+        assert_eq!(body, vec!["More\nbody", "x"]);
+        assert_eq!(doc.leaves.len(), 1);
+    }
+
+    #[test]
+    fn raw_anchors_name_their_own_leaf_and_trailing_ones_the_last() {
+        let mut builder = builder();
+        builder.html_block("<details>");
+        builder.html_block("<a id=\"inside\"></a>");
+        paragraph(&mut builder, "body");
+        builder.html_block("</details>");
+        builder.html_block("<a name=\"bottom\"></a>");
+        let doc = builder.finish();
+        assert_eq!(texts(&doc), vec!["Details", "body"]);
+        assert_eq!(doc.anchor_leaf("inside"), Some(LeafId::new(1)));
+        assert_eq!(doc.anchor_leaf("bottom"), Some(LeafId::new(1)));
     }
 
     #[test]

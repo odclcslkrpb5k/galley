@@ -12,6 +12,7 @@
 #   huge-heading.md  one heading of 1 MB
 #   links.md  a link filling the first lines, and far down an anchored one (smoke: --link-at)
 #   details.md  a closed <details> whose summary is the first line (smoke: --click-at)
+#   wide-table.md  a table of 100 columns and 300 rows (pieces must stay small to scroll)
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
 corpus=$root/crates/core/tests/data/corpus
@@ -104,5 +105,14 @@ run() { printf "%${2}s" '' | tr ' ' "$1"; }
   echo
   echo 'After.'
 } >"$out/details.md"
+
+# A table of 100 short columns: each cell is a layout, so pieces are cut by cell count.
+{
+  printf '|'; for ((c = 1; c <= 100; c++)); do printf ' c%d |' "$c"; done; echo
+  printf '|'; for ((c = 1; c <= 100; c++)); do printf -- '---|'; done; echo
+  for ((r = 1; r <= 300; r++)); do
+    printf '|'; for ((c = 1; c <= 100; c++)); do printf ' %d |' "$((r * c))"; done; echo
+  done
+} >"$out/wide-table.md"
 
 ls -l "$out"

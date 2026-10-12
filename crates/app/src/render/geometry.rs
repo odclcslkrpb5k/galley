@@ -5,6 +5,8 @@
 //! the boxes the widget draws both come from it, so they cannot drift apart.
 
 use super::paint::{BarColor, CODE_PADDING, Decoration, Fill, LeafPaint, Target};
+use gbk_markdown_core::model::Align;
+
 use super::table::{CELL_PAD_X_EM, CELL_PAD_Y_EM, Grid, LINE_PX, MIN_COLUMN_EM, column_widths};
 use crate::units;
 
@@ -176,25 +178,18 @@ impl Metrics {
                 )),
             }
         }
-        let text_x = indent + self.horizontal_padding(paint);
-        let mut cells = Vec::new();
-        if let Some(grid) = grid {
-            fills.extend(grid.fills.iter().map(|(rect, shade)| {
-                (
-                    Rect {
-                        x: rect.x + text_x,
-                        y: rect.y + text_y,
-                        ..*rect
-                    },
-                    *shade,
-                )
-            }));
-            cells = grid
-                .cells
-                .iter()
-                .map(|row| row.iter().map(|&(x, y)| (x + text_x, y + text_y)).collect())
-                .collect();
-        }
+        // A table narrower than the text width follows the leaf's alignment (`<div
+        // align="center">` around it), as text does inside its layout.
+        let slack = grid.map_or(0, |grid| (rest - grid.width).max(0));
+        let shift = match paint.align {
+            Align::Start => 0,
+            Align::Center => slack / 2,
+            Align::End => slack,
+        };
+        let text_x = indent + self.horizontal_padding(paint) + shift;
+        let cells = grid.map_or_else(Vec::new, |grid| {
+            place_grid(grid, (text_x, text_y), &mut fills)
+        });
         LeafGeometry {
             height,
             text_x,
@@ -249,6 +244,29 @@ impl Metrics {
         let lines = lines_of(&paint.text, width / char_px);
         self.leaf_height(paint, lines.max(1) * line)
     }
+}
+
+/// Moves a table's grid to `(x, y)` in its leaf: adds its lines and stripes to `fills`, and
+/// returns where each cell's text goes.
+fn place_grid(
+    grid: &Grid,
+    (x, y): (i64, i64),
+    fills: &mut Vec<(Rect, Shade)>,
+) -> Vec<Vec<(i64, i64)>> {
+    fills.extend(grid.fills.iter().map(|(rect, shade)| {
+        (
+            Rect {
+                x: rect.x + x,
+                y: rect.y + y,
+                ..*rect
+            },
+            *shade,
+        )
+    }));
+    grid.cells
+        .iter()
+        .map(|row| row.iter().map(|&(left, top)| (left + x, top + y)).collect())
+        .collect()
 }
 
 /// Lines `text` takes at `per_line` characters to a line: each of its lines, at least one.
@@ -401,6 +419,48 @@ mod tests {
         let paints = paints(&format!("```\n{}\n```\n", "c".repeat(160)));
         let code = paints.first().expect("code");
         assert_eq!(METRICS.estimate(code, 600), 10 + 2 * 19 + 10 + 12);
+    }
+
+    /// A grid of one row, as `table::grid` would make it for 2 columns of 40 and 60 px.
+    fn small_grid(paint: &LeafPaint) -> Grid {
+        let table = paint.table.as_ref().expect("a table");
+        crate::render::table::grid(table, &[40, 60], &[vec![20, 20]], 13, 6)
+    }
+
+    #[test]
+    fn a_table_grid_sits_in_its_leaf_and_follows_its_alignment() {
+        let paints = paints(
+            "> | a | b |\n> |---|---|\n\n<div align=\"center\">\n\n| a | b |\n|---|---|\n\n</div>\n",
+        );
+        let quoted = paints.first().expect("quoted table");
+        let grid = small_grid(quoted);
+        let geometry = METRICS.geometry(quoted, grid.height, Some(&grid), 600);
+        // Inside the quote's indent; cells offset by it; the marker-free leaf has no disclosure.
+        assert_eq!(geometry.text_x, 16);
+        assert_eq!(geometry.cells, vec![vec![(16 + 14, 7), (16 + 55, 7)]]);
+        assert!(
+            geometry
+                .fills
+                .iter()
+                .any(|(rect, shade)| *shade == Shade::TableLine && rect.x == 16)
+        );
+        assert_eq!(geometry.height, METRICS.leaf_height(quoted, grid.height));
+        let centred = paints.get(1).expect("centred table");
+        let grid = small_grid(centred);
+        let geometry = METRICS.geometry(centred, grid.height, Some(&grid), 600);
+        assert_eq!(geometry.text_x, (600 - grid.width) / 2);
+    }
+
+    #[test]
+    fn table_estimates_fit_columns_to_their_sampled_text() {
+        let short = paints("| a | b |\n|---|---|\n| 1 | 2 |\n");
+        let long_cell = format!("| a | b |\n|---|---|\n| {} | 2 |\n", "word ".repeat(80));
+        let long = paints(&long_cell);
+        let one = METRICS.estimate(short.first().expect("short"), 600);
+        let many = METRICS.estimate(long.first().expect("long"), 600);
+        // Two rows of one line each, padding and lines.
+        assert_eq!(one, 2 * (22 + 12 + 1) + 1 + 12);
+        assert!(many > one + 22, "{many} vs {one}");
     }
 
     #[test]

@@ -15,6 +15,7 @@
 //! Positions inside a leaf are (leaf, `ByteOffset`), which is what text selection and find will
 //! use (plan §11: not in v1, but the addressing is kept).
 
+use std::collections::HashMap;
 use std::ops::Range;
 
 use crate::units::{
@@ -40,6 +41,9 @@ pub struct Document {
     pub(crate) tables: Vec<Table>,
     pub(crate) code_blocks: Vec<CodeBlock>,
     pub(crate) anchors: Vec<Anchor>,
+    /// Each anchor name's leaf, the first of a name winning: `anchor_leaf` without a scan
+    /// (it runs once per fragment link while painting).
+    pub(crate) anchor_index: HashMap<String, LeafId>,
     pub(crate) notices: Vec<Notice>,
 }
 
@@ -151,11 +155,16 @@ impl Document {
     /// The leaf a `#fragment` link goes to: a heading's, or a raw `<a id>`'s or `<a name>`'s.
     #[must_use]
     pub fn anchor_leaf(&self, fragment: &str) -> Option<LeafId> {
-        let name = anchor_name(fragment);
-        self.anchors
-            .iter()
-            .find(|anchor| anchor.slug == name)
-            .map(|anchor| anchor.leaf)
+        self.anchor_index.get(anchor_name(fragment)).copied()
+    }
+
+    /// Builds `anchor_index` once the anchors are all known.
+    pub(crate) fn index_anchors(&mut self) {
+        for anchor in &self.anchors {
+            self.anchor_index
+                .entry(anchor.slug.clone())
+                .or_insert(anchor.leaf);
+        }
     }
 
     #[must_use]

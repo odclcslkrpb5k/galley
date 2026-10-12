@@ -1,9 +1,11 @@
 //! What each leaf looks like, as plain data (docs/plan.md §4.5).
 //!
-//! A `LeafPaint` is the text to lay out with its attributes, its font, and the box around it:
-//! indent, gaps, background padding, quote and alert bars, list markers. It is built from the
-//! document on the loader thread (no GTK here), is `Send`, and is what both the height worker
-//! and the widget lay out, so the two cannot disagree about a leaf.
+//! A `LeafPaint` is the text to lay out with its attributes and links (or a piece of a table, its
+//! cells each such text), its font, and the box around it: indent, gaps, background padding,
+//! quote and alert bars, list markers, a summary's disclosure, the `<details>` it is inside. It
+//! is built from the document on the loader thread (no GTK here), is `Send`, and is what both
+//! the height worker and the widget lay out, so the two cannot disagree about a leaf. Links are
+//! resolved here, to a leaf, a URL or a relative path, so clicking needs no document.
 //!
 //! Lengths are in em (multiples of the body font size): the paint does not know the screen's
 //! resolution, which is applied when it is laid out (`geometry`).
@@ -1535,6 +1537,28 @@ mod tests {
         };
         assert_eq!(relative(None).label(), "relative:a.md");
         assert_eq!(relative(Some("b")).label(), "relative:a.md#b");
+    }
+
+    #[test]
+    fn table_pieces_in_a_quote_keep_its_bar_ends_on_the_first_and_last() {
+        let rows = (0..40)
+            .map(|i| format!("> | {i} | {i} |\n"))
+            .collect::<Vec<_>>()
+            .concat();
+        let pieces = paints(&format!("> | a | b |\n> |---|---|\n{rows}"));
+        // 41 rows of 2 cells: 64 cells to a piece, so 32 rows, then 9.
+        let sizes: Vec<usize> = pieces.iter().map(|paint| cell_texts(paint).len()).collect();
+        assert_eq!(sizes, vec![32, 9]);
+        assert_eq!(
+            bar_ends(pieces.first().expect("first")),
+            vec![(true, false)]
+        );
+        assert_eq!(bar_ends(pieces.last().expect("last")), vec![(false, true)]);
+        let lasts: Vec<bool> = pieces
+            .iter()
+            .filter_map(|paint| paint.table.as_ref().map(|table| table.last))
+            .collect();
+        assert_eq!(lasts, vec![false, true]);
     }
 
     #[test]

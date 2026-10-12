@@ -864,7 +864,14 @@ pub(crate) fn html_view(html: &str) -> View {
                 }
                 let mut text = String::from_utf8_lossy(&text).into_owned();
                 if open.iter().any(|o| o.content == Content::Math) {
-                    text = text.trim().trim_matches('$').to_owned();
+                    // Exactly one pair: a `$` inside the formula is the formula's.
+                    let trimmed = text.trim();
+                    text = trimmed
+                        .strip_prefix("$$")
+                        .and_then(|inner| inner.strip_suffix("$$"))
+                        .or_else(|| trimmed.strip_prefix('$')?.strip_suffix('$'))
+                        .unwrap_or(trimmed)
+                        .to_owned();
                 }
                 text_seen += text.len();
                 if text.chars().all(char::is_whitespace) {

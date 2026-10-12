@@ -15,9 +15,9 @@ bin=${CARGO_TARGET_DIR:-target}/release/gbk-markdown
 screens=${CARGO_TARGET_DIR:-target}/screens/${GATE_TREE:-adhoc}
 mkdir -p "$screens"
 
-fixtures=(crates/core/tests/data/corpus/*/input.md target/fixtures/{readme-200kb,list-1mb,table-1mb,code-1mb,huge-line,huge-cells,huge-heading}.md)
+fixtures=(crates/core/tests/data/corpus/*/input.md target/fixtures/{readme-200kb,list-1mb,table-1mb,wide-table,code-1mb,huge-line,huge-cells,huge-heading}.md)
 # Scrolled end to end: steady scrolling must find every leaf laid out (plan §6).
-scrolled=(target/fixtures/readme-200kb.md target/fixtures/list-1mb.md crates/core/tests/data/corpus/_synthetic-features/input.md)
+scrolled=(target/fixtures/readme-200kb.md target/fixtures/list-1mb.md target/fixtures/table-1mb.md target/fixtures/wide-table.md crates/core/tests/data/corpus/_synthetic-features/input.md)
 # Height worker against main-thread layout: every height must match exactly (plan §4.5).
 checked=(crates/core/tests/data/corpus/_synthetic-features/input.md crates/core/tests/data/corpus/sharkdp__bat/input.md target/fixtures/readme-200kb.md target/fixtures/table-1mb.md)
 
@@ -26,6 +26,9 @@ checked=(crates/core/tests/data/corpus/_synthetic-features/input.md crates/core/
 # of dense 9 px text are under 20 KiB; a paragraph or leaf bigger than the budget fails here,
 # which is the point.
 first_frame_byte_budget=32768
+# Layouts before the first frame: bytes miss a table's many small cells (each a layout, with
+# its own font and attribute setup). table-1mb's first screen and column sample are ~300.
+first_frame_layout_budget=1000
 # A first frame (since main) later than this is a freeze, not slowness (the huge-* fixtures once took 68 s
 # or never arrived); normal fixtures take well under a second here.
 first_frame_time_budget_us=5000000
@@ -45,7 +48,8 @@ for fixture in "${fixtures[@]}"; do
   report=$(grep -E '^first_frame_us=' <<<"$out" || true)
   bytes=$(grep -oE 'bytes_laid_out_before_first_frame=[0-9]+' <<<"$report" | cut -d= -f2 || true)
   time_us=$(grep -oE 'since_main_us=[0-9]+' <<<"$report" | cut -d= -f2 || true)
-  if [[ -z "$bytes" || -z "$time_us" ]]; then
+  layouts=$(grep -oE 'laid_out_before_first_frame=[0-9]+' <<<"$report" | cut -d= -f2 || true)
+  if [[ -z "$bytes" || -z "$time_us" || -z "$layouts" ]]; then
     echo "smoke: $name: no probe report in: $out" >&2
     fail=1
   elif ! grep -q 'renderer=GskCairoRenderer' <<<"$report"; then
@@ -56,6 +60,9 @@ for fixture in "${fixtures[@]}"; do
     fail=1
   elif ((bytes > first_frame_byte_budget)); then
     echo "smoke: $name: gave Pango $bytes bytes before the first frame; budget $first_frame_byte_budget" >&2
+    fail=1
+  elif ((layouts > first_frame_layout_budget)); then
+    echo "smoke: $name: made $layouts layouts before the first frame; budget $first_frame_layout_budget" >&2
     fail=1
   elif [[ ! -s "$screens/$name.png" ]]; then
     echo "smoke: $name: no screenshot" >&2
@@ -79,39 +86,51 @@ for fixture in "${scrolled[@]}"; do
   n=$((n + 1))
 done
 
-# Links: the widget finds the link under a point at the top, and after --anchor opened the
-# document far down (gen-fixtures writes links.md so both points are on a link).
-links=target/fixtures/links.md
-for case in "|leaf:" "--anchor=end|uri:https://example.com/end"; do
-  args=${case%%|*} want=${case#*|}
-  out=$(timeout 60 "$bin" --exit-after-first-frame --link-at=120,44 ${args:+"$args"} "$links" 2>&1 || true)
-  if ! grep -q "link_at=$want" <<<"$out"; then
-    echo "smoke: --link-at ${args:-at the top} did not find $want: $out" >&2
-    fail=1
-  fi
+# probe_run VAR ARGS...: a probe run that must exit 0 with a first-frame report; its output
+# goes in VAR ("" and a failure recorded otherwise). Not called as $(...): a subshell would
+# lose the failure and the count.
+probe_run() {
+  local into=$1 status=0 out
+  shift
+  out=$(timeout 60 "$bin" --exit-after-first-frame "$@" 2>&1) || status=$?
   n=$((n + 1))
-done
-
-# Clicks: a link inside the document scrolls its target to the top (paint 401 is the anchored
-# paragraph); a summary opens its <details>, so the document is taller than after a click on
-# nothing.
-out=$(timeout 60 "$bin" --exit-after-first-frame --click-at=120,44 "$links" 2>&1 || true)
-if ! grep -q "clicked=leaf:401 document_height=[0-9]* top_paint=401" <<<"$out"; then
-  echo "smoke: clicking the link at the top did not show its target: $out" >&2
-  fail=1
-fi
-details=target/fixtures/details.md
-height_after() {
-  timeout 60 "$bin" --exit-after-first-frame --click-at="$1" "$details" 2>&1 |
-    grep -oE "clicked=$2 document_height=[0-9]+" | cut -d= -f3 || true
+  if ((status)) || ! grep -q '^first_frame_us=' <<<"$out"; then
+    echo "smoke: $* exited with status $status: $out" >&2
+    fail=1
+    out=""
+  fi
+  printf -v "$into" '%s' "$out"
 }
-opened=$(height_after 120,44 summary:0)
-missed=$(height_after 120,900 none)
-if [[ -z "$opened" || -z "$missed" ]] || ((opened <= missed)); then
-  echo "smoke: clicking the summary did not open its details (heights ${opened:-?} vs ${missed:-?})" >&2
+field() { grep -oE "$1=[^ ]+" <<<"$2" | cut -d= -f2- || true; }
+
+# Links: the widget finds the link under a point at the top, and after --anchor opened the
+# document far down (gen-fixtures writes links.md so both points are on a link). Clicking the
+# top link shows the leaf --anchor=end opens at.
+links=target/fixtures/links.md
+probe_run top --link-at=120,44 "$links"
+probe_run anchored --anchor=end --link-at=120,44 --click-at=1,1 "$links"
+probe_run clicked --click-at=120,44 "$links"
+end_leaf=$(field top_leaf "$anchored")
+if [[ "$(field link_at "$top")" != leaf:* ]]; then
+  echo "smoke: --link-at at the top found no link inside the document: $top" >&2
+  fail=1
+elif [[ "$(field link_at "$anchored")" != uri:https://example.com/end ]]; then
+  echo "smoke: --link-at after --anchor=end found no link to https://example.com/end: $anchored" >&2
+  fail=1
+elif [[ -z "$end_leaf" || "$(field top_leaf "$clicked")" != "$end_leaf" ]]; then
+  echo "smoke: clicking the top link did not show the leaf --anchor=end opens at ($end_leaf): $clicked" >&2
   fail=1
 fi
-n=$((n + 3))
+
+# A summary opens its <details>: the document is taller than after a click on nothing.
+details=target/fixtures/details.md
+probe_run opened --click-at=120,44 "$details"
+probe_run missed --click-at=120,900 "$details"
+if [[ "$(field clicked "$opened")" != summary:0 || "$(field clicked "$missed")" != none ]] ||
+  (($(field document_height "$opened") <= $(field document_height "$missed") + 0)); then
+  echo "smoke: clicking the summary did not open its details: $opened / $missed" >&2
+  fail=1
+fi
 
 # The GL fallback (--renderer=gl): it must really be GL, reach a first frame and scroll without
 # layout in frames.

@@ -843,8 +843,8 @@ impl DocumentView {
         let doc = document.as_ref()?;
         let y = top - doc.margin() + units::round_px(y);
         let paint = doc.positions.visible(y, 1).next()?;
-        // Not past the end of the document.
-        let inside = y < doc.positions.start(paint + 1);
+        // On the paint: not in the margin above the document, nor past its end.
+        let inside = (doc.positions.start(paint)..doc.positions.start(paint + 1)).contains(&y);
         doc.paints
             .get(paint)?
             .summary_of
@@ -1057,18 +1057,21 @@ impl DocumentView {
                 }
                 let window = self.obj().root().and_downcast::<gtk::Window>();
                 let file = gio::File::for_path(&path);
-                gtk::FileLauncher::new(Some(&file)).launch(
-                    window.as_ref(),
-                    gio::Cancellable::NONE,
-                    move |result| {
-                        if let Err(error) = result {
-                            report_error(OpenError::Launch(
-                                path.display().to_string(),
-                                error.to_string(),
-                            ));
-                        }
-                    },
-                );
+                let content_type = if metadata.is_dir() {
+                    "inode/directory".into()
+                } else {
+                    gio::content_type_guess(Some(&path), None).0
+                };
+                let launcher = gtk::FileLauncher::new(Some(&file));
+                launcher.set_always_ask(links::launch(&content_type) == links::Launch::Ask);
+                launcher.launch(window.as_ref(), gio::Cancellable::NONE, move |result| {
+                    if let Err(error) = result {
+                        report_error(OpenError::Launch(
+                            path.display().to_string(),
+                            error.to_string(),
+                        ));
+                    }
+                });
                 Ok(())
             }
         }
@@ -1184,16 +1187,21 @@ enum OpenError {
     Launch(String, String),
 }
 
-/// What a link's tooltip says: where it goes, when that is not this document.
+/// What a link's tooltip says: where it goes, when that is not this document. A relative path
+/// is shown resolved as a click resolves it.
 fn describe(target: &Target, document: Option<&Path>) -> Option<String> {
     match target {
         Target::Leaf(_) => None,
         Target::Missing(name) => Some(format!("#{name} (not in this document)")),
         Target::Uri(uri) => Some(uri.clone()),
         Target::Relative { path, fragment } => {
-            let shown = document
-                .and_then(Path::parent)
-                .map_or_else(|| PathBuf::from(path), |folder| folder.join(path));
+            let is_repository = |folder: &Path| folder.join(".git").exists();
+            let shown = match document
+                .map(|document| links::resolve(document, path, fragment.as_deref(), &is_repository))
+            {
+                Some(Opening::Viewer { path, .. } | Opening::System(path)) => path,
+                None => PathBuf::from(path),
+            };
             Some(match fragment {
                 Some(fragment) => format!("{}#{fragment}", shown.display()),
                 None => shown.display().to_string(),

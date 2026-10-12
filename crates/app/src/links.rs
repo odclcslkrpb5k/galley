@@ -52,25 +52,56 @@ pub(crate) fn resolve(
     }
 }
 
-/// `a/./b/../c` as `a/c`, without asking the file system (a `..` past the start is kept).
+/// `a/./b/../c` as `a/c`, without asking the file system (a `..` past the start of a relative
+/// path is kept; past `/`, dropped).
 fn normalise(path: &Path) -> PathBuf {
     let mut out = PathBuf::new();
     for component in path.components() {
         match component {
             Component::CurDir => {}
-            Component::ParentDir => {
-                let popped =
-                    matches!(out.components().next_back(), Some(Component::Normal(_))) && out.pop();
-                if !popped {
-                    out.push("..");
+            Component::ParentDir => match out.components().next_back() {
+                Some(Component::Normal(_)) => {
+                    out.pop();
                 }
-            }
+                // `/..` is `/`, as the system has it.
+                Some(Component::RootDir | Component::Prefix(_)) => {}
+                Some(Component::ParentDir | Component::CurDir) | None => out.push(".."),
+            },
             Component::Prefix(_) | Component::RootDir | Component::Normal(_) => {
                 out.push(component);
             }
         }
     }
     out
+}
+
+/// How the system is asked to open a file of a content type.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Launch {
+    /// With its default application: a type no default handler runs as a program.
+    Default,
+    /// Through the system's application chooser: a default handler might run it (Wine for
+    /// `.exe`, Java for `.jar`, installers), so the person picks.
+    Ask,
+}
+
+/// Content types opened with their default application without asking.
+const OPENED_DIRECTLY: [&str; 4] = ["image/", "audio/", "video/", "font/"];
+const OPENED_DIRECTLY_EXACT: [&str; 6] = [
+    "application/pdf",
+    "inode/directory",
+    "text/plain",
+    "text/markdown",
+    "text/csv",
+    "text/html",
+];
+
+pub(crate) fn launch(content_type: &str) -> Launch {
+    let direct = OPENED_DIRECTLY
+        .iter()
+        .any(|prefix| content_type.starts_with(prefix))
+        || OPENED_DIRECTLY_EXACT.contains(&content_type);
+    if direct { Launch::Default } else { Launch::Ask }
 }
 
 /// Whether the system may be asked to open `path`: a folder, or a file that is not executable
@@ -160,7 +191,30 @@ mod tests {
     fn normalising_keeps_parents_it_cannot_remove() {
         assert_eq!(normalise(Path::new("a/./b/../c")), PathBuf::from("a/c"));
         assert_eq!(normalise(Path::new("../../a")), PathBuf::from("../../a"));
-        assert_eq!(normalise(Path::new("/../a")), PathBuf::from("/../a"));
+        assert_eq!(normalise(Path::new("/../a")), PathBuf::from("/a"));
+    }
+
+    #[test]
+    fn only_harmless_types_open_without_asking() {
+        for direct in [
+            "image/png",
+            "video/mp4",
+            "application/pdf",
+            "inode/directory",
+            "text/plain",
+        ] {
+            assert_eq!(launch(direct), Launch::Default, "{direct}");
+        }
+        for asked in [
+            "application/x-ms-dos-executable",
+            "application/x-java-archive",
+            "application/x-msi",
+            "application/x-desktop",
+            "text/x-shellscript",
+            "application/octet-stream",
+        ] {
+            assert_eq!(launch(asked), Launch::Ask, "{asked}");
+        }
     }
 
     #[test]

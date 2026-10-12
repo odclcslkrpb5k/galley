@@ -2,10 +2,11 @@
 //! width, and where its rows, cells and lines go. Pure, so it is unit-tested; `text` lays out the
 //! cells and `geometry` places the grid in its leaf.
 //!
-//! A table is painted in pieces of a few rows (`paint`), each a leaf of its own, so a long table
+//! A table is painted in pieces of a few rows (`paint`), each a paint of its own, so a long table
 //! never has to be laid out whole. Every piece of one table shares a `ColumnSample`: its header
-//! and first rows, from which the column widths are measured once per width. Rows after the
-//! sample that are wider wrap instead of widening the table, so pieces never disagree.
+//! and first rows, whose natural widths are measured once per text setup and fitted to each view
+//! width. Rows after the sample that are wider wrap instead of widening the table, so pieces
+//! never disagree.
 
 use std::sync::Arc;
 

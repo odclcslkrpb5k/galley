@@ -236,7 +236,7 @@ impl Probe {
                 let (height, top) = state.unwrap_or_default();
                 self.finish(
                     window,
-                    format!("{report} document_height={height} top_paint={top}"),
+                    format!("{report} document_height={height} top_leaf={top}"),
                 );
             }
             return;

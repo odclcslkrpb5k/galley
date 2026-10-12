@@ -218,7 +218,9 @@ fn show(
             document.paints,
             document.anchors,
             document.details,
-            file.map(Path::to_path_buf),
+            // Absolute, so `/path` links find the repository above it whatever the working
+            // directory was.
+            file.map(|file| std::path::absolute(file).unwrap_or_else(|_| file.to_path_buf())),
             start,
             Rc::clone(probe),
         );

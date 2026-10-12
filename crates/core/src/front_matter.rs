@@ -20,15 +20,19 @@ pub(crate) fn rows(text: &str) -> Option<Vec<(String, String)>> {
             let item = trimmed
                 .strip_prefix("- ")
                 .or_else(|| (trimmed == "-").then_some(""))?;
+            // A list of maps (`- name: x`) is a nested table on GitHub; not flat.
+            if is_key_value(item) {
+                return None;
+            }
             list.as_mut()?.push(scalar(item)?);
             continue;
         }
         if let Some(items) = list.take() {
             set_last_value(&mut rows, items.join(", "));
         }
-        let (key, value) = line.split_once(':')?;
-        let value = value.trim();
-        if !value.is_empty() && !line.contains(": ") {
+        let (key, rest) = line.split_once(':')?;
+        let value = rest.trim();
+        if !value.is_empty() && !rest.starts_with([' ', '\t']) {
             return None; // `a:b` is a scalar, not a key
         }
         let key = scalar(key.trim())?;
@@ -62,17 +66,28 @@ fn set_last_value(rows: &mut [(String, String)], value: String) {
     }
 }
 
-/// A plain or quoted scalar's text; `None` for YAML this reader does not take (maps, anchors,
-/// tags, block strings).
+/// Whether a plain list item is itself `key: value`.
+fn is_key_value(item: &str) -> bool {
+    !item.starts_with(['"', '\''])
+        && (item.contains(": ") || item.contains(":\t") || item.ends_with(':'))
+}
+
+/// A plain or quoted scalar's text (`~` and `null` are empty); `None` for YAML this reader does
+/// not take (maps, anchors, tags, block strings).
 fn scalar(value: &str) -> Option<String> {
     let value = value.trim();
-    for quote in ['"', '\''] {
-        if let Some(inner) = value
-            .strip_prefix(quote)
-            .and_then(|rest| rest.strip_suffix(quote))
-        {
-            return Some(inner.to_owned());
-        }
+    if let Some(inner) = value
+        .strip_prefix('\'')
+        .and_then(|rest| rest.strip_suffix('\''))
+    {
+        // Single quotes: `''` is a quote.
+        return Some(inner.replace("''", "'"));
+    }
+    if let Some(inner) = value
+        .strip_prefix('"')
+        .and_then(|rest| rest.strip_suffix('"'))
+    {
+        return unescape(inner);
     }
     let special = value.starts_with(['{', '[', '&', '*', '!', '|', '>', '"', '\'', '@', '`']);
     if special {
@@ -80,7 +95,31 @@ fn scalar(value: &str) -> Option<String> {
     }
     // A comment after a plain scalar is not part of it.
     let value = value.split(" #").next().unwrap_or(value).trim_end();
+    if matches!(value, "~" | "null" | "Null" | "NULL") {
+        return Some(String::new());
+    }
     Some(value.to_owned())
+}
+
+/// A double-quoted scalar's escapes; `None` for one this reader does not know.
+fn unescape(inner: &str) -> Option<String> {
+    let mut out = String::with_capacity(inner.len());
+    let mut chars = inner.chars();
+    while let Some(c) = chars.next() {
+        if c != '\\' {
+            out.push(c);
+            continue;
+        }
+        out.push(match chars.next()? {
+            '"' => '"',
+            '\\' => '\\',
+            '/' => '/',
+            'n' => '\n',
+            't' => '\t',
+            _ => return None,
+        });
+    }
+    Some(out)
 }
 
 #[cfg(test)]
@@ -112,6 +151,16 @@ mod tests {
             Some(pairs(&[("tags", "one, two"), ("empty", ""), ("next", "z")]))
         );
         assert_eq!(rows("list:\n- a\n- b"), Some(pairs(&[("list", "a, b")])));
+        assert_eq!(
+            rows("a: 'it''s'\nb: \"say \\\"hi\\\"\"\nc: ~\nd:\tnull\ne: \"x: y\"\n"),
+            Some(pairs(&[
+                ("a", "it's"),
+                ("b", "say \"hi\""),
+                ("c", ""),
+                ("d", ""),
+                ("e", "x: y")
+            ]))
+        );
     }
 
     #[test]
@@ -125,5 +174,7 @@ mod tests {
         assert_eq!(rows(": no key\n"), None);
         assert_eq!(rows("  - orphan item\n"), None);
         assert_eq!(rows("a: [x, {y: 1}]\n"), None);
+        assert_eq!(rows("people:\n  - name: x\n"), None);
+        assert_eq!(rows("odd: \"\\q\"\n"), None);
     }
 }

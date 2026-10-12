@@ -20,6 +20,7 @@ use gtk::prelude::*;
 use gtk::{gdk, glib};
 
 use crate::args::ProbeArgs;
+use crate::highlighter::HighlightCounts;
 use crate::images::ImageCounts;
 use crate::output::{print_line, report_error};
 use crate::units;
@@ -59,6 +60,9 @@ pub(crate) struct Probe {
     /// Layouts made inside frames since --bench-scroll began scrolling: steady scrolling must
     /// find every leaf already laid out (docs/plan.md §6, gated).
     layouts_in_scroll_frames: Cell<usize>,
+    /// Paints drawn again once their code's colours arrived: a scroll benchmark over code must
+    /// have some, or it did not measure highlighting.
+    recoloured: Cell<usize>,
     /// When the height worker finished, after `main` began.
     heights_measured: Cell<Option<Duration>>,
     /// The vertical adjustment --bench-scroll drives.
@@ -81,6 +85,8 @@ pub(crate) struct ViewProbe {
     pub(crate) state: Box<dyn Fn() -> (i64, usize)>,
     /// Images shown, failed, and still loading.
     pub(crate) images: Box<dyn Fn() -> ImageCounts>,
+    /// Code blocks highlighted, plain and pending; paints still to be drawn in colour.
+    pub(crate) highlights: Box<dyn Fn() -> (HighlightCounts, usize)>,
 }
 
 impl std::fmt::Debug for ViewProbe {
@@ -118,6 +124,7 @@ impl Probe {
             loader_wait: Cell::new(None),
             in_frame: Cell::new(false),
             layouts_in_scroll_frames: Cell::new(0),
+            recoloured: Cell::new(0),
             heights_measured: Cell::new(None),
             scroll_target: RefCell::new(None),
             scroll: RefCell::new(ScrollRecord::default()),
@@ -171,6 +178,12 @@ impl Probe {
         self.args.wait_images
     }
 
+    /// Whether `--wait-highlights` was given: all code is highlighted, even while checking
+    /// heights.
+    pub(crate) fn waits_for_highlights(&self) -> bool {
+        self.args.wait_highlights
+    }
+
     /// For --check-heights: reports how many leaf heights the worker got wrong, and exits.
     pub(crate) fn heights_checked(&self, mismatches: usize, leaves: usize) {
         let report = format!(
@@ -185,6 +198,10 @@ impl Probe {
     }
 
     /// Counts one Pango layout of `bytes` bytes of text.
+    pub(crate) fn recoloured(&self) {
+        increment(&self.recoloured, 1);
+    }
+
     pub(crate) fn layout_created(&self, bytes: usize) {
         increment(&self.layouts_created, 1);
         if self.in_frame.get() && self.scroll.borrow().last_frame_time.is_some() {
@@ -246,7 +263,14 @@ impl Probe {
                 .as_ref()
                 .map(|view| (view.images)())
                 .unwrap_or_default();
+            let (highlights, recolouring) = view
+                .as_ref()
+                .map(|view| (view.highlights)())
+                .unwrap_or_default();
             if self.args.wait_images && images.loading > 0 {
+                return;
+            }
+            if self.args.wait_highlights && (highlights.pending > 0 || recolouring > 0) {
                 return;
             }
             let Some(mut report) = self.deferred.take() else {
@@ -264,6 +288,16 @@ impl Probe {
                 } = images;
                 report = format!(
                     "{report} images_loaded={loaded} images_failed={failed} images_loading={loading}"
+                );
+            }
+            if self.args.wait_highlights {
+                let HighlightCounts {
+                    highlighted,
+                    plain,
+                    pending,
+                } = highlights;
+                report = format!(
+                    "{report} code_highlighted={highlighted} code_plain={plain} code_pending={pending}"
                 );
             }
             drop(view);
@@ -291,7 +325,7 @@ impl Probe {
             );
             report = format!("{report} clicked={clicked}");
         }
-        if self.args.click_at.is_some() || self.args.wait_images {
+        if self.args.click_at.is_some() || self.args.wait_images || self.args.wait_highlights {
             self.deferred.replace(Some(report));
             // A click that changes nothing, or no images, would otherwise leave no next frame.
             window.queue_draw();
@@ -427,7 +461,7 @@ impl Probe {
             "scroll_frames={} reached_end={reached_end} refresh_us={refresh} refresh_known={} \
              median_interval_us={} p99_interval_us={} max_interval_us={longest} dropped={dropped} \
              p50_busy_us={} p99_busy_us={} max_busy_us={busiest} layouts_during_scroll={} \
-             layouts_in_scroll_frames={}",
+             layouts_in_scroll_frames={} recoloured={}",
             intervals.len(),
             record.refresh_us.is_some(),
             percentile(&intervals, 50)?,
@@ -438,6 +472,7 @@ impl Probe {
                 .get()
                 .saturating_sub(record.layouts_at_start),
             self.layouts_in_scroll_frames.get(),
+            self.recoloured.get(),
         ))
     }
 }

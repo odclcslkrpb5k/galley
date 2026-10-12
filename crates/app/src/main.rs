@@ -2,6 +2,7 @@
 
 mod args;
 mod document_view;
+mod highlighter;
 mod images;
 mod links;
 mod output;
@@ -50,6 +51,7 @@ struct Loaded {
     /// Whether each `<details>` starts open.
     details: Vec<bool>,
     images: Vec<render::image::ImageInfo>,
+    code: HashMap<gbk_markdown_core::units::CodeBlockId, render::highlight::CodeSource>,
 }
 
 type Loader = JoinHandle<Result<Loaded, LoadError>>;
@@ -131,11 +133,13 @@ fn load(path: &Path) -> Result<Loaded, LoadError> {
     let anchors = render::paint::anchor_leaves(&doc);
     let details = render::paint::details_open(&doc);
     let images = render::paint::image_infos(&doc);
+    let code = render::highlight::code_sources(&doc);
     Ok(Loaded {
         paints,
         anchors,
         details,
         images,
+        code,
     })
 }
 
@@ -246,6 +250,7 @@ fn show(
                 anchors: document.anchors,
                 details: document.details,
                 images: document.images,
+                code: document.code,
                 // Absolute, so `/path` links find the repository above it whatever the working
                 // directory was.
                 path: file
@@ -263,13 +268,19 @@ fn show(
             .child(&view)
             .build();
         probe.set_scroll_target(scrolled.vadjustment());
-        let (looking, clicking, stating, counting) =
-            (view.clone(), view.clone(), view.clone(), view.clone());
+        let (looking, clicking, stating, counting, colouring) = (
+            view.clone(),
+            view.clone(),
+            view.clone(),
+            view.clone(),
+            view.clone(),
+        );
         probe.set_view(probe::ViewProbe {
             link_at: Box::new(move |x, y| looking.link_label_at(x, y)),
             click_at: Box::new(move |x, y| clicking.probe_click(x, y)),
             state: Box::new(move || stating.probe_state()),
             images: Box::new(move || counting.probe_images()),
+            highlights: Box::new(move || colouring.probe_highlights()),
         });
         window.set_child(Some(&scrolled));
         if probe.prepare_enabled() {

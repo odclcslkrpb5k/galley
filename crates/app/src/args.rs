@@ -21,6 +21,8 @@ options:
   --link-at=X,Y             with --exit-after-first-frame, report the link at that point
   --wait-images             with --exit-after-first-frame, report and screenshot once no image
                             is loading
+  --wait-highlights         highlight all code; with --exit-after-first-frame, report and
+                            screenshot once it is, with --check-heights compare after it is
   --click-at=X,Y            with --exit-after-first-frame, click there after the first frame
                             (links outside the document are reported, not opened), then
                             report and screenshot the next frame
@@ -76,6 +78,8 @@ pub(crate) struct ProbeArgs {
     pub(crate) click_at: Option<(i32, i32)>,
     /// Wait until no image is loading before reporting.
     pub(crate) wait_images: bool,
+    /// Highlight all code, and wait until it is before reporting or checking heights.
+    pub(crate) wait_highlights: bool,
 }
 
 #[derive(Debug, PartialEq, Eq, thiserror::Error)]
@@ -133,6 +137,7 @@ pub(crate) fn parse(args: impl IntoIterator<Item = OsString>) -> Result<Args, Us
             ("--check-heights", None) => probe.check_heights = true,
             ("--no-prepare", None) => probe.no_prepare = true,
             ("--wait-images", None) => probe.wait_images = true,
+            ("--wait-highlights", None) => probe.wait_highlights = true,
             ("--application", None) => startup = Startup::Application,
             ("--t0", Some(value)) => {
                 let nanos = value
@@ -209,10 +214,12 @@ mod tests {
             "--no-prepare",
             "--check-heights",
             "--wait-images",
+            "--wait-highlights",
             "x.md",
         ])
         .expect("valid");
         assert!(args.probe.wait_images);
+        assert!(args.probe.wait_highlights);
         assert!(args.probe.bench_scroll);
         assert!(args.probe.no_prepare);
         assert!(args.probe.check_heights);

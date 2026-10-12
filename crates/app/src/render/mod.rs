@@ -2,11 +2,13 @@
 //! its parts go (`geometry`), how its text is laid out (`text`), its height measured off the
 //! main thread (`heights`), and where every leaf starts and how the view stays anchored while
 //! heights change (`positions`, over `fenwick`), tables as grids (`table`), images' sizes and
-//! formats (`image`, `sniff`) and the scroll indicator (`indicator`).
+//! formats (`image`, `sniff`), code's tokens (`highlight`) and the scroll indicator
+//! (`indicator`).
 
 pub(crate) mod fenwick;
 pub(crate) mod geometry;
 pub(crate) mod heights;
+pub(crate) mod highlight;
 pub(crate) mod image;
 pub(crate) mod indicator;
 pub(crate) mod paint;

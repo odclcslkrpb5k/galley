@@ -27,6 +27,7 @@ use gbk_markdown_core::units::{
     ContextId, DetailsId, FootnoteId, ImageId, LeafId, LinkId, RowNo, TableId,
 };
 
+use super::highlight::{self, CodeSpan, TokenClass};
 use super::image::{ImageInfo, ImageSource};
 use super::table::{CellPaint, ColumnSample, RowPaint, TablePaint};
 
@@ -72,6 +73,8 @@ pub(crate) struct LeafPaint {
     pub(crate) links: Vec<LinkSpan>,
     /// Set for a piece of a table, whose text is in its cells (`text` is empty).
     pub(crate) table: Option<TablePaint>,
+    /// Set for code in a named language: where its text is in its block, for highlighting.
+    pub(crate) code: Option<CodeSpan>,
     pub(crate) font: FontRole,
     pub(crate) align: Align,
     /// Distance of the text from the left margin.
@@ -118,6 +121,7 @@ impl LeafPaint {
             attrs,
             links: Vec::new(),
             table: None,
+            code: None,
             images: Vec::new(),
             font,
             align: Align::Start,
@@ -181,7 +185,8 @@ impl AttrKind {
             | Self::Subscript
             | Self::Superscript
             | Self::Highlight
-            | Self::AlertTitle(_) => None,
+            | Self::AlertTitle(_)
+            | Self::Token(_) => None,
         }
     }
 }
@@ -217,6 +222,8 @@ pub(crate) enum AttrKind {
     Image(ImageId),
     /// An alert's title, in its colour.
     AlertTitle(AlertKind),
+    /// A token of highlighted code, in its colour.
+    Token(TokenClass),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -448,6 +455,7 @@ impl Painter<'_> {
             attrs: Vec::new(),
             links: Vec::new(),
             table: None,
+            code: None,
             images: Vec::new(),
             font: FontRole::Body,
             align: leaf.align(),
@@ -497,6 +505,13 @@ impl Painter<'_> {
                     .unwrap_or_default()
                     .clone_into(&mut paint.text);
                 paint.font = FontRole::Code;
+                paint.code = code
+                    .filter(|code| highlight::language(code.info()).is_some())
+                    .and_then(|code| code.line_start(lines.start))
+                    .map(|start| CodeSpan {
+                        block: *block,
+                        start: start.index(),
+                    });
                 let first = lines.start.index() == 0;
                 let last = code.is_none_or(|code| lines.end.index() >= code.line_count());
                 paint.gap_below_em = if last { PARAGRAPH_GAP } else { 0.0 };
@@ -1002,6 +1017,10 @@ fn split(paint: LeafPaint) -> Vec<LeafPaint> {
             .get(from..to)
             .unwrap_or_default()
             .clone_into(&mut piece.text);
+        piece.code = paint.code.map(|code| CodeSpan {
+            start: code.start + from,
+            ..code
+        });
         piece.attrs.clone_from(&paint.attrs);
         piece.links.clone_from(&paint.links);
         clamp_spans(&mut piece.attrs, &mut piece.links, from, to);
@@ -1041,6 +1060,7 @@ fn piece(paint: &LeafPaint, first: bool, last: bool) -> LeafPaint {
         attrs: Vec::new(),
         links: Vec::new(),
         table: None,
+        code: None,
         images: Vec::new(),
         font: paint.font,
         align: paint.align,
@@ -1376,6 +1396,31 @@ mod tests {
                 vec![(false, true)]
             ]
         );
+    }
+
+    #[test]
+    fn code_pieces_know_where_their_text_is_in_the_block() {
+        // 450 lines of 31 bytes: three leaves in the model, each cut into 2 KiB pieces.
+        let code = (0..450)
+            .map(|i| format!("{i:030}\n"))
+            .collect::<Vec<_>>()
+            .concat();
+        let doc = gbk_markdown_core::load(
+            format!("```rust\n{code}```\n\n```\nplain\n```\n\n```math\nx\n```\n").as_bytes(),
+        );
+        let paints = paint_document(&doc);
+        let block = doc.code_blocks().first().expect("rust");
+        let rust: Vec<&LeafPaint> = paints.iter().filter(|paint| paint.code.is_some()).collect();
+        assert!(rust.len() > 3);
+        for paint in &rust {
+            let span = paint.code.expect("a span");
+            assert_eq!(
+                block.text().get(span.start..span.start + paint.text.len()),
+                Some(paint.text.as_str())
+            );
+        }
+        // Unnamed code and math are not highlighted.
+        assert_eq!(rust.len() + 2, paints.len());
     }
 
     #[test]

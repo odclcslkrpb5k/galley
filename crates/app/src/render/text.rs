@@ -2,15 +2,18 @@
 //!
 //! Used on the main thread by the widget and on the height worker, through the same
 //! `Typesetter::measure`, so both measure the same height. Colours do not change a layout's
-//! size; the worker uses a default palette.
+//! size; the worker uses a default palette and no highlights.
 
+use std::borrow::Cow;
 use std::collections::HashMap;
+use std::rc::Rc;
 use std::sync::Arc;
 
 use gtk::pango;
 use gtk::prelude::*;
 
 use super::geometry::{LeafGeometry, Metrics, Rect};
+use super::highlight::{Highlights, TokenClass};
 use super::image::ImageTable;
 use super::paint::{AttrKind, FontRole, LeafPaint, LinkSpan, Target, TextAttr};
 use super::table::{self, CELL_PAD_X_EM, CELL_PAD_Y_EM, ColumnSample, Grid, MIN_COLUMN_EM};
@@ -139,6 +142,24 @@ impl Palette {
         let (r, g, b) = if self.dark { dark } else { light };
         rgba(r, g, b)
     }
+
+    /// GitHub's colours for highlighted code.
+    pub(crate) fn token(self, class: TokenClass) -> gtk::gdk::RGBA {
+        let (light, dark) = match class {
+            TokenClass::Comment => ((0x59, 0x63, 0x6e), (0x91, 0x98, 0xa1)),
+            TokenClass::Keyword => ((0xcf, 0x22, 0x2e), (0xff, 0x7b, 0x72)),
+            TokenClass::String => ((0x0a, 0x30, 0x69), (0xa5, 0xd6, 0xff)),
+            TokenClass::Escape | TokenClass::Tag | TokenClass::Inserted => {
+                ((0x11, 0x63, 0x29), (0x7e, 0xe7, 0x87))
+            }
+            TokenClass::Constant => ((0x05, 0x50, 0xae), (0x79, 0xc0, 0xff)),
+            TokenClass::Function => ((0x66, 0x39, 0xba), (0xd2, 0xa8, 0xff)),
+            TokenClass::Type | TokenClass::Variable => ((0x95, 0x38, 0x00), (0xff, 0xa6, 0x57)),
+            TokenClass::Deleted => ((0x82, 0x07, 0x1e), (0xff, 0xa1, 0x98)),
+        };
+        let (r, g, b) = if self.dark { dark } else { light };
+        rgba(r, g, b)
+    }
 }
 
 /// Cairo font options as GTK sets them for its widgets (see `TextSetup::of`).
@@ -190,6 +211,9 @@ pub(crate) struct Typesetter {
     pub(crate) palette: Palette,
     /// The document's images, for the size of the box each takes in the text.
     pub(crate) images: Arc<ImageTable>,
+    /// Code's tokens found so far, coloured. Only the widget's has any: the height worker
+    /// measures without them (colours cannot change a height).
+    pub(crate) highlights: Rc<Highlights>,
 }
 
 /// A laid-out leaf: its text, or its table's cells and grid; and the height of either.
@@ -252,9 +276,19 @@ impl Typesetter {
         if let Some(table) = paint.table.as_ref() {
             return self.measure_table(table, width, columns, counted);
         }
+        let attrs = match paint.code {
+            Some(code) => Cow::Owned(
+                [
+                    paint.attrs.as_slice(),
+                    &self.highlights.attrs(code, paint.text.len()),
+                ]
+                .concat(),
+            ),
+            None => Cow::Borrowed(paint.attrs.as_slice()),
+        };
         let layout = self.layout(
             &paint.text,
-            &paint.attrs,
+            &attrs,
             paint.font,
             paint.align,
             Some(width),
@@ -545,6 +579,7 @@ pub(crate) fn warm_up(
         setup: TextSetup::of(widget),
         palette: Palette::default(),
         images: Arc::default(),
+        highlights: Rc::default(),
     };
     let text = "Ag 1. •◦▪☑☐▾▸";
     let styled = |kind| {
@@ -665,6 +700,11 @@ impl Typesetter {
                         add(attribute);
                     }
                 }
+                AttrKind::Token(class) => {
+                    for attribute in foreground(palette.token(class)) {
+                        add(attribute);
+                    }
+                }
             }
         }
         layout.set_attributes(Some(&attrs));
@@ -729,6 +769,7 @@ mod tests {
             setup,
             palette: Palette::default(),
             images: Arc::default(),
+            highlights: Rc::default(),
         }
     }
 
@@ -894,6 +935,59 @@ mod tests {
             Typesetter::image_at(paint, measured, geometry, (first.x + 1, first.y + 1)),
             Some(boxes[0].0)
         );
+    }
+
+    #[test]
+    fn colours_do_not_change_a_code_paints_height() {
+        use crate::render::highlight::{Highlights, Token};
+        // Long enough to wrap at 200 px, so colour runs fall across line breaks.
+        let code =
+            "let total: u32 = values.iter().map(|value| value * 2).sum(); // doubled\n".repeat(6);
+        let doc = gbk_markdown_core::load(format!("```rust\n{code}```\n").as_bytes());
+        let paint = crate::render::paint::paint_document(&doc)
+            .into_iter()
+            .next()
+            .expect("code");
+        let span = paint.code.expect("a span");
+        // A token every few bytes, alternating classes.
+        let mut highlights = Highlights::default();
+        let classes = [TokenClass::Keyword, TokenClass::Comment, TokenClass::Type];
+        highlights.extend(
+            span.block,
+            (0..paint.text.len() / 3)
+                .zip(classes.iter().cycle())
+                .map(|(index, &class)| Token {
+                    start: index * 3,
+                    end: index * 3 + 2,
+                    class,
+                })
+                .collect(),
+        );
+        let plain = typesetter();
+        let coloured = Typesetter {
+            highlights: Rc::new(highlights),
+            ..typesetter()
+        };
+        let measure = |typesetter: &Typesetter| {
+            let measured =
+                typesetter.measure(&paint, 200, &mut ColumnWidths::default(), &mut |_| {});
+            let Content::Text(layout) = &measured.content else {
+                panic!("text");
+            };
+            (
+                measured.height,
+                layout.line_count(),
+                layout
+                    .attributes()
+                    .map_or(0, |attrs| attrs.attributes().len()),
+            )
+        };
+        let (plain_height, plain_lines, plain_attrs) = measure(&plain);
+        let (height, lines, attrs) = measure(&coloured);
+        assert!(lines > 6);
+        assert_eq!((height, lines), (plain_height, plain_lines));
+        assert_eq!(plain_attrs, 0);
+        assert_eq!(attrs, paint.text.len() / 3);
     }
 
     #[test]

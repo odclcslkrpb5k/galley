@@ -142,6 +142,14 @@ impl Document {
         &self.code_blocks
     }
 
+    /// The code blocks with their ids, in document order.
+    pub fn code_blocks_with_ids(&self) -> impl Iterator<Item = (CodeBlockId, &CodeBlock)> {
+        self.code_blocks
+            .iter()
+            .enumerate()
+            .map(|(index, block)| (CodeBlockId::new(index), block))
+    }
+
     #[must_use]
     pub fn anchor(&self, id: AnchorId) -> Option<&Anchor> {
         self.anchors.get(id.index())
@@ -624,6 +632,12 @@ impl CodeBlock {
         self.line_starts.len()
     }
 
+    /// Where line `line` starts in `text`.
+    #[must_use]
+    pub fn line_start(&self, line: LineNo) -> Option<ByteOffset> {
+        self.line_starts.get(line.index()).copied()
+    }
+
     /// The text of lines `lines`, without the final newline.
     #[must_use]
     pub fn lines(&self, lines: &Range<LineNo>) -> Option<&str> {
@@ -751,6 +765,8 @@ mod tests {
         assert_eq!(block.lines(&(LineNo::new(2)..LineNo::new(3))), Some("ccc"));
         assert_eq!(block.lines(&(LineNo::new(4)..LineNo::new(5))), None);
         assert_eq!(block.lines(&(LineNo::new(3)..LineNo::new(3))), Some(""));
+        assert_eq!(block.line_start(LineNo::new(1)), Some(ByteOffset::new(2)));
+        assert_eq!(block.line_start(LineNo::new(3)), None);
     }
 
     #[test]

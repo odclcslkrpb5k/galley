@@ -17,9 +17,9 @@ bin=${CARGO_TARGET_DIR:-target}/release/gbk-markdown
 screens=${CARGO_TARGET_DIR:-target}/screens/${GATE_TREE:-adhoc}
 mkdir -p "$screens"
 
-fixtures=(crates/core/tests/data/corpus/*/input.md target/fixtures/{readme-200kb,list-1mb,table-1mb,wide-table,code-1mb,huge-line,huge-cells,huge-heading}.md)
+fixtures=(crates/core/tests/data/corpus/*/input.md target/fixtures/{readme-200kb,list-1mb,table-1mb,wide-table,code,code-1mb,huge-line,huge-cells,huge-heading}.md)
 # Scrolled end to end: steady scrolling must find every leaf laid out (plan §6).
-scrolled=(target/fixtures/images.md target/fixtures/readme-200kb.md target/fixtures/list-1mb.md target/fixtures/table-1mb.md target/fixtures/wide-table.md crates/core/tests/data/corpus/_synthetic-features/input.md)
+scrolled=(target/fixtures/code.md target/fixtures/images.md target/fixtures/readme-200kb.md target/fixtures/list-1mb.md target/fixtures/table-1mb.md target/fixtures/wide-table.md crates/core/tests/data/corpus/_synthetic-features/input.md)
 # Height worker against main-thread layout: every height must match exactly (plan §4.5).
 checked=(crates/core/tests/data/corpus/_synthetic-features/input.md crates/core/tests/data/corpus/sharkdp__bat/input.md target/fixtures/readme-200kb.md target/fixtures/table-1mb.md)
 
@@ -88,6 +88,13 @@ for fixture in "${scrolled[@]}"; do
     echo "smoke: scroll $fixture laid out ${frames:-?} leaves inside frames; must be 0" >&2
     fail=1
   fi
+  # Scrolling through code must draw some of it again in colour, or the run did not measure
+  # highlighting arriving while scrolling.
+  recoloured=$(grep -oE 'recoloured=[0-9]+' <<<"$out" | cut -d= -f2 || true)
+  if [[ "$fixture" == target/fixtures/code.md ]] && ! { [[ "$recoloured" =~ ^[0-9]+$ ]] && ((recoloured > 0)); }; then
+    echo "smoke: scroll $fixture recoloured ${recoloured:-?} paints; highlighting was not measured" >&2
+    fail=1
+  fi
   n=$((n + 1))
 done
 
@@ -149,6 +156,16 @@ if [[ "$(field images_loaded "$pictures")" != 5 || "$(field images_failed "$pict
   fail=1
 fi
 
+# Code: six blocks are highlighted (Rust, shell, a console session, TOML, JSX, a long Rust
+# block); PowerShell (no grammar) and Python (stopped at a 5000-byte line) are plain; unnamed
+# code and math are not asked for.
+probe_run coloured --wait-highlights --screenshot="$screens/code-highlighted.png" target/fixtures/code.md
+if [[ "$(field code_highlighted "$coloured")" != 6 || "$(field code_plain "$coloured")" != 2 ||
+  "$(field code_pending "$coloured")" != 0 ]]; then
+  echo "smoke: code.md did not highlight 6 blocks and leave 2 plain: $coloured" >&2
+  fail=1
+fi
+
 # The GL fallback (--renderer=gl): it must really be GL, reach a first frame and scroll without
 # layout in frames.
 gl_fixture=target/fixtures/readme-200kb.md
@@ -164,8 +181,10 @@ if ! grep -q 'layouts_in_scroll_frames=0' <<<"$out"; then
 fi
 n=$((n + 2))
 
-# images.md is checked once its images have loaded: worker and view must agree with them in.
-for fixture in "${checked[@]}" "--wait-images target/fixtures/images.md"; do
+# images.md is checked once its images have loaded, and the code fixtures once highlighted (the
+# worker measures code uncoloured): worker and view must agree with them in.
+for fixture in "${checked[@]}" "--wait-images target/fixtures/images.md" \
+  "--wait-highlights target/fixtures/code.md" "--wait-highlights target/fixtures/code-1mb.md"; do
   # shellcheck disable=SC2086 # the extra entry is an option and a file
   out=$(timeout 300 "$bin" --offline --check-heights $fixture 2>&1 || true)
   mismatches=$(grep -oE 'height_mismatches=[0-9]+' <<<"$out" | cut -d= -f2 || true)

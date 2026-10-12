@@ -12,24 +12,29 @@ for manifest in crates/*/Cargo.toml; do
   fi
 done
 
-# comrak lives in one private module of core. cargo-deny refuses a direct dependency from any
-# other crate, but cannot see core re-exporting comrak types; this can.
-allowed=crates/core/src/parse/
-# grep exits 1 for no match, which is the passing case; 2 is an error and must fail.
-status=0
-matches=$(grep -rnw comrak crates/*/src) || status=$?
-if ((status > 1)); then
-  echo "boundaries: grep failed ($status)" >&2
-  exit 1
-fi
-# Code only: a comment may name comrak (for example "no comrak here").
-code_matches=$(grep -vE '^[^:]+:[0-9]+:[[:space:]]*//' <<<"$matches" || true)
-while read -r file; do
-  if [[ -n "$file" && "$file" != "$allowed"* ]]; then
-    echo "boundaries: $file uses comrak; only $allowed may" >&2
-    fail=1
+# confined NAME ALLOWED: the crate NAME is used only in files under ALLOWED. comrak lives in one
+# private module of core (cargo-deny refuses a direct dependency from any other crate, but cannot
+# see core re-exporting comrak types; this can); syntect and its grammars in the highlighter.
+confined() {
+  local name=$1 allowed=$2 status=0 matches code_matches file
+  # grep exits 1 for no match, which is the passing case; 2 is an error and must fail.
+  matches=$(grep -rnw "$name" crates/*/src) || status=$?
+  if ((status > 1)); then
+    echo "boundaries: grep failed ($status)" >&2
+    exit 1
   fi
-done < <(cut -d: -f1 <<<"$code_matches" | sort -u)
+  # Code only: a comment may name it (for example "no comrak here").
+  code_matches=$(grep -vE '^[^:]+:[0-9]+:[[:space:]]*//' <<<"$matches" || true)
+  while read -r file; do
+    if [[ -n "$file" && "$file" != "$allowed"* ]]; then
+      echo "boundaries: $file uses $name; only $allowed may" >&2
+      fail=1
+    fi
+  done < <(cut -d: -f1 <<<"$code_matches" | sort -u)
+}
+confined comrak crates/core/src/parse/
+confined syntect crates/app/src/highlighter.rs
+confined two_face crates/app/src/highlighter.rs
 
 # One `unsafe` exception in the program: main.rs sets GTK's renderer through the environment
 # (docs/plan.md §4.4). `unsafe_code` is deny, so any other unsafe needs its own lint exception;

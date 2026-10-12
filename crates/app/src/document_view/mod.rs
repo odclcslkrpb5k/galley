@@ -12,12 +12,14 @@ use std::rc::Rc;
 use gtk::glib;
 use gtk::subclass::prelude::*;
 
+use crate::highlighter::HighlightCounts;
 use crate::images::ImageCounts;
 use crate::probe::Probe;
+use crate::render::highlight::CodeSource;
 use crate::render::image::ImageInfo;
 use crate::render::paint::LeafPaint;
 use gbk_markdown_core::model::anchor_name;
-use gbk_markdown_core::units::LeafId;
+use gbk_markdown_core::units::{CodeBlockId, LeafId};
 
 /// A loaded document, as the view takes it.
 #[derive(Debug)]
@@ -28,6 +30,8 @@ pub(crate) struct Opened {
     /// Whether each `<details>` starts open.
     pub(crate) details: Vec<bool>,
     pub(crate) images: Vec<ImageInfo>,
+    /// The code to highlight.
+    pub(crate) code: HashMap<CodeBlockId, CodeSource>,
     /// The document's file, which relative links and images start from.
     pub(crate) path: Option<PathBuf>,
     /// The leaf to show at the top first (`--anchor`).
@@ -71,6 +75,12 @@ impl DocumentView {
     /// Images shown, failed, and still loading.
     pub(crate) fn probe_images(&self) -> ImageCounts {
         self.imp().probe_images()
+    }
+
+    /// Code blocks highlighted, plain, and still being read; and paints waiting to be drawn
+    /// again in colour.
+    pub(crate) fn probe_highlights(&self) -> (HighlightCounts, usize) {
+        self.imp().probe_highlights()
     }
 
     /// Lays out the first screen for an expected widget size; see `imp::DocumentView::prepare`.

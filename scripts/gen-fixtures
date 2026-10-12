@@ -13,6 +13,9 @@
 #   links.md  a link filling the first lines, and far down an anchored one (smoke: --link-at)
 #   details.md  a closed <details> whose summary is the first line (smoke: --click-at)
 #   wide-table.md  a table of 100 columns and 300 rows (pieces must stay small to scroll)
+#   code.md      code in several languages (named, aliased, a shell session, a language with
+#                no grammar, none named, math, a line too long to highlight), long enough to
+#                scroll (smoke: --wait-highlights)
 #   images.md + images/  local PNG and SVG images (inline, sized, in a table, wider than the
 #                view), a missing one, one that is not an image, and a remote one (smoke:
 #                --offline --wait-images)
@@ -156,5 +159,64 @@ for ((i = 1; i <= 120; i++)); do
   printf 'Filler paragraph %d.\n\n' "$i"
   if ((i % 30 == 0)); then printf '![later %d](images/blue.png)\n\n' "$i"; fi
 done >>"$out/images.md"
+
+cat >"$out/code.md" <<'MD'
+# Code
+
+```rust
+// A comment, and a struct.
+struct Point { x: f64, y: f64 }
+
+fn main() {
+    let p = Point { x: 1.0, y: 2.0 };
+    println!("{} {}", p.x, p.y); // 42
+}
+```
+
+```shell
+for f in *.md; do echo "$f"; done # list
+```
+
+```console
+$ cargo build --release
+   Compiling gbk-markdown v0.1.0
+% ls -l target
+```
+
+```toml
+[package]
+name = "gbk-markdown"
+version = "0.1.0"
+```
+
+```jsx
+const App = () => <div className="x">{1 + 2}</div>;
+```
+
+```powershell
+Get-ChildItem | Where-Object { $_.Length -gt 1kb }
+```
+
+```
+no language: plain
+```
+
+```math
+e^{i\pi} + 1 = 0
+```
+MD
+{
+  echo '```python'
+  echo 'print("before the long line")'
+  run x 5000
+  echo
+  echo 'print("after it: plain")'
+  echo '```'
+  echo
+  # Long enough to scroll: highlighting asked for further down only as it is laid out.
+  echo '```rust'
+  for ((i = 1; i <= 400; i++)); do printf 'fn f%d() -> u32 { %d } // %d\n' "$i" "$i" "$i"; done
+  echo '```'
+} >>"$out/code.md"
 
 ls -l "$out"

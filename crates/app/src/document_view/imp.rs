@@ -1,5 +1,5 @@
 use std::cell::{Cell, RefCell};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::sync::Arc;
@@ -9,6 +9,7 @@ use gtk::prelude::*;
 use gtk::subclass::prelude::*;
 use gtk::{gio, glib, graphene, gsk, pango};
 
+use crate::highlighter::{HighlightCounts, Highlighting};
 use crate::images::{Gallery, ImageCounts, ImageState, TEXTURE_BUDGET};
 use crate::links::{self, Opening};
 use crate::output::report_error;
@@ -42,6 +43,9 @@ const MOTION_SETTLE: Duration = Duration::from_millis(150);
 /// How often finished image loads are collected while any are in flight: a row of badges
 /// arriving within it is laid out again once, not once per badge.
 const IMAGE_POLL: Duration = Duration::from_millis(100);
+/// How often highlighted code is collected while any is being read: the thread sends a chunk
+/// every 15 ms or so at most.
+const HIGHLIGHT_POLL: Duration = Duration::from_millis(30);
 /// How often the height worker's results are collected while it runs.
 const POLL_INTERVAL: Duration = Duration::from_millis(16);
 /// The `gtk::Settings` properties that change how text is laid out.
@@ -77,6 +81,8 @@ pub(crate) struct DocumentView {
     image_poll: RefCell<Option<glib::SourceId>>,
     /// Images were wanted in the last frame: send them after it.
     images_wanted: Cell<bool>,
+    /// Collects highlighted code while any is being read.
+    highlight_poll: RefCell<Option<glib::SourceId>>,
     prefetch: RefCell<Option<glib::SourceId>>,
     settle: RefCell<Option<glib::SourceId>>,
     reconfigure: RefCell<Option<glib::SourceId>>,
@@ -114,6 +120,7 @@ impl Default for DocumentView {
             poll: RefCell::default(),
             image_poll: RefCell::default(),
             images_wanted: Cell::new(false),
+            highlight_poll: RefCell::default(),
             prefetch: RefCell::default(),
             settle: RefCell::default(),
             reconfigure: RefCell::default(),
@@ -141,6 +148,9 @@ struct Doc {
     palette: Palette,
     /// Drawn leaves (`None`: nothing to draw), near the viewport.
     cache: HashMap<usize, Option<gsk::RenderNode>>,
+    /// Cached leaves drawn before their code's colours arrived: drawn again by prefetch,
+    /// between frames (never inside one), nearest first.
+    stale: HashSet<usize>,
     /// Tables' column widths at this width and text setup.
     columns: ColumnWidths,
     /// Anchor names and the leaves they name (`paint::anchor_leaves`).
@@ -153,6 +163,8 @@ struct Doc {
     natural: Vec<Option<i64>>,
     /// The document's images and their loading.
     gallery: Gallery,
+    /// The document's code and its highlighting.
+    highlighting: Highlighting,
     /// Each table's pieces (paints), to lay out again together when an image in its column
     /// sample arrives (its columns may widen).
     tables: HashMap<TableId, Vec<usize>>,
@@ -366,6 +378,7 @@ impl DocumentView {
             anchors,
             details,
             images,
+            code,
             path,
             start,
             offline,
@@ -374,6 +387,15 @@ impl DocumentView {
         let images_enabled = !probe.checking_heights() || probe.waits_for_images();
         let tables = table_pieces(&paints);
         let gallery = Gallery::new(images, &paints, path.clone(), offline, images_enabled);
+        // Likewise highlighting; `--wait-highlights` highlights everything.
+        let mut highlighting = Highlighting::new(
+            code,
+            &paints,
+            !probe.checking_heights() || probe.waits_for_highlights(),
+        );
+        if probe.waits_for_highlights() {
+            highlighting.want_all();
+        }
         let start = start.and_then(|leaf| paint::first_paint_of(&paints, leaf.index()));
         let mut open = details;
         // Opening inside a closed `<details>` opens it.
@@ -400,12 +422,14 @@ impl DocumentView {
             setup,
             palette: Palette::for_foreground(widget.color()),
             cache: HashMap::new(),
+            stale: HashSet::new(),
             columns: ColumnWidths::default(),
             anchors,
             hit: None,
             open,
             natural: vec![None; count],
             gallery,
+            highlighting,
             tables,
             job_images: 0,
             worker: Some(worker),
@@ -467,6 +491,7 @@ impl DocumentView {
         doc.generation += 1;
         doc.job_images = doc.gallery.table().version();
         doc.cache.clear();
+        doc.stale.clear();
         doc.hit = None;
         doc.natural = vec![None; doc.paints.len()];
         let metrics = doc.setup.metrics();
@@ -804,6 +829,7 @@ impl DocumentView {
             }
             self.start_image_polling();
         }
+        self.dispatch_highlights();
         self.prefetch(AFTER_FRAME_BUDGET);
         if let Some(doc) = self.document.borrow().as_ref() {
             doc.probe.frame_work_done();
@@ -844,7 +870,7 @@ impl DocumentView {
         let started = Instant::now();
         let context = self.obj().pango_context();
         let scrolling = self.in_motion();
-        let (more, shift, resized) = {
+        let (more, shift, resized, recoloured) = {
             let mut document = self.document.borrow_mut();
             let Some(doc) = document.as_mut() else {
                 return false;
@@ -858,13 +884,21 @@ impl DocumentView {
             );
             let mut more = false;
             let mut shift = 0;
+            let mut recoloured = false;
             for leaf in Positions::nearest_first(range, anchor) {
-                if doc.cache.contains_key(&leaf) {
+                let stale = doc.stale.contains(&leaf);
+                if doc.cache.contains_key(&leaf) && !stale {
                     continue;
                 }
                 if started.elapsed() > budget {
                     more = true;
                     break;
+                }
+                if stale {
+                    doc.stale.remove(&leaf);
+                    doc.cache.remove(&leaf);
+                    doc.probe.recoloured();
+                    recoloured = true;
                 }
                 shift += doc.ensure(&context, leaf, anchor, scrolling);
             }
@@ -874,6 +908,8 @@ impl DocumentView {
                     (1 + 2 * KEEP_SCREENS) * page,
                 );
                 doc.cache.retain(|leaf, _| keep.contains(leaf));
+                let cache = &doc.cache;
+                doc.stale.retain(|leaf| cache.contains_key(leaf));
                 let paints = Arc::clone(&doc.paints);
                 let kept: std::collections::HashSet<ImageId> = paints
                     .get(keep)
@@ -884,12 +920,84 @@ impl DocumentView {
                 doc.gallery
                     .trim(TEXTURE_BUDGET, &|image| kept.contains(&image));
             }
-            (more, shift, doc.positions.total() != total)
+            (more, shift, doc.positions.total() != total, recoloured)
         };
         if shift != 0 || resized {
             self.after_heights_changed(shift);
         }
+        if recoloured {
+            self.obj().queue_draw();
+        }
+        // Code laid out here asks for its highlighting.
+        self.dispatch_highlights();
         more
+    }
+
+    /// Sends the code asked for since the last call to the highlighter (starting it the first
+    /// time), and collects what it finds while it works. After a frame or in an idle slice,
+    /// never inside a frame.
+    fn dispatch_highlights(&self) {
+        let busy = self.document.borrow_mut().as_mut().is_some_and(|doc| {
+            doc.highlighting.dispatch();
+            doc.highlighting.busy()
+        });
+        if busy && self.highlight_poll.borrow().is_none() {
+            let source = glib::timeout_add_local(
+                HIGHLIGHT_POLL,
+                glib::clone!(
+                    #[weak(rename_to = view)]
+                    self.obj(),
+                    #[upgrade_or]
+                    glib::ControlFlow::Break,
+                    move || view.imp().collect_highlights()
+                ),
+            );
+            self.highlight_poll.replace(Some(source));
+        }
+    }
+
+    /// Takes highlighted code. Drawn paints showing it within prefetch's reach are marked
+    /// stale, for prefetch to draw again in colour between frames; drawn ones further away are
+    /// dropped, and like the rest take their colours when next laid out. A colour does not
+    /// change a height, so nothing moves.
+    fn collect_highlights(&self) -> glib::ControlFlow {
+        let viewport = self.viewport();
+        let (stale, busy) = {
+            let mut document = self.document.borrow_mut();
+            let Some(doc) = document.as_mut() else {
+                self.highlight_poll.replace(None);
+                return glib::ControlFlow::Break;
+            };
+            let near = viewport.map(|(top, page)| {
+                doc.positions.visible(
+                    top - doc.margin() - PREFETCH_SCREENS * page,
+                    (1 + 2 * PREFETCH_SCREENS) * page,
+                )
+            });
+            let mut stale = false;
+            for paint in doc.highlighting.collect() {
+                if !doc.cache.contains_key(&paint) {
+                    continue;
+                }
+                if near.as_ref().is_some_and(|near| near.contains(&paint)) {
+                    stale |= doc.stale.insert(paint);
+                } else {
+                    doc.cache.remove(&paint);
+                }
+            }
+            (stale, doc.highlighting.busy())
+        };
+        if stale {
+            self.schedule_prefetch();
+        }
+        if busy {
+            return glib::ControlFlow::Continue;
+        }
+        self.highlight_poll.replace(None);
+        // A frame to show the end (`--wait-highlights` reports from one).
+        self.obj().queue_draw();
+        self.check_heights_when_settled();
+        glib::ControlFlow::Break
     }
 
     /// For `--check-heights`: compares once the worker is done and, with `--wait-images`, no
@@ -900,7 +1008,11 @@ impl DocumentView {
             let Some(doc) = document.as_ref() else {
                 return;
             };
-            if !doc.probe.checking_heights() || doc.gallery.busy() || self.poll.borrow().is_some() {
+            if !doc.probe.checking_heights()
+                || doc.gallery.busy()
+                || doc.highlighting.busy()
+                || self.poll.borrow().is_some()
+            {
                 return;
             }
             doc.job_images != doc.gallery.table().version()
@@ -977,6 +1089,20 @@ impl DocumentView {
             self.activate(pointed, Scope::Document);
         }
         label
+    }
+
+    pub(super) fn probe_highlights(&self) -> (HighlightCounts, usize) {
+        self.document
+            .borrow()
+            .as_ref()
+            .map_or_else(Default::default, |doc| {
+                let recolouring = doc
+                    .stale
+                    .iter()
+                    .filter(|leaf| doc.cache.contains_key(leaf))
+                    .count();
+                (doc.highlighting.counts(), recolouring)
+            })
     }
 
     pub(super) fn probe_images(&self) -> ImageCounts {
@@ -1464,6 +1590,7 @@ impl Doc {
             setup: self.setup,
             palette: self.palette,
             images: Arc::clone(self.gallery.table()),
+            highlights: Rc::clone(self.highlighting.table()),
         }
     }
 
@@ -1473,6 +1600,7 @@ impl Doc {
         if self.palette.foreground != foreground {
             self.palette = Palette::for_foreground(foreground);
             self.cache.clear();
+            self.stale.clear();
         }
     }
 
@@ -1598,6 +1726,8 @@ impl Doc {
             self.cache.insert(leaf, None);
             return 0;
         }
+        // Its code is asked for now (sent after the frame): it is drawn plain until it comes.
+        self.highlighting.want(paint);
         // A summary's marker points down while its details are open, right while closed.
         let disclosure = if paint
             .summary_of

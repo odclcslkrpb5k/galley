@@ -96,6 +96,9 @@ fn run(jobs: &Receiver<Job>, batches: &Sender<Batch>) {
             setup: job.setup,
             palette: Palette::default(),
             images: Arc::clone(&job.images),
+            // Colours cannot change a height: the worker measures code unhighlighted, and
+            // `--check-heights --wait-highlights` checks that the widget's coloured layouts agree.
+            highlights: std::rc::Rc::default(),
         };
         // Natural column widths hold for as long as the text setup does.
         if setup.replace(job.setup) != Some(job.setup) {

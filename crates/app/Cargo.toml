@@ -13,6 +13,8 @@ pangocairo.workspace = true
 thiserror.workspace = true
 ureq.workspace = true
 rustls.workspace = true
+syntect.workspace = true
+two-face.workspace = true
 
 [lints]
 workspace = true

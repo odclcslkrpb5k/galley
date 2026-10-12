@@ -123,6 +123,33 @@ impl Gallery {
         }
     }
 
+    /// Takes the remote images `old` has shown, for the same addresses here: a reloaded file
+    /// (docs/plan.md §4.5, "As built in M6") must not fetch its badges again on every save.
+    /// Local files load again, so a changed image file shows.
+    pub(crate) fn adopt(&mut self, old: &Self) {
+        let shown: HashMap<String, (gdk::Texture, (i64, i64))> = old
+            .ids
+            .iter()
+            .filter_map(|&image| {
+                let Some(ImageState::Ready(texture)) = old.state(image) else {
+                    return None;
+                };
+                let Ok(Fetch::Url(url)) = old.source(image) else {
+                    return None;
+                };
+                Some((url, (texture.clone(), old.table.natural(image)?)))
+            })
+            .collect();
+        for image in self.ids.clone() {
+            if let Ok(Fetch::Url(url)) = self.source(image)
+                && let Some((texture, natural)) = shown.get(&url)
+            {
+                self.table.set_natural(image, *natural);
+                self.set(image, ImageState::Ready(texture.clone()));
+            }
+        }
+    }
+
     pub(crate) fn table(&self) -> &Arc<ImageTable> {
         &self.table
     }
@@ -755,6 +782,50 @@ mod tests {
             thread::sleep(Duration::from_millis(10));
         }
         changed
+    }
+
+    #[test]
+    fn a_reloaded_gallery_keeps_remote_images_it_has_shown() {
+        let doc = gbk_markdown_core::load(b"![a](https://x.org/a.png) ![b](local.png)\n");
+        let paints = crate::render::paint::paint_document(&doc);
+        let infos = || crate::render::paint::image_infos(&doc);
+        let file = Some(std::env::temp_dir().join("doc.md"));
+        let mut old = Gallery::new(infos(), &paints, file.clone(), false, true);
+        let [remote, local] = paints.first().expect("paragraph").images.as_slice() else {
+            panic!("two images");
+        };
+        let shown = decode(&png()).expect("a texture");
+        old.set(*remote, ImageState::Ready(shown.texture.clone()));
+        old.table.set_natural(*remote, shown.natural);
+        old.set(*local, ImageState::Ready(shown.texture.clone()));
+        // The same document again: the remote image is shown at once, the local one loads.
+        let doc =
+            gbk_markdown_core::load(b"New text.\n\n![b](local.png) ![a](https://x.org/a.png)\n");
+        let paints = crate::render::paint::paint_document(&doc);
+        let mut new = Gallery::new(
+            crate::render::paint::image_infos(&doc),
+            &paints,
+            file,
+            false,
+            true,
+        );
+        new.adopt(&old);
+        let [local, remote] = paints.get(1).expect("paragraph").images.as_slice() else {
+            panic!("two images");
+        };
+        assert!(matches!(new.state(*remote), Some(ImageState::Ready(_))));
+        assert_eq!(new.table().natural(*remote), Some(shown.natural));
+        assert!(matches!(new.state(*local), Some(ImageState::Waiting)));
+        // Offline, a remote image is not shown, adopted or not.
+        let mut offline = Gallery::new(
+            crate::render::paint::image_infos(&doc),
+            &paints,
+            None,
+            true,
+            true,
+        );
+        offline.adopt(&old);
+        assert!(matches!(offline.state(*remote), Some(ImageState::Waiting)));
     }
 
     #[test]

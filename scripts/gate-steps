@@ -1,11 +1,16 @@
 #!/usr/bin/env bash
 # Gate steps run inside the build container by scripts/check (docs/plan.md §8). Each is fatal.
+# `--quick` runs only clippy and the tests, for scripts/quick: the same commands as the gate's.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 step() { printf '\n== gate: %s\n' "$*"; }
+quick=0
+if [[ ${1:-} == --quick ]]; then quick=1; fi
 
-step "format"
-cargo fmt --all --check
+if ((!quick)); then
+    step "format"
+    cargo fmt --all --check
+fi
 
 step "clippy"
 # -D warnings does not cover clippy's own configuration warnings (a disallowed-methods path that
@@ -17,6 +22,12 @@ cargo clippy --workspace --exclude gbk-markdown-lint-canary --all-targets --lock
 if grep -q '^warning' "$clippy_log"; then
     echo "gate: clippy printed warnings (see above)" >&2
     exit 1
+fi
+
+if ((quick)); then
+    step "tests"
+    cargo nextest run --locked --no-fail-fast
+    exit 0
 fi
 
 step "lint canary"

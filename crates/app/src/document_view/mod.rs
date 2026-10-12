@@ -34,12 +34,23 @@ pub(crate) struct Opened {
     pub(crate) code: HashMap<CodeBlockId, CodeSource>,
     /// The document's file, which relative links and images start from.
     pub(crate) path: Option<PathBuf>,
-    /// The leaf to show at the top first (`--anchor`).
-    pub(crate) start: Option<LeafId>,
+    /// What to show at the top first.
+    pub(crate) start: Option<Start>,
     /// Fetch no remote images.
     pub(crate) offline: bool,
     /// Text size, as a factor.
     pub(crate) zoom: f64,
+    /// Options a document opened from a link is started with (`--offline`, `--theme`).
+    pub(crate) viewer_args: Vec<String>,
+}
+
+/// Where a document opens.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Start {
+    /// A heading or `<a id>` (`--anchor`).
+    Leaf(LeafId),
+    /// A paint, by position: where a reloaded document was.
+    Paint(usize),
 }
 
 glib::wrapper! {

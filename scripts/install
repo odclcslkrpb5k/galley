@@ -11,14 +11,14 @@
 # Nothing outside that home is touched; the only system tools used are update-desktop-database
 # and xdg-mime, each only if present.
 set -euo pipefail
-cd "$(dirname "$0")/.."
 home=$HOME default=1 uninstall=0
 while (($#)); do
   case $1 in
     --no-default) default=0 ;;
     --uninstall) uninstall=1 ;;
     --home)
-      home=${2:?--home needs a directory}
+      # Against the caller's directory, before the cd below; XDG paths must be absolute.
+      home=$(realpath -m -- "${2:?--home needs a directory}")
       shift
       ;;
     *)
@@ -28,6 +28,8 @@ while (($#)); do
   esac
   shift
 done
+if [[ -n "${GBK_PREBUILT:-}" ]]; then GBK_PREBUILT=$(realpath -- "$GBK_PREBUILT"); fi
+cd "$(dirname "$0")/.."
 bin=$home/.local/bin
 apps=$home/.local/share/applications
 desktop=gbk-markdown.desktop
@@ -59,9 +61,13 @@ for line in open(path, encoding="utf-8").read().splitlines():
 open(path, "w", encoding="utf-8").write("\n".join(lines) + "\n")
 PY
   fi
+  # Given back only where ours is still the default: one chosen since is the user's.
   if [[ -f "$previous" ]] && have xdg-mime; then
     while IFS='=' read -r mime app; do
-      if [[ -n "$app" && "$app" != "$desktop" ]]; then xdg-mime default "$app" "$mime"; fi
+      if [[ -n "$app" && "$app" != "$desktop" &&
+        "$(xdg-mime query default "$mime" 2>/dev/null || true)" == "$desktop" ]]; then
+        xdg-mime default "$app" "$mime"
+      fi
     done <"$previous"
   fi
   rm -rf "$(dirname "$previous")"
@@ -76,8 +82,13 @@ fi
 built=${GBK_PREBUILT:-target/docker/release/gbk-markdown}
 mkdir -p "$bin" "$apps"
 install -m 755 "$built" "$bin/gbk-markdown"
-install -m 644 data/$desktop "$apps/$desktop"
+# The installed binary by its full path: a first install makes ~/.local/bin, which the desktop
+# session's PATH only has from the next login.
+sed -e "s|^Exec=gbk-markdown |Exec=$bin/gbk-markdown |" -e "s|^TryExec=gbk-markdown\$|TryExec=$bin/gbk-markdown|" \
+  "data/$desktop" >"$apps/$desktop"
+chmod 644 "$apps/$desktop"
 if have update-desktop-database; then update-desktop-database "$apps"; fi
+made_default=0
 if ((default)) && have xdg-mime; then
   # Kept from the first install only: a second must not record ours as what was there before.
   if [[ ! -f "$previous" ]]; then
@@ -87,6 +98,8 @@ if ((default)) && have xdg-mime; then
     done >"$previous"
   fi
   xdg-mime default "$desktop" "${mimes[@]}"
+  made_default=1
 fi
-echo "install: gbk-markdown in $bin, $desktop in $apps$( ((default)) && echo ", default for Markdown")"
+echo "install: gbk-markdown in $bin, $desktop in $apps$( ((made_default)) && echo ", default for Markdown")"
+if ((default && !made_default)); then echo "install: note: no xdg-mime, so not made the default"; fi
 case ":$PATH:" in *":$bin:"*) ;; *) echo "install: note: $bin is not on PATH" ;; esac

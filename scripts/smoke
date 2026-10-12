@@ -177,6 +177,7 @@ fi
 # zooms in (the document grows taller than after a key that changes nothing about size).
 readme=target/fixtures/readme-200kb.md
 probe_run paged --press=Page_Down,Page_Down "$readme"
+probe_run ended --press=End "$readme"
 probe_run homed --press=End,ctrl+Home "$readme"
 probe_run zoomed --press=ctrl+plus --screenshot="$screens/zoomed.png" "$readme"
 probe_run unzoomed --press=Down "$readme"
@@ -185,6 +186,9 @@ zoomed_height=$(field document_height "$zoomed")
 plain_height=$(field document_height "$unzoomed")
 if ! [[ "$paged_top" =~ ^[0-9]+$ ]] || ((paged_top == 0)); then
   echo "smoke: Page_Down did not move the view: $paged" >&2
+  fail=1
+elif ! [[ "$(field top_leaf "$ended")" =~ ^[0-9]+$ ]] || (($(field top_leaf "$ended") <= paged_top)); then
+  echo "smoke: End did not go past two pages down: $ended" >&2
   fail=1
 elif [[ "$(field top_leaf "$homed")" != 0 ]]; then
   echo "smoke: End then Ctrl+Home did not come back to the top: $homed" >&2
@@ -204,15 +208,23 @@ if [[ "$(field theme "$lit")" != light || "$(field theme "$darkened")" != dark ]
   fail=1
 fi
 
-# Reload: the file is written over after the first frame; the view reloads it.
-reloading=$(mktemp --suffix=.md)
-cp target/fixtures/code.md "$reloading"
-probe_run reloaded --rewrite-with=target/fixtures/links.md "$reloading"
-rm -f "$reloading"
-if [[ "$(field rewritten "$reloaded")" != true || "$(field reloads "$reloaded")" != 1 ]]; then
-  echo "smoke: the rewritten file was not reloaded: $reloaded" >&2
-  fail=1
-fi
+# Reload: the file is written over after the first frame; the view reloads it, to a document
+# of another height. Through a symlink too (a monitor on a link sees nothing of its target).
+reloading=$(mktemp -d)
+cp target/fixtures/code.md "$reloading/doc.md"
+ln -s doc.md "$reloading/link.md"
+probe_run original --press=Down "$reloading/doc.md"
+probe_run reloaded --rewrite-with=target/fixtures/links.md "$reloading/doc.md"
+cp target/fixtures/code.md "$reloading/doc.md"
+probe_run relinked --rewrite-with=target/fixtures/links.md "$reloading/link.md"
+rm -rf "$reloading"
+for run in "$reloaded" "$relinked"; do
+  if [[ "$(field rewritten "$run")" != true || "$(field reloads "$run")" != 1 ]] ||
+    [[ "$(field document_height "$run")" == "$(field document_height "$original")" ]]; then
+    echo "smoke: the rewritten file was not reloaded as its new text: $run / $original" >&2
+    fail=1
+  fi
+done
 
 # A link to an anchor that does not exist shows a notice in the window.
 probe_run noticed --click-at=120,44 --screenshot="$screens/notice.png" target/fixtures/missing.md

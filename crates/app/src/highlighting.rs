@@ -134,6 +134,8 @@ struct Block {
     sent: usize,
     /// The paints showing it: index, and the bytes of the block each shows.
     paints: Vec<(usize, usize, usize)>,
+    /// Its language and text, hashed: a reloaded file's unchanged code keeps its colours.
+    key: u64,
 }
 
 /// The document's highlighting, on the main thread: what each block needs, the tokens found so
@@ -198,6 +200,7 @@ impl Highlighting {
                     asked: 0,
                     sent: 0,
                     paints: Vec::new(),
+                    key: key(source),
                 };
                 (id, block)
             })
@@ -219,6 +222,28 @@ impl Highlighting {
             thread: None,
             enabled,
             slow_base: SLOW_BASE,
+        }
+    }
+
+    /// Takes the colours of code `old` highlighted to the end, for the same language and text
+    /// here: a reloaded file's unchanged code is neither read again nor shown plain meanwhile.
+    pub(crate) fn adopt(&mut self, old: &Self) {
+        let done: HashMap<u64, CodeBlockId> = old
+            .blocks
+            .iter()
+            .filter(|(_, block)| block.state == State::Highlighted)
+            .map(|(&id, block)| (block.key, id))
+            .collect();
+        for (&id, block) in &mut self.blocks {
+            let Some(&from) = done.get(&block.key) else {
+                continue;
+            };
+            if block.state != State::Reading || block.len == 0 {
+                continue;
+            }
+            Rc::make_mut(&mut self.table).extend(id, old.table.tokens(from).to_vec());
+            block.state = State::Highlighted;
+            (block.done, block.asked, block.sent) = (block.len, block.len, block.len);
         }
     }
 
@@ -381,6 +406,14 @@ impl Block {
     fn pending(&self) -> bool {
         self.state == State::Reading && self.sent > self.done
     }
+}
+
+/// A block's language and text, hashed.
+fn key(source: &CodeSource) -> u64 {
+    use std::hash::{Hash, Hasher};
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    (&source.language.name, source.language.session, &source.text).hash(&mut hasher);
+    hasher.finish()
 }
 
 fn start(
@@ -1242,6 +1275,41 @@ mod tests {
         // Nothing more is asked for.
         highlighting.want_all();
         assert!(!highlighting.dispatch());
+    }
+
+    #[test]
+    fn a_reload_keeps_the_colours_of_unchanged_code() {
+        let before = "```rust\nfn a() {}\n```\n\n```toml\nx = 1\n```\n";
+        let doc = gbk_markdown_core::load(before.as_bytes());
+        let paints = crate::render::paint::paint_document(&doc);
+        let mut old = Highlighting::new(code_sources(&doc), &paints, true);
+        old.slow_base = UNHURRIED;
+        old.want_all();
+        old.dispatch();
+        settle(&mut old);
+        // Text added before, the Rust block unchanged, the TOML changed.
+        let after = "Intro.\n\n```rust\nfn a() {}\n```\n\n```toml\nx = 2\n```\n";
+        let doc = gbk_markdown_core::load(after.as_bytes());
+        let paints = crate::render::paint::paint_document(&doc);
+        let mut new = Highlighting::new(code_sources(&doc), &paints, true);
+        new.adopt(&old);
+        assert_eq!(new.counts().highlighted, 1);
+        let rust = paints.get(1).and_then(|paint| paint.code).expect("rust");
+        let toml = paints.get(2).and_then(|paint| paint.code).expect("toml");
+        let old_rust = old
+            .blocks
+            .iter()
+            .find(|(_, block)| block.key == new.blocks.get(&rust.block).expect("block").key)
+            .map(|(&id, _)| id)
+            .expect("the same block before");
+        assert_eq!(new.table().tokens(rust.block), old.table().tokens(old_rust));
+        assert_ne!(new.table().tokens(rust.block), Vec::<Token>::new());
+        assert_eq!(new.table().tokens(toml.block), Vec::<Token>::new());
+        // The adopted block asks for nothing; the changed one does.
+        new.want(paints.get(1).expect("rust"));
+        assert_eq!(new.wanted, Vec::new());
+        new.want(paints.get(2).expect("toml"));
+        assert_eq!(new.wanted.len(), 1);
     }
 
     #[test]

@@ -3,14 +3,18 @@
 
 use gtk::gdk::{Key, ModifierType};
 
+use crate::render::geometry::LINE_HEIGHT_EM;
+
 /// Text sizes, as browsers step them: Ctrl+plus and Ctrl+minus move one step.
 pub(crate) const ZOOMS: [f64; 13] = [
     0.5, 0.67, 0.8, 0.9, 1.0, 1.1, 1.25, 1.5, 1.75, 2.0, 2.5, 3.0, 4.0,
 ];
 /// A line's scroll: three lines of body text, in em.
-const LINE_EM: f64 = 3.0 * 1.4;
+const LINE_EM: f64 = 3.0 * LINE_HEIGHT_EM;
 /// What a page scroll keeps in view of the page before: two lines, in em.
-const PAGE_OVERLAP_EM: f64 = 2.0 * 1.4;
+const PAGE_OVERLAP_EM: f64 = 2.0 * LINE_HEIGHT_EM;
+/// A touchpad's Ctrl+scroll, in pixels, per zoom step.
+const SURFACE_PER_STEP: f64 = 50.0;
 
 /// What a key asks for.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -42,9 +46,15 @@ pub(crate) enum Zoom {
 
 /// The action for a key pressed with `modifiers`, if it has one.
 pub(crate) fn action(key: Key, modifiers: ModifierType) -> Option<Action> {
-    // Caps Lock, Num Lock and the like change nothing here.
+    // Caps Lock, Num Lock and the like change nothing here; Super, Hyper and Meta are the
+    // desktop's, so a key with them is not ours.
     let modifiers = modifiers
-        & (ModifierType::CONTROL_MASK | ModifierType::SHIFT_MASK | ModifierType::ALT_MASK);
+        & (ModifierType::CONTROL_MASK
+            | ModifierType::SHIFT_MASK
+            | ModifierType::ALT_MASK
+            | ModifierType::SUPER_MASK
+            | ModifierType::HYPER_MASK
+            | ModifierType::META_MASK);
     let control = modifiers == ModifierType::CONTROL_MASK;
     // Ctrl+plus is Ctrl+Shift+equal on most layouts.
     let control_shifted = modifiers == ModifierType::CONTROL_MASK | ModifierType::SHIFT_MASK;
@@ -67,7 +77,8 @@ pub(crate) fn action(key: Key, modifiers: ModifierType) -> Option<Action> {
             Action::Zoom(Zoom::In)
         }
         Key::minus | Key::KP_Subtract if control => Action::Zoom(Zoom::Out),
-        Key::_0 | Key::KP_0 if control => Action::Zoom(Zoom::Reset),
+        // Ctrl+0 is Ctrl+Shift+0 where 0 needs Shift (AZERTY).
+        Key::_0 | Key::KP_0 if control || control_shifted => Action::Zoom(Zoom::Reset),
         Key::r | Key::R if control => Action::Reload,
         Key::F5 if plain => Action::Reload,
         Key::w | Key::W | Key::q | Key::Q if control => Action::Close,
@@ -115,23 +126,47 @@ pub(crate) fn scroll_target(scroll: Scroll, value: f64, page: f64, upper: f64, e
 }
 
 /// The zoom one step from `current`: the next step up or down `ZOOMS` from wherever `current`
-/// is (a `--zoom` may fall between steps), or 1 to reset.
-pub(crate) fn zoomed(current: f64, zoom: Zoom) -> f64 {
-    let largest = ZOOMS.last().copied().unwrap_or(1.0);
-    let smallest = ZOOMS.first().copied().unwrap_or(1.0);
-    match zoom {
-        Zoom::Reset => 1.0,
-        Zoom::In => ZOOMS
-            .iter()
-            .copied()
-            .find(|&step| step > current + 1e-9)
-            .unwrap_or(largest),
+/// is (a `--zoom` may fall between steps), or 1 to reset; `None` if that is no change (at an
+/// end, or already 1).
+pub(crate) fn zoomed(current: f64, zoom: Zoom) -> Option<f64> {
+    let next = match zoom {
+        Zoom::Reset => Some(1.0),
+        Zoom::In => ZOOMS.iter().copied().find(|&step| step > current + 1e-9),
         Zoom::Out => ZOOMS
             .iter()
             .rev()
             .copied()
-            .find(|&step| step < current - 1e-9)
-            .unwrap_or(smallest),
+            .find(|&step| step < current - 1e-9),
+    }?;
+    ((next - current).abs() > 1e-9).then_some(next)
+}
+
+/// Ctrl+wheel steps: scroll deltas added up, one step per wheel notch or `SURFACE_PER_STEP`
+/// pixels of touchpad (which sends many small deltas: a step for each zoomed straight to the
+/// end, M6 review).
+#[derive(Debug, Default)]
+pub(crate) struct WheelZoom {
+    pending: f64,
+}
+
+impl WheelZoom {
+    /// Adds a scroll of `dy` (pixels if `pixels`, else wheel notches); returns the step it
+    /// completes, if any. Turning back starts over.
+    pub(crate) fn scrolled(&mut self, dy: f64, pixels: bool) -> Option<Zoom> {
+        let notches = if pixels { dy / SURFACE_PER_STEP } else { dy };
+        if notches * self.pending < 0.0 {
+            self.pending = 0.0;
+        }
+        self.pending += notches;
+        if self.pending <= -1.0 {
+            self.pending += 1.0;
+            Some(Zoom::In)
+        } else if self.pending >= 1.0 {
+            self.pending -= 1.0;
+            Some(Zoom::Out)
+        } else {
+            None
+        }
     }
 }
 
@@ -173,6 +208,9 @@ mod tests {
             (Key::minus, CTRL, Some(Action::Zoom(Zoom::Out))),
             (Key::KP_Subtract, CTRL, Some(Action::Zoom(Zoom::Out))),
             (Key::_0, CTRL, Some(Action::Zoom(Zoom::Reset))),
+            (Key::_0, CTRL | SHIFT, Some(Action::Zoom(Zoom::Reset))),
+            (Key::Home, ModifierType::SUPER_MASK, None),
+            (Key::r, CTRL | ModifierType::META_MASK, None),
             (Key::r, CTRL, Some(Action::Reload)),
             (Key::F5, NONE, Some(Action::Reload)),
             (Key::w, CTRL, Some(Action::Close)),
@@ -237,19 +275,43 @@ mod tests {
 
     #[test]
     fn zoom_steps_up_down_and_back() {
-        assert!((zoomed(1.0, Zoom::In) - 1.1).abs() < 1e-9);
-        assert!((zoomed(1.0, Zoom::Out) - 0.9).abs() < 1e-9);
-        assert!((zoomed(2.5, Zoom::Reset) - 1.0).abs() < 1e-9);
+        let step = |current, zoom| zoomed(current, zoom).expect("a change");
+        assert!((step(1.0, Zoom::In) - 1.1).abs() < 1e-9);
+        assert!((step(1.0, Zoom::Out) - 0.9).abs() < 1e-9);
+        assert!((step(2.5, Zoom::Reset) - 1.0).abs() < 1e-9);
         // Between steps (a --zoom of 120%), to the neighbouring steps.
-        assert!((zoomed(1.2, Zoom::In) - 1.25).abs() < 1e-9);
-        assert!((zoomed(1.2, Zoom::Out) - 1.1).abs() < 1e-9);
-        // At the ends, no further.
-        assert!((zoomed(4.0, Zoom::In) - 4.0).abs() < 1e-9);
-        assert!((zoomed(0.5, Zoom::Out) - 0.5).abs() < 1e-9);
+        assert!((step(1.2, Zoom::In) - 1.25).abs() < 1e-9);
+        assert!((step(1.2, Zoom::Out) - 1.1).abs() < 1e-9);
+        // At the ends, or reset at 1: no change.
+        assert_eq!(zoomed(4.0, Zoom::In), None);
+        assert_eq!(zoomed(0.5, Zoom::Out), None);
+        assert_eq!(zoomed(1.0, Zoom::Reset), None);
         assert_eq!(zoom_from_percent(150), Some(1.5));
         assert_eq!(zoom_from_percent(50), Some(0.5));
         assert_eq!(zoom_from_percent(400), Some(4.0));
         assert_eq!(zoom_from_percent(49), None);
         assert_eq!(zoom_from_percent(401), None);
+    }
+
+    #[test]
+    fn the_wheel_zooms_a_step_a_notch_and_a_touchpad_by_distance() {
+        let mut wheel = WheelZoom::default();
+        assert_eq!(wheel.scrolled(-1.0, false), Some(Zoom::In));
+        assert_eq!(wheel.scrolled(1.0, false), Some(Zoom::Out));
+        // A smooth wheel's fractions: one step per whole notch.
+        assert_eq!(wheel.scrolled(0.4, false), None);
+        assert_eq!(wheel.scrolled(0.4, false), None);
+        assert_eq!(wheel.scrolled(0.4, false), Some(Zoom::Out));
+        // A touchpad: 12 deltas of 5 px is 60 px, one step.
+        let mut touchpad = WheelZoom::default();
+        let steps: Vec<Zoom> = (0..12)
+            .filter_map(|_| touchpad.scrolled(-5.0, true))
+            .collect();
+        assert_eq!(steps, vec![Zoom::In]);
+        // Turning back starts over: 40 px one way, then 40 the other, is no step.
+        let mut turned = WheelZoom::default();
+        assert_eq!(turned.scrolled(-40.0, true), None);
+        assert_eq!(turned.scrolled(40.0, true), None);
+        assert_eq!(turned.scrolled(15.0, true), Some(Zoom::Out));
     }
 }

@@ -78,11 +78,13 @@ fn main() -> ExitCode {
         };
     }
     // Before any other thread exists: see `set_environment`.
-    set_environment(renderer::env_changes(
+    let mut changes = renderer::env_changes(
         args.renderer,
         std::env::var("GSK_RENDERER").ok().as_deref(),
         std::env::var("GDK_DISABLE").ok().as_deref(),
-    ));
+    );
+    changes.extend(appearance::env_change(args.theme));
+    set_environment(changes);
     // Read and parse the file on a worker while GTK starts and the window is mapped
     // (docs/plan.md §4.4).
     let loader: Option<Loader> = match (args.mode, args.file.clone()) {
@@ -204,14 +206,14 @@ fn show(
         theme,
         zoom,
     } = showing;
-    // Before the window is styled: light or dark (appearance.rs).
-    if let Some(settings) = gtk::Settings::default() {
+    // Before the window is styled: a dark GTK theme name with no word from the desktop means
+    // dark (appearance.rs; a chosen theme was set through the environment).
+    if *theme == appearance::Theme::System
+        && let Some(settings) = gtk::Settings::default()
+    {
         let name = settings.gtk_theme_name();
-        let scheme = appearance::color_scheme(
-            *theme,
-            name.as_deref(),
-            settings.gtk_interface_color_scheme(),
-        );
+        let scheme =
+            appearance::system_scheme(name.as_deref(), settings.gtk_interface_color_scheme());
         if let Some(scheme) = scheme {
             settings.set_gtk_interface_color_scheme(scheme);
         }
@@ -250,9 +252,10 @@ fn show(
                 path: file
                     .as_deref()
                     .map(|file| std::path::absolute(file).unwrap_or_else(|_| file.to_path_buf())),
-                start,
+                start: start.map(document_view::Start::Leaf),
                 offline: *offline,
                 zoom: *zoom,
+                viewer_args: viewer_args(*offline, *theme),
             },
             Rc::clone(probe),
         );
@@ -285,6 +288,20 @@ fn show(
         }
     }
     Ok(())
+}
+
+/// The options a document opened from a link inherits (its zoom is added when it opens).
+fn viewer_args(offline: bool, theme: appearance::Theme) -> Vec<String> {
+    let mut args = Vec::new();
+    if offline {
+        args.push("--offline".to_owned());
+    }
+    match theme {
+        appearance::Theme::System => {}
+        appearance::Theme::Light => args.push("--theme=light".to_owned()),
+        appearance::Theme::Dark => args.push("--theme=dark".to_owned()),
+    }
+    args
 }
 
 fn window_title(args: &Args) -> String {

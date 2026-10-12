@@ -48,7 +48,10 @@ Optimisation goals, in priority order as stated:
 | 2026-10-12 | Tokens are colour only (GitHub's classes), highlighter thread started after the first frame, read ahead 16 KiB | M5; heights cannot change, so the worker measures uncoloured and check-heights proves it; nothing before first paint |
 | 2026-10-12 | Dark mode follows GTK's interface colour scheme (portal), else a `*-dark` GTK theme name; `--theme` overrides | M6; Xfce's portal states no preference; the palette already followed the theme |
 | 2026-10-12 | Zoom scales the text setup (em), browser steps 50-400%; images keep pixel size | M6; reuses the DPI-change path, so the worker and anchoring follow |
-| 2026-10-12 | Install records the Markdown defaults it replaces and gives them back on uninstall | M6; xdg-mime default replaces the whole list; run only with the user's go-ahead (writes outside the repo) |
+| 2026-10-12 | Install records the Markdown defaults it replaces and gives them back on uninstall (where ours is still the default) | M6; xdg-mime default replaces the whole list; run only with the user's go-ahead (writes outside the repo) |
+| 2026-10-12 | Reload: FileMonitor on the canonical path after the first frame; 200 ms after a save ends, 2 s after a bare write, 1 s at most; through set_document; shown images and code colours kept | M6 reviews: symlinks, slow writers, continuous rewrites, badges fetched on every save |
+| 2026-10-12 | Notices drawn by the view (typed Message), not a GTK overlay widget | M6; one widget, no new allocation path; the layout is made outside frames; not heard by screen readers (after v1) |
+| 2026-10-12 | `--theme=light|dark` via GTK_THEME before init | M6 review: setting the colour scheme after init reparsed the theme, 15-33 ms before the first frame |
 
 Push guard (installed 2026-10-11): `.claude/hooks/guard-push` refuses Bash commands whose text
 contains `--no-verify` with `git`, or mentions `core.hooksPath` (except setting it to
@@ -56,7 +59,7 @@ contains `--no-verify` with `git`, or mentions `core.hooksPath` (except setting 
 the Edit tool. Never route around it; fix the gate.
 
 Open questions (awaiting user, see `docs/plan.md` §11):
-- Theme: GTK4 + light stylesheet (not yet confirmed).
+
 - Benchmarks: the default is now Cairo, so a GL comparison needs `-c gl:--renderer=gl` in
   bench-startup (an empty configuration is Cairo).
 

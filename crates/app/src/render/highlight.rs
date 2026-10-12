@@ -158,6 +158,11 @@ impl Highlights {
         found.extend(tokens.into_iter().filter(|token| token.start >= after));
     }
 
+    /// The tokens found in `block`.
+    pub(crate) fn tokens(&self, block: CodeBlockId) -> &[Token] {
+        self.blocks.get(&block).map_or(&[], Vec::as_slice)
+    }
+
     /// Colour attributes for `len` bytes of text at `code`, relative to that text: at most
     /// `MAX_PAINT_TOKENS`.
     pub(crate) fn attrs(&self, code: CodeSpan, len: usize) -> Vec<TextAttr> {

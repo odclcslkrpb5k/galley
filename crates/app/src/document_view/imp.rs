@@ -3,7 +3,6 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::sync::Arc;
-use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 
 use gtk::prelude::*;
@@ -13,7 +12,6 @@ use gtk::{gio, glib, graphene, gsk, pango};
 use crate::highlighting::{HighlightCounts, Highlighting};
 use crate::images::{Gallery, ImageCounts, ImageState, TEXTURE_BUDGET};
 use crate::links::{self, Opening};
-use crate::loading::{self, LoadError, Loaded};
 use crate::navigation::{self, Action};
 use crate::output::report_error;
 use crate::probe::Probe;
@@ -26,6 +24,11 @@ use crate::render::positions::{Positions, Spot};
 use crate::render::text::{self, ColumnWidths, Content, Measured, Palette, TextSetup, Typesetter};
 use crate::units;
 use gbk_markdown_core::units::{DetailsId, ImageId, LeafId, TableId};
+
+mod notice;
+mod reload;
+
+use notice::Message;
 
 /// A summary's marker while its `<details>` is open, and closed.
 const OPEN_MARKER: &str = "▾";
@@ -46,16 +49,11 @@ const MOTION_SETTLE: Duration = Duration::from_millis(150);
 /// How often finished image loads are collected while any are in flight: a row of badges
 /// arriving within it is laid out again once, not once per badge.
 const IMAGE_POLL: Duration = Duration::from_millis(100);
+/// Layout time a key scroll may take at once for where it lands.
+const KEY_SCROLL_BUDGET: Duration = Duration::from_millis(8);
 /// How often highlighted code is collected while any is being read: the thread sends a chunk
 /// every 15 ms or so at most.
 const HIGHLIGHT_POLL: Duration = Duration::from_millis(30);
-/// A reload waits this long after the file's last change event: an editor's save is several
-/// events (write, close, rename), and one reload is enough.
-const RELOAD_AFTER: Duration = Duration::from_millis(200);
-/// How often a reload's reading is checked for being done.
-const RELOAD_POLL: Duration = Duration::from_millis(16);
-/// How long a notice stays.
-const NOTICE_FOR: Duration = Duration::from_secs(6);
 /// How often the height worker's results are collected while it runs.
 const POLL_INTERVAL: Duration = Duration::from_millis(16);
 /// The `gtk::Settings` properties that change how text is laid out.
@@ -117,27 +115,12 @@ pub(crate) struct DocumentView {
     zoom: Cell<f64>,
     /// Fetch no remote images (kept for reloads).
     offline: Cell<bool>,
-    /// Watches the file, to reload it when it changes.
-    monitor: RefCell<Option<gio::FileMonitor>>,
-    /// A reload waiting for changes to stop.
-    reload_soon: RefCell<Option<glib::SourceId>>,
-    /// The file being read again, on its own thread, and the poll waiting for it.
-    reloading: RefCell<Option<Reloading>>,
-    /// The file changed while being read: read it once more.
-    reload_again: Cell<bool>,
-    /// A message shown at the bottom of the view for a while (a link that failed, a reload
-    /// that could not read the file).
-    notice: RefCell<Option<Notice>>,
-}
-
-/// A reload's reading thread, and the poll waiting for it.
-type Reloading = (JoinHandle<Result<Loaded, LoadError>>, glib::SourceId);
-
-/// A message, laid out when it was set (never inside a frame), and when it goes.
-#[derive(Debug)]
-struct Notice {
-    layout: pango::Layout,
-    hide: glib::SourceId,
+    /// Options a document opened from a link is started with (`--offline`, `--theme`).
+    viewer_args: RefCell<Vec<String>>,
+    /// Watching the file and reloading it (`reload.rs`).
+    reload: RefCell<reload::Reload>,
+    /// A message shown at the bottom of the view for a while (`notice.rs`).
+    notice: RefCell<Option<notice::Shown>>,
 }
 
 // By hand: gtk::ScrollablePolicy has no Default.
@@ -170,10 +153,8 @@ impl Default for DocumentView {
             hovered: RefCell::default(),
             zoom: Cell::new(1.0),
             offline: Cell::new(false),
-            monitor: RefCell::default(),
-            reload_soon: RefCell::default(),
-            reloading: RefCell::default(),
-            reload_again: Cell::new(false),
+            viewer_args: RefCell::default(),
+            reload: RefCell::default(),
             notice: RefCell::default(),
         }
     }
@@ -440,21 +421,35 @@ impl DocumentView {
             start,
             offline,
             zoom,
+            viewer_args,
         } = document;
+        // A reload replaces a document: what it has already shown is kept (images, code
+        // colours), and where it was is forgotten.
+        let old = self.document.borrow_mut().take();
+        self.history.borrow_mut().clear();
+        self.hovered.replace(None);
+        self.viewer_args.replace(viewer_args);
         // While --check-heights compares layouts, images load only if it waits for them.
         let images_enabled = !probe.checking_heights() || probe.waits_for_images();
         let tables = table_pieces(&paints);
-        let gallery = Gallery::new(images, &paints, path.clone(), offline, images_enabled);
+        let mut gallery = Gallery::new(images, &paints, path.clone(), offline, images_enabled);
         // Likewise highlighting; `--wait-highlights` highlights everything.
         let mut highlighting = Highlighting::new(
             code,
             &paints,
             !probe.checking_heights() || probe.waits_for_highlights(),
         );
+        if let Some(old) = old.as_ref() {
+            gallery.adopt(&old.gallery);
+            highlighting.adopt(&old.highlighting);
+        }
         if probe.waits_for_highlights() {
             highlighting.want_all();
         }
-        let start = start.and_then(|leaf| paint::first_paint_of(&paints, leaf.index()));
+        let start = start.and_then(|start| match start {
+            super::Start::Leaf(leaf) => paint::first_paint_of(&paints, leaf.index()),
+            super::Start::Paint(paint) => paints.len().checked_sub(1).map(|last| paint.min(last)),
+        });
         let mut open = details;
         // Opening inside a closed `<details>` opens it.
         for id in start
@@ -465,9 +460,6 @@ impl DocumentView {
             if let Some(slot) = open.get_mut(id.index()) {
                 *slot = true;
             }
-        }
-        if let Some(path) = path.as_deref() {
-            self.watch(path);
         }
         self.path.replace(path);
         self.start.set(start);
@@ -599,10 +591,9 @@ impl DocumentView {
 
     /// Changes the text size a step, keeping the same content at the top of the view.
     fn zoom(&self, zoom: navigation::Zoom) {
-        let next = navigation::zoomed(self.zoom.get(), zoom);
-        if (next - self.zoom.get()).abs() < f64::EPSILON {
+        let Some(next) = navigation::zoomed(self.zoom.get(), zoom) else {
             return;
-        }
+        };
         self.zoom.set(next);
         self.refresh_setup();
     }
@@ -905,6 +896,8 @@ impl DocumentView {
             }
             self.start_image_polling();
         }
+        // After the first frame, not before it: setting up inotify is not free.
+        self.watch();
         // Prefetch sends the code it and the frame asked for.
         self.prefetch(AFTER_FRAME_BUDGET);
         if let Some(doc) = self.document.borrow().as_ref() {
@@ -1302,6 +1295,9 @@ impl DocumentView {
             adjustment.upper(),
             em,
         ));
+        // Lay out where it landed now, between frames: a held Page Down (25 pages a second)
+        // outruns prefetch's slices after frames, which would leave the next frame to lay out.
+        self.prefetch(KEY_SCROLL_BUDGET);
     }
 
     /// For --press: `ctrl+plus` and the like, pressed as the keyboard would.
@@ -1344,7 +1340,7 @@ impl DocumentView {
             }
         };
         if let Err(error) = result {
-            self.notice(&error.to_string());
+            self.notice(&Message::Open(error));
         }
     }
 
@@ -1444,7 +1440,7 @@ impl DocumentView {
             move |result| {
                 if let (Err(error), Some(view)) = (result, view.upgrade()) {
                     view.imp()
-                        .notice(&OpenError::Launch(uri, error.to_string()).to_string());
+                        .notice(&Message::Open(OpenError::Launch(uri, error.to_string())));
                 }
             },
         );
@@ -1469,7 +1465,13 @@ impl DocumentView {
                 self.reveal_leaf(leaf);
                 Ok(())
             }
-            Opening::Viewer { path, fragment } => open_in_viewer(&path, fragment.as_deref()),
+            Opening::Viewer { path, fragment } => {
+                let mut args = self.viewer_args.borrow().clone();
+                if (self.zoom.get() - 1.0).abs() > f64::EPSILON {
+                    args.push(format!("--zoom={}", (self.zoom.get() * 100.0).round()));
+                }
+                open_in_viewer(&path, fragment.as_deref(), &args)
+            }
             Opening::System(path) => {
                 let metadata = std::fs::metadata(&path)
                     .map_err(|error| OpenError::Read(path.clone(), error.kind()))?;
@@ -1490,7 +1492,7 @@ impl DocumentView {
                     if let (Err(error), Some(view)) = (result, view.upgrade()) {
                         let error =
                             OpenError::Launch(path.display().to_string(), error.to_string());
-                        view.imp().notice(&error.to_string());
+                        view.imp().notice(&Message::Open(error));
                     }
                 });
                 Ok(())
@@ -1521,227 +1523,6 @@ impl DocumentView {
         if self.indicator_hover.replace(hover) != hover {
             self.obj().queue_draw();
         }
-    }
-
-    /// Shows `message` at the bottom of the view for `NOTICE_FOR` (and on stderr).
-    pub(super) fn notice(&self, message: &str) {
-        report_error(message);
-        let context = self.obj().pango_context();
-        let width = i64::from(self.obj().width());
-        let layout = {
-            let document = self.document.borrow();
-            let Some(doc) = document.as_ref() else {
-                return;
-            };
-            doc.probe.notice_shown();
-            let probe = Rc::clone(&doc.probe);
-            let width = width - 4 * doc.margin();
-            doc.typesetter(context)
-                .caption(message, width, &mut |bytes| probe.layout_created(bytes))
-        };
-        let hide = glib::timeout_add_local_once(
-            NOTICE_FOR,
-            glib::clone!(
-                #[weak(rename_to = view)]
-                self.obj(),
-                move || {
-                    // Its timer has fired: dropping it is all that is left.
-                    view.imp().notice.take();
-                    view.queue_draw();
-                }
-            ),
-        );
-        if let Some(old) = self.notice.replace(Some(Notice { layout, hide })) {
-            old.hide.remove();
-        }
-        self.obj().queue_draw();
-    }
-
-    /// The notice, if any: its text in `text` on a box of `fill`, centred near the bottom.
-    fn draw_notice(
-        &self,
-        snapshot: &gtk::Snapshot,
-        (fill, text): (gtk::gdk::RGBA, gtk::gdk::RGBA),
-    ) {
-        let notice = self.notice.borrow();
-        let Some(Notice { layout, .. }) = notice.as_ref() else {
-            return;
-        };
-        let (width, height) = layout.pixel_size();
-        let (width, height) = (f64::from(width), f64::from(height));
-        let pad = height / 2.0;
-        let x = (f64::from(self.obj().width()) - width) / 2.0;
-        let y = f64::from(self.obj().height()) - height - 3.0 * pad;
-        let rect = graphene::Rect::new(
-            units::to_f32(x - 2.0 * pad),
-            units::to_f32(y - pad),
-            units::to_f32(width + 4.0 * pad),
-            units::to_f32(height + 2.0 * pad),
-        );
-        snapshot.push_rounded_clip(&gsk::RoundedRect::from_rect(rect, units::to_f32(pad)));
-        snapshot.append_color(&fill, &rect);
-        snapshot.pop();
-        snapshot.save();
-        snapshot.translate(&graphene::Point::new(units::to_f32(x), units::to_f32(y)));
-        snapshot.append_layout(layout, &text);
-        snapshot.restore();
-    }
-
-    /// Watches the file: a change reloads it once changes stop for `RELOAD_AFTER`; its removal
-    /// is noticed (the last version stays, and a new file there is loaded).
-    fn watch(&self, path: &Path) {
-        if self.monitor.borrow().is_some() {
-            return;
-        }
-        let monitor = match gio::File::for_path(path)
-            .monitor_file(gio::FileMonitorFlags::WATCH_MOVES, gio::Cancellable::NONE)
-        {
-            Ok(monitor) => monitor,
-            Err(error) => {
-                report_error(format_args!("cannot watch the file for changes: {error}"));
-                return;
-            }
-        };
-        monitor.connect_changed(glib::clone!(
-            #[weak(rename_to = view)]
-            self.obj(),
-            move |_monitor, _file, _other, event| view.imp().file_changed(event)
-        ));
-        self.monitor.replace(Some(monitor));
-    }
-
-    fn file_changed(&self, event: gio::FileMonitorEvent) {
-        match event {
-            gio::FileMonitorEvent::Changed
-            | gio::FileMonitorEvent::ChangesDoneHint
-            | gio::FileMonitorEvent::Created
-            | gio::FileMonitorEvent::MovedIn
-            | gio::FileMonitorEvent::Renamed => {
-                if let Some(source) = self.reload_soon.take() {
-                    source.remove();
-                }
-                let source = glib::timeout_add_local_once(
-                    RELOAD_AFTER,
-                    glib::clone!(
-                        #[weak(rename_to = view)]
-                        self.obj(),
-                        move || {
-                            // It has fired: forget it, then reload.
-                            view.imp().reload_soon.take();
-                            view.imp().reload();
-                        }
-                    ),
-                );
-                self.reload_soon.replace(Some(source));
-            }
-            gio::FileMonitorEvent::Deleted | gio::FileMonitorEvent::MovedOut => {
-                self.notice("The file was removed; this is its last version.");
-            }
-            gio::FileMonitorEvent::AttributeChanged
-            | gio::FileMonitorEvent::PreUnmount
-            | gio::FileMonitorEvent::Unmounted
-            | gio::FileMonitorEvent::Moved
-            | _ => {}
-        }
-    }
-
-    /// Reads the file again on a thread, then shows it with the same paint at the top.
-    fn reload(&self) {
-        let Some(path) = self.path.borrow().clone() else {
-            return;
-        };
-        if self.reloading.borrow().is_some() {
-            self.reload_again.set(true);
-            return;
-        }
-        let loader = match thread::Builder::new()
-            .name("reload".to_owned())
-            .spawn(move || loading::load(&path))
-        {
-            Ok(loader) => loader,
-            Err(error) => {
-                self.notice(&format!("cannot reload the file: {error}"));
-                return;
-            }
-        };
-        let poll = glib::timeout_add_local(
-            RELOAD_POLL,
-            glib::clone!(
-                #[weak(rename_to = view)]
-                self.obj(),
-                #[upgrade_or]
-                glib::ControlFlow::Break,
-                move || view.imp().reload_poll()
-            ),
-        );
-        self.reloading.replace(Some((loader, poll)));
-    }
-
-    fn reload_poll(&self) -> glib::ControlFlow {
-        let finished = self
-            .reloading
-            .borrow()
-            .as_ref()
-            .is_some_and(|(loader, _poll)| loader.is_finished());
-        if !finished {
-            return glib::ControlFlow::Continue;
-        }
-        // The poll ends by returning Break, not by removing its source.
-        let Some((thread, _poll)) = self.reloading.take() else {
-            return glib::ControlFlow::Break;
-        };
-        match thread.join().unwrap_or(Err(LoadError::LoaderPanicked)) {
-            Ok(document) => self.replace_document(document),
-            Err(error) => self.notice(&format!("cannot reload the file: {error}")),
-        }
-        if self.reload_again.replace(false) {
-            self.reload();
-        }
-        glib::ControlFlow::Break
-    }
-
-    /// Shows a reloaded document in place of the current one, at the same zoom, with the same
-    /// paint (by position) at the top.
-    fn replace_document(&self, loaded: Loaded) {
-        let kept = {
-            let document = self.document.borrow();
-            let Some(doc) = document.as_ref() else {
-                return;
-            };
-            let top = self.viewport().map_or(0, |(top, _page)| top);
-            let paint = doc.positions.anchor(top - doc.margin()).unwrap_or(0);
-            (paint, Rc::clone(&doc.probe))
-        };
-        let (paint, probe) = kept;
-        let Loaded {
-            paints,
-            anchors,
-            details,
-            images,
-            code,
-        } = loaded;
-        let last = paints.len().saturating_sub(1);
-        // Cloned first: a borrow inside the call below would last through it, and
-        // `set_document` replaces the path.
-        let path = self.path.borrow().clone();
-        self.history.borrow_mut().clear();
-        self.hovered.replace(None);
-        self.set_document(
-            super::Opened {
-                paints,
-                anchors,
-                details,
-                images,
-                code,
-                path,
-                start: None,
-                offline: self.offline.get(),
-                zoom: self.zoom.get(),
-            },
-            probe.clone(),
-        );
-        self.start.set(Some(paint.min(last)));
-        probe.reloaded();
     }
 
     fn draw_indicator(&self, snapshot: &gtk::Snapshot, color: gtk::gdk::RGBA) {
@@ -1844,7 +1625,7 @@ enum Scope {
 
 /// Why a link could not be followed.
 #[derive(Debug, thiserror::Error)]
-enum OpenError {
+pub(super) enum OpenError {
     #[error("no heading or anchor named {0:?} in this document")]
     NoAnchor(String),
     #[error("cannot open {0}: {1:?}")]
@@ -1899,11 +1680,23 @@ fn same_file(a: &Path, b: &Path) -> bool {
     }
 }
 
-/// Opens a Markdown file in a new viewer window, at `fragment` if given.
-fn open_in_viewer(path: &Path, fragment: Option<&str>) -> Result<(), OpenError> {
+/// Opens a Markdown file in a new viewer window, at `fragment` if given, with this viewer's
+/// options `inherited`.
+fn open_in_viewer(
+    path: &Path,
+    fragment: Option<&str>,
+    inherited: &[String],
+) -> Result<(), OpenError> {
     let viewer = std::env::current_exe()
         .map_err(|error| OpenError::NoViewer(path.to_path_buf(), error.kind()))?;
+    // Replaced since this one started (a reinstall): Linux names it "... (deleted)". The new
+    // one is where the old one was.
+    let viewer = viewer
+        .to_str()
+        .and_then(|name| name.strip_suffix(" (deleted)"))
+        .map_or(viewer.clone(), std::path::PathBuf::from);
     let mut argv: Vec<std::ffi::OsString> = vec![viewer.into_os_string()];
+    argv.extend(inherited.iter().map(std::ffi::OsString::from));
     if let Some(fragment) = fragment {
         argv.push(format!("--anchor={fragment}").into());
     }
@@ -2112,6 +1905,7 @@ impl Doc {
 /// Ctrl+wheel zooms; the plain wheel is the scrolled window's.
 fn add_zoom_wheel(widget: &super::DocumentView) {
     let wheel = gtk::EventControllerScroll::new(gtk::EventControllerScrollFlags::VERTICAL);
+    let steps = RefCell::new(navigation::WheelZoom::default());
     wheel.connect_scroll(glib::clone!(
         #[weak(rename_to = view)]
         widget,
@@ -2121,16 +1915,13 @@ fn add_zoom_wheel(widget: &super::DocumentView) {
             if !controller
                 .current_event_state()
                 .contains(gtk::gdk::ModifierType::CONTROL_MASK)
-                || dy == 0.0
             {
                 return glib::Propagation::Proceed;
             }
-            let zoom = if dy < 0.0 {
-                navigation::Zoom::In
-            } else {
-                navigation::Zoom::Out
-            };
-            view.imp().zoom(zoom);
+            let pixels = controller.unit() == gtk::gdk::ScrollUnit::Surface;
+            if let Some(zoom) = steps.borrow_mut().scrolled(dy, pixels) {
+                view.imp().zoom(zoom);
+            }
             glib::Propagation::Stop
         }
     ));

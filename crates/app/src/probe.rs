@@ -25,6 +25,9 @@ use crate::images::ImageCounts;
 use crate::output::{print_line, report_error};
 use crate::units;
 
+/// How long after the first frame --rewrite-with writes the file.
+const REWRITE_AFTER: Duration = Duration::from_millis(500);
+
 /// Scroll speed for --bench-scroll, in logical pixels per second: a brisk fling (faster for a
 /// document too long to cross at this speed within half the frame limit).
 const BENCH_SCROLL_SPEED: f64 = 3000.0;
@@ -68,6 +71,10 @@ pub(crate) struct Probe {
     highlights_sent_in_frames: Cell<usize>,
     /// The file shown.
     document: Option<PathBuf>,
+    /// Whether `--rewrite-with` has tried to write the file, and did (if not, no reload is
+    /// waited for).
+    rewrite_tried: Cell<bool>,
+    rewritten: Cell<bool>,
     /// Notices shown, and reloads of the file done.
     notices: Cell<usize>,
     reloads: Cell<usize>,
@@ -144,6 +151,8 @@ impl Probe {
             layouts_in_scroll_frames: Cell::new(0),
             recoloured: Cell::new(0),
             highlights_sent_in_frames: Cell::new(0),
+            rewrite_tried: Cell::new(false),
+            rewritten: Cell::new(false),
             notices: Cell::new(0),
             reloads: Cell::new(0),
             heights_measured: Cell::new(None),
@@ -312,6 +321,7 @@ impl Probe {
         // Measure first: the screenshot and report are not part of startup.
         let report = self.startup_report(window);
         let report = self.act_after_first_frame(report);
+        self.rewrite_soon(window);
         if self.args.click_at.is_some()
             || !self.args.press.is_empty()
             || self.args.rewrite_with.is_some()
@@ -349,17 +359,30 @@ impl Probe {
             );
             report = format!("{report} pressed={}", pressed.join(","));
         }
-        if let Some(source) = &self.args.rewrite_with {
-            let written = self
+        report
+    }
+
+    /// For --rewrite-with: writes the file a while after the first frame, as an edit would come
+    /// (the view watches the file from after its first frame, so a write in that frame's
+    /// handlers could come before the watching).
+    fn rewrite_soon(self: &Rc<Self>, window: &gtk::Window) {
+        let Some(source) = self.args.rewrite_with.clone() else {
+            return;
+        };
+        let probe = Rc::clone(self);
+        let window = window.clone();
+        glib::timeout_add_local_once(REWRITE_AFTER, move || {
+            let written = probe
                 .document
                 .as_deref()
-                .map(|file| std::fs::copy(source, file).map(|_bytes| ()));
-            report = format!(
-                "{report} rewritten={}",
-                written.is_some_and(|written| written.is_ok())
-            );
-        }
-        report
+                .map(|file| std::fs::copy(&source, file).map(|_bytes| ()));
+            probe
+                .rewritten
+                .set(written.is_some_and(|written| written.is_ok()));
+            probe.rewrite_tried.set(true);
+            // The report comes from a frame.
+            window.queue_draw();
+        });
     }
 
     /// A frame after a --click-at click, --press or --rewrite-with, or once --wait-images or
@@ -380,7 +403,9 @@ impl Probe {
         if self.args.wait_highlights && (highlights.pending > 0 || recolouring > 0) {
             return;
         }
-        if self.args.rewrite_with.is_some() && self.reloads.get() == 0 {
+        if self.args.rewrite_with.is_some()
+            && (!self.rewrite_tried.get() || (self.rewritten.get() && self.reloads.get() == 0))
+        {
             return;
         }
         let Some(mut report) = self.deferred.take() else {
@@ -396,6 +421,9 @@ impl Probe {
                 self.notices.get(),
                 self.reloads.get()
             );
+            if self.args.rewrite_with.is_some() {
+                report = format!("{report} rewritten={}", self.rewritten.get());
+            }
         }
         if self.args.wait_images {
             let ImageCounts {

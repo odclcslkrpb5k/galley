@@ -57,7 +57,12 @@ deny.toml               cargo-deny (§7)
 Dockerfile              build image (§8)
 scripts/check           the gate (§8)
 scripts/bench-startup   TTFP report, host only; interleaved configs, CI on differences (§6)
-scripts/in-docker       runs a command in the build container
+scripts/in-docker       runs a command in the build container (refuses under 5 GiB free)
+scripts/quick           the working loop: cargo fmt, then gate-steps --quick (clippy, tests)
+scripts/install         installs to ~/.local, default for Markdown (§4.5 M6); test-install
+                        checks it in the gate; data/gbk-markdown.desktop is its desktop file
+scripts/wait-for        polls a command with a deadline (§8)
+.claude/hooks/          Claude Code hooks: guard-push and guard-wait, with table tests (§8)
 scripts/gate-steps      the gate's container steps; check-boundaries, check-test-floor, smoke,
                         lint-canary are its helpers; gen-fixtures and fetch-corpus make test data
 .githooks/pre-push      refuses a push whose tree has no gate stamp (§8)
@@ -372,32 +377,50 @@ added later without changing the model.
 - **Keys** (`navigation.rs`, pure and tested; listed in `--help`): Up and Down scroll three
   lines, Page Up/Down and Space/Shift+Space a page less two lines, Home/End and Ctrl+Home/End
   the ends, Alt+Left and Backspace go back after a link inside the document, Ctrl+R and F5
-  reload, Ctrl+W and Ctrl+Q close. A key scroll sets the adjustment as the wheel does, so it is
-  user scrolling to anchoring (held height changes wait until it stops). No smooth-scroll
-  animation.
-- **Zoom**: Ctrl+plus, Ctrl+minus, Ctrl+0 and Ctrl+wheel step through browser-like sizes from
-  50% to 400%; `--zoom=PERCENT` starts there. Zoom multiplies the text setup's font size, so
+  reload, Ctrl+W and Ctrl+Q close; with Super, Hyper or Meta held none is ours. A key scroll
+  sets the adjustment as the wheel does, so it is user scrolling to anchoring (held height
+  changes wait until it stops), then lays out where it landed at once (up to 8 ms, between
+  frames): a held Page Down, 25 pages a second, would outrun prefetch's slices after frames.
+  No smooth-scroll animation.
+- **Zoom**: Ctrl+plus, Ctrl+minus, Ctrl+0 (Ctrl+Shift+0 where 0 needs Shift) and Ctrl+wheel
+  step through browser-like sizes from 50% to 400%; the wheel adds its deltas up, a step per
+  notch or per 50 px of touchpad (a step per event went to 400% in one swipe); `--zoom=PERCENT` starts there. Zoom multiplies the text setup's font size, so
   it goes through the path a DPI or font change takes: every size is in em, the height worker
   measures again, and the paint at the top stays there. Images keep their pixel size.
 - **Light or dark** (`appearance.rs`, pure and tested): `--theme=system|light|dark`, default
   system. GTK's default theme follows its interface colour scheme (measured: Dark turns the
   text colour from 0.18 to 0.93 grey), which GTK reads from the desktop portal; Xfce's portal
-  here states no preference, so with none a GTK theme named `*-dark` means dark. The palette
-  already followed the theme's text colour, so the document, code colours included (GitHub's
-  dark set), follows with no other change.
-- **Reload on change**: a `gio::FileMonitor` on the file (`WATCH_MOVES`, so an editor's
-  write-and-rename save is seen) reloads it 200 ms after the last change event, reading and
-  parsing on a thread (`loading.rs`, the startup loader's function), then replaces the
-  document with the same zoom and the same paint (by position) at the top; images and code
-  load again. A change while reading reads once more. A removed file leaves the last version
-  shown, with a notice, and is loaded again if it comes back.
-- **Notices**: a message at the bottom of the view for 6 s, and on stderr: links that fail (a
-  missing anchor, a program refused, a launch error) and reloads that fail. Drawn by the view
+  here states no preference, so with none a GTK theme named `*-dark` means dark (set after GTK
+  starts: only then is the theme's name known, and only that case pays GTK's second theme
+  load, 15-33 ms). `--theme=light|dark` sets `GTK_THEME` (`Default`, `Default:dark`) before
+  GTK starts, in the same one `unsafe` step as the renderer, at no cost. The palette already
+  followed the theme's text colour, so the document, code colours included (GitHub's dark
+  set), follows with no other change. A document opened from a link gets the same `--theme`,
+  `--offline` and zoom.
+- **Reload on change** (`document_view/imp/reload.rs`): a `gio::FileMonitor` on the file's
+  target (a monitor on a symlink sees nothing when its target is written), with `WATCH_MOVES`
+  so a write-and-rename save is seen, started after the first frame. A reload comes 200 ms
+  after an event that ends a save, 2 s after a bare write (a slow writer may still be at it),
+  and never more than 1 s after the first change, so a file rewritten continuously still
+  reloads (a pure, tested rule). It reads and parses on a thread with the startup loader,
+  then goes through `set_document` like the first document, starting at the paint (by
+  position) that was at the top, at the same zoom; link history is cleared, `<details>`
+  reset, and remote images already shown and code already highlighted are kept (by address;
+  by language and text): a save fetches no badge again and shows no code plain. An empty file
+  where there was text is read once more before it is shown (a writer that truncates first);
+  a file gone is noticed, its last version left on show, and loaded again if it comes back
+  (an editor that deletes and recreates shows no notice). A change while reading reads once
+  more.
+- **Notices** (`document_view/imp/notice.rs`): a message at the bottom of the view for 6 s, and
+  on stderr, from a typed `Message`: links that fail (a missing anchor, a program refused, a
+  launch error), reloads that fail, a file removed, a file that cannot be watched. Drawn by the view
   like its scroll indicator; its layout is made when it is set, never inside a frame.
 - **Install** (`scripts/install`): the release binary to `~/.local/bin`, `data/gbk-markdown.desktop`
   (validated in the gate) to `~/.local/share/applications`, and the default for `text/markdown`
-  and `text/x-markdown` (unless `--no-default`). The defaults it replaces are recorded and given
-  back by `--uninstall`, which removes only its own entries from `mimeapps.list`.
+  and `text/x-markdown` (unless `--no-default`). The installed desktop file names the binary by
+  its full path (a first install makes `~/.local/bin`, on the session's PATH only from the next
+  login). The defaults it replaces are recorded and given back by `--uninstall` where ours is
+  still the default, which removes only its own entries from `mimeapps.list`.
   `scripts/test-install` runs it against a throwaway home with stub `xdg-mime` (the real one
   ignores entries whose desktop file is missing and falls back to the machine's defaults, so a
   test using it passed or failed by machine).
@@ -813,7 +836,14 @@ Open: none.
 - Worker heights may not match main-thread layout exactly; the equality test says so, and the
   idle-slice fallback exists.
 - The renderer floor may dominate TTFP; §4.4's choices are the lever, decided on numbers.
-- Theming: GTK4 defaults to Adwaita on Xfce; a small stylesheet aligns it.
+- Notices are drawn by the custom widget, so a screen reader does not hear them: part of the
+  accessibility work after v1.
+- Remote images are fetched when a document is viewed (§11's choice); M6 keeps those already
+  shown across reloads, so a save fetches nothing again. A default-off or per-document setting
+  is still open (asked of the user at M6's end).
+- Holding Page Down: each press lays out where it lands (8 ms at most) before the frame; a
+  layout that does not fit in that falls to the next frame. The scroll benchmark drives the
+  adjustment, not keys, so this is not measured in frames (no key repeat under Xvfb).
 - A relative `.md` link starts a new viewer process: fast (it is the startup path), but each
   is a window of its own; in-place navigation with history is a possible later change.
 - The highlighter runs third-party parsing (syntect, fancy-regex, 213 grammars) on a thread,

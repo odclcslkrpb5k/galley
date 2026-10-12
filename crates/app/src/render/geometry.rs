@@ -17,6 +17,9 @@ const BAR_MIN_PX: i64 = 3;
 const HEADING_RULE_GAP_EM: f64 = 0.25;
 
 /// Lengths in em to pixels, for one body font size.
+/// A line of body text's height, in em (Pango's for the body font, as measured in M2).
+pub(crate) const LINE_HEIGHT_EM: f64 = 1.4;
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) struct Metrics {
     /// The body font's em, in logical pixels.
@@ -205,7 +208,7 @@ impl Metrics {
     /// table's rows as their tallest cell's lines, at an even share of the width per column.
     pub(crate) fn estimate(self, paint: &LeafPaint, view_text_width: i64) -> i64 {
         let scale = paint.font.scale();
-        let line = units::round_px(self.em_px * scale * 1.4);
+        let line = units::round_px(self.em_px * scale * LINE_HEIGHT_EM);
         let char_px = self.em_px * scale * 0.5;
         if let Some(table) = paint.table.as_ref() {
             // Columns fitted as `measure` fits them, from the sample's longest lines.

@@ -40,10 +40,12 @@ printf '%s\n' '[Default Applications]' 'text/markdown=gbk-markdown.desktop;other
 
 GBK_PREBUILT=${CARGO_TARGET_DIR:-target}/release/gbk-markdown scripts/install --home "$home" >/dev/null
 [[ -x "$home/.local/bin/gbk-markdown" ]] || fail "no executable installed"
-cmp -s data/gbk-markdown.desktop "$home/.local/share/applications/gbk-markdown.desktop" ||
-  fail "the desktop file was not installed as it is"
-"$home/.local/bin/gbk-markdown" --help >/dev/null 2>&1 || [[ $? == 2 ]] ||
-  fail "the installed binary does not run"
+installed=$home/.local/share/applications/gbk-markdown.desktop
+desktop-file-validate "$installed" || fail "the installed desktop file is not valid"
+grep -qxF "Exec=$home/.local/bin/gbk-markdown %f" "$installed" &&
+  grep -qxF "TryExec=$home/.local/bin/gbk-markdown" "$installed" ||
+  fail "the installed desktop file does not name the installed binary by its full path"
+"$home/.local/bin/gbk-markdown" --help >/dev/null || fail "the installed binary does not run"
 [[ "$(default text/markdown)" == gbk-markdown.desktop && "$(default text/x-markdown)" == gbk-markdown.desktop ]] ||
   fail "not made the default for Markdown"
 # A second install must not record ours as what was there before.
@@ -58,6 +60,12 @@ scripts/install --uninstall --home "$home" >/dev/null
 expected=$(printf '%s\n' '[Default Applications]' 'text/markdown=other.desktop;' 'text/html=browser.desktop;')
 [[ "$(cat "$home/.config/mimeapps.list")" == "$expected" ]] ||
   fail "uninstall did not remove only its own associations: $(cat "$home/.config/mimeapps.list")"
+
+# A default the user chose after installing is theirs: uninstall leaves it.
+GBK_PREBUILT=${CARGO_TARGET_DIR:-target}/release/gbk-markdown scripts/install --home "$home" >/dev/null
+echo typora.desktop >"$home/defaults/text_markdown"
+scripts/install --uninstall --home "$home" >/dev/null
+[[ "$(default text/markdown)" == typora.desktop ]] || fail "uninstall replaced a default chosen since"
 
 # --no-default touches no default.
 echo other.desktop >"$home/defaults/text_markdown"

@@ -44,6 +44,8 @@ Optimisation goals, in priority order as stated:
 | 2026-10-11 | Budgets split: GTK floor (measured) + our added cost; work counters gate, wall clock reports | Red-team: GTK startup may exceed a fixed TTFP budget |
 | 2026-10-12 | Remote images via ureq 3 + rustls (ring), system certificates (platform-verifier); ISC licence allowed after review | M4; no bundled roots, no OpenSSL; startup unchanged within 1 ms |
 | 2026-10-12 | Cairo renderer by default, `--renderer=cairo\|gl` overrides GSK_RENDERER; `unsafe_code` deny with one exception (set_var in main) | User decision: 70-90 ms faster first frame, scrolling even; check-boundaries keeps it the only unsafe |
+| 2026-10-12 | Syntax highlighting with syntect 5.3 (fancy-regex, parsing only) + two-face 0.5.2 (bat's 213 grammars) | M5; syntect's own 75 lack TOML/TS/Dockerfile/fish/Nix; pure Rust, no Oniguruma; binary 4.3 -> 7.2 MB, startup unchanged |
+| 2026-10-12 | Tokens are colour only (GitHub's classes), highlighter thread started after the first frame, read ahead 16 KiB | M5; heights cannot change, so the worker measures uncoloured and check-heights proves it; nothing before first paint |
 
 Push guard (installed 2026-10-11): `.claude/hooks/guard-push` refuses Bash commands whose text
 contains `--no-verify` with `git`, or mentions `core.hooksPath` (except setting it to

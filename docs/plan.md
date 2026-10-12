@@ -1,6 +1,6 @@
 # gbk-markdown: implementation plan
 
-Status: draft 3, 2026-10-11; M0-M4 complete (see §10, docs/perf-baseline.md). Draft 2 was revised after a three-way red-team (performance; GFM and
+Status: draft 3, 2026-10-11; M0-M5 complete (see §10, docs/perf-baseline.md). Draft 2 was revised after a three-way red-team (performance; GFM and
 renderer design; build, rules and process); §13 lists those changes. Draft 3 applies the user's
 answers in §11.
 
@@ -43,7 +43,9 @@ Wall-clock numbers are reports (noisy). Work counters are deterministic and gate
 - `ureq` 3.4 (`rustls-no-provider`, `platform-verifier`) and `rustls` 0.23 (`ring`) for remote
   images (M4): a small blocking client on worker threads, certificates checked against the
   system's store (no bundled roots).
-- Later: `syntect` 5.x with `default-fancy` (pure-Rust regex).
+- `syntect` 5.3 (`parsing`, `regex-fancy`: fancy-regex, pure Rust, rather than Oniguruma in C)
+  with `two-face` 0.5.2, bat 0.26.1's 213 grammars (syntect's own 75 lack TOML, TypeScript,
+  Dockerfile, fish, Nix), for syntax highlighting (M5). Parsing only: the colours are ours.
 
 ## 3. Repository layout
 
@@ -77,6 +79,8 @@ docs/                   plan.md, claude-notes.md, perf-baseline.md
   cargo-deny `wrappers = ["gbk-markdown-core"]` additionally refuses a direct comrak dependency
   from `app`). The red-team showed the earlier "Eliminate" label was overstated: `wrappers` only
   checks direct dependents, and `core` could re-export comrak types.
+- syntect and two-face are confined to `app/src/highlighting.rs`, the same way (Engineer:
+  `scripts/check-boundaries`).
 - `anyhow` banned in `deny.toml` (Engineer).
 
 ## 4. Architecture
@@ -327,9 +331,44 @@ added later without changing the model.
 - **Startup**: unchanged within 1 ms (M3 and M4 binaries alternated); the binary grew from 2.7
   to 4.3 MB (TLS).
 
+### As built in M5, and why
+
+- **Only named code is highlighted**, as on GitHub: no guessing. The info string's first word,
+  lowercased, names the grammar (`render/highlight.rs`, pure and tested): plain for none,
+  `text`, `math`, `log` and the like; GitHub's names the grammars lack are mapped (`shell` is
+  Bash, `jsx` TypeScriptReact, `golang` Go: a const table, every entry checked to have a
+  grammar); `console` and other shell sessions colour only the commands after a `$ ` or `% `
+  prompt. A name with no grammar (PowerShell) is plain.
+- **Colour only.** Each token is a foreground colour, GitHub's (light and dark) for its class:
+  comment, keyword, string, escape, constant, function, type, tag, variable, inserted,
+  deleted; a token takes the class of the innermost scope that has one. No weight or slant,
+  so highlighting cannot change a height: the height worker measures code uncoloured, and
+  `--check-heights --wait-highlights` checks the coloured layouts agree (0 mismatches on
+  code.md and on code-1mb fully highlighted). At most 512 tokens are coloured per paint.
+- **A thread of its own** (`highlighting.rs`), started on the first request, which is sent
+  after the first frame (never inside a frame: the probe counts sends inside frames and the
+  smoke requires none). Grammars load in 1.5 ms there; a language's first line costs 20-40 ms
+  (pattern compilation). A grammar reads a block from its start, so a paint asks for its
+  block up to its end plus 16 KiB (read ahead: asking only for what prefetch lays out had each
+  scrolled-to code paint laid out twice); the thread reads the request with least left first,
+  a step at a time (100 lines or 15 ms), so no request waits behind a whole long block. It is
+  not nearest-the-viewport first: deep in one long block, its start must be read anyway. A
+  block stops being highlighted (plain from there) at a line over 4 KiB, at a line the grammar
+  fails on, or once reading it has taken over 500 ms + 10 ms per KiB (a backtracking grammar;
+  ordinary code is about 3 ms a KiB).
+- **Arrivals** are collected every 30 ms while anything is in flight. Paints showing them that
+  are drawn and within prefetch's reach are marked stale in the cache and drawn again by
+  prefetch, between frames, nearest first; others are dropped and take their colours when next
+  laid out. Unlike an image, a colour moves nothing, so the old plain node can stay on screen
+  until then.
+- **Cost**: startup unchanged (M4 and M5 alternated); the loader copies the named code (0.5 ms
+  for 1 MB). The binary grew from 4.3 to 7.2 MB (the grammars). code-1mb's first screen is
+  coloured about 60 ms after the first frame; its end, jumped to directly, after about 3 s
+  (6 500 lines a second). Tokens take 24 bytes each, about 2.5 MB for 1 MB of code.
+
 ### 4.6 Deferred work
 
-- Syntax highlighting (M5): syntect loads on a worker after first paint; visible code chunks first.
+- Syntax highlighting: built in M5 (§4.5 "As built in M5").
 - Images: built in M4 (§4.5 "As built in M4").
 
 ## 5. GFM coverage
@@ -459,7 +498,11 @@ table, and checks links and clicks through the probe: `--link-at=X,Y` reports th
 point after the first frame (`link_at=leaf:N|uri:…|relative:…|missing:…|none`), and
 `--wait-images` reports `images_loaded`, `images_failed` and `images_loading` once nothing is
 loading (M4; smoke checks images.md loads 5 and fails 2, and compares heights after images
-load), and `--click-at=X,Y` clicks there through the widget's own handling (never opening anything outside
+load), `--wait-highlights` highlights all code and reports `code_highlighted`,
+`code_no_grammar`, `code_stopped`, `code_pending` and `highlights_sent_in_frames` once done (M5;
+smoke checks code.md's 6, 1, 1 and 0 sends, and compares heights with code coloured, requiring
+the check's `code_highlighted` above 0; scroll reports add `recoloured` since scrolling began,
+which must be above 0 on code.md, and `highlights_sent_in_frames`, which must be 0), and `--click-at=X,Y` clicks there through the widget's own handling (never opening anything outside
 the document) and reports the next frame (`clicked=`, `document_height=`, `top_leaf=`). Scroll scenarios other than steady scroll-to-end (flinging up
 into estimated leaves, resizing mid-document) are covered by `render::positions`' unit tests,
 not by bench runs.
@@ -519,7 +562,10 @@ Licence allow-list (MIT, Apache-2.0, BSD-2/3, Zlib, Unicode-3.0, MPL-2.0, and IS
 ring, rustls-webpki and untrusted (reviewed: permissive, MIT-equivalent); a new one fails the
 gate until reviewed; the graph is limited to `x86_64-unknown-linux-gnu`, the only target built; Unicode-DFS-2016 is allowed for `finl_unicode` alone, as a per-crate exception), advisories with the current syntax (the removed `vulnerability = "deny"` key
 errors) and `unmaintained = "workspace"` so an unmaintained transitive GTK crate does not block
-every push, `anyhow` banned, comrak wrapped to core, duplicate versions warn.
+every push, `anyhow` banned, comrak wrapped to core, duplicate versions warn. two-face is
+MIT/Apache-2.0, but it bundles bat's grammars, each under its own licence (bat lists them in
+its acknowledgements); cargo-deny cannot see those, and they were not reviewed one by one in
+M5. The viewer is not distributed; review them before it is.
 
 ## 8. Build environment and gate
 
@@ -671,7 +717,7 @@ replaces review.)
   deviations went, 6 for GitHub's link protocols came); §4.5 "As built in M3", §5's known deviations.
 - **M4 images.** Placeholders first; local and remote fetched lazily once visible (§4.6).
   *Done 2026-10-12:* §4.5 "As built in M4", §5's image deviations.
-- **M5 syntax highlighting.** Lazy syntect.
+- **M5 syntax highlighting.** Lazy syntect. *Done 2026-10-12:* §4.5 "As built in M5".
 - **M6 viewer features.** Reload on
   change (`gio::FileMonitor`); keyboard navigation; zoom; dark mode; `.desktop` file and MIME
   association; install to `~/.local`.
@@ -716,6 +762,16 @@ Open: none.
 - A relative `.md` link starts a new viewer process: fast (it is the startup path), but each
   is a window of its own; in-place navigation with history is a possible later change.
 - Link failures are invisible without a terminal until M6 adds an in-window notice.
+- The highlighter runs third-party parsing (syntect, fancy-regex, 213 grammars) on a thread,
+  and the release profile aborts on panic, so a panic there closes the viewer; the panic hook's
+  message is the only record (Protect). A higher rung would need `panic = "unwind"` and
+  `catch_unwind` around the thread, giving up abort's smaller, simpler binary for a failure not
+  yet seen: the M5 review compiled every pattern of every grammar (syntect `expect`s that
+  they compile on first use) and ran all 213 grammars over the fixtures and corpus without one.
+- A two-face upgrade can rename scopes and change colours; the class tests say so, and the
+  answer is to check the mapping against GitHub again, not to loosen them.
+- Jumping deep into one long code block waits for everything before it to be read (3 s for
+  the end of code-1mb): a grammar cannot start mid-block.
 
 ## 13. Changes from draft 1 (red-team)
 

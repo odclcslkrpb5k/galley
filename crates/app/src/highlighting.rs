@@ -146,6 +146,9 @@ pub(crate) struct Highlighting {
     thread: Option<Thread>,
     /// Off while `--check-heights` compares layouts without `--wait-highlights`.
     enabled: bool,
+    /// `SLOW_BASE`, or more for tests that run the thread on a loaded machine in a debug build
+    /// (compiling a grammar's patterns there can take 500 ms).
+    slow_base: Duration,
 }
 
 #[derive(Debug)]
@@ -212,6 +215,7 @@ impl Highlighting {
             wanted: Vec::new(),
             thread: None,
             enabled,
+            slow_base: SLOW_BASE,
         }
     }
 
@@ -270,7 +274,7 @@ impl Highlighting {
                 self.wanted.clear();
                 return false;
             };
-            match start(sources) {
+            match start(sources, self.slow_base) {
                 Ok(thread) => self.thread = Some(thread),
                 Err(_no_thread) => {
                     self.gone();
@@ -372,12 +376,15 @@ impl Block {
     }
 }
 
-fn start(sources: HashMap<CodeBlockId, CodeSource>) -> std::io::Result<Thread> {
+fn start(
+    sources: HashMap<CodeBlockId, CodeSource>,
+    slow_base: Duration,
+) -> std::io::Result<Thread> {
     let (requests, requests_in) = mpsc::channel();
     let (replies_out, replies) = mpsc::channel();
     thread::Builder::new()
         .name("highlighter".to_owned())
-        .spawn(move || run(&sources, &requests_in, &replies_out))?;
+        .spawn(move || run(&sources, &requests_in, &replies_out, slow_base))?;
     Ok(Thread { requests, replies })
 }
 
@@ -386,6 +393,7 @@ fn run(
     sources: &HashMap<CodeBlockId, CodeSource>,
     requests: &Receiver<Request>,
     replies: &Sender<Reply>,
+    slow_base: Duration,
 ) {
     let syntaxes = two_face::syntax::extra_newlines();
     let classes = classes();
@@ -395,14 +403,14 @@ fn run(
             let Ok(request) = requests.recv() else {
                 return;
             };
-            if !take(&mut jobs, request, sources, &syntaxes, replies) {
+            if !take(&mut jobs, request, (sources, &syntaxes), replies, slow_base) {
                 return;
             }
         }
         loop {
             match requests.try_recv() {
                 Ok(request) => {
-                    if !take(&mut jobs, request, sources, &syntaxes, replies) {
+                    if !take(&mut jobs, request, (sources, &syntaxes), replies, slow_base) {
                         return;
                     }
                 }
@@ -410,11 +418,7 @@ fn run(
                 Err(TryRecvError::Disconnected) => return,
             }
         }
-        let next = nearest(
-            jobs.iter()
-                .filter(|(_, job)| !job.idle())
-                .map(|(&block, job)| (block, job.until - job.at)),
-        );
+        let next = next_job(&jobs);
         let Some((block, job)) = next.and_then(|block| Some((block, jobs.get_mut(&block)?))) else {
             continue;
         };
@@ -436,9 +440,9 @@ fn run(
 fn take<'a>(
     jobs: &mut HashMap<CodeBlockId, Job<'a>>,
     request: Request,
-    sources: &'a HashMap<CodeBlockId, CodeSource>,
-    syntaxes: &'a SyntaxSet,
+    (sources, syntaxes): (&'a HashMap<CodeBlockId, CodeSource>, &'a SyntaxSet),
     replies: &Sender<Reply>,
+    slow_base: Duration,
 ) -> bool {
     let job = match jobs.entry(request.block) {
         Entry::Occupied(entry) => entry.into_mut(),
@@ -456,7 +460,7 @@ fn take<'a>(
                     })
                     .is_ok();
             };
-            entry.insert(job)
+            entry.insert(Job { slow_base, ..job })
         }
     };
     job.until = job.until.max(request.until.min(job.text.len()));
@@ -464,9 +468,19 @@ fn take<'a>(
 }
 
 /// Whether `took` is too long for reading the first `read` bytes of a block.
-fn too_slow(took: Duration, read: usize) -> bool {
+/// `base` is `SLOW_BASE` but in tests.
+fn too_slow(took: Duration, read: usize, base: Duration) -> bool {
     let kib = u32::try_from(read / 1024).unwrap_or(u32::MAX);
-    took > SLOW_BASE.saturating_add(SLOW_PER_KIB.saturating_mul(kib))
+    took > base.saturating_add(SLOW_PER_KIB.saturating_mul(kib))
+}
+
+/// The job to step next: of those with work, the one with least left to read.
+fn next_job(jobs: &HashMap<CodeBlockId, Job<'_>>) -> Option<CodeBlockId> {
+    nearest(
+        jobs.iter()
+            .filter(|(_, job)| !job.idle())
+            .map(|(&block, job)| (block, job.until - job.at)),
+    )
 }
 
 /// The block with least left to read; the first in the document of those with as little.
@@ -500,6 +514,7 @@ fn class_of(stack: &ScopeStack, classes: &[(Scope, TokenClass)]) -> Option<Token
 struct Unparsed;
 
 /// One block being read.
+#[derive(Debug)]
 struct Job<'a> {
     text: &'a str,
     syntax: &'a SyntaxReference,
@@ -511,17 +526,9 @@ struct Job<'a> {
     until: usize,
     /// Why it stopped before the end, if it did.
     stopped: Option<Plain>,
-    /// Time spent reading it so far.
+    /// Time spent reading it so far, and the most it may take before `SLOW_PER_KIB`s.
     took: Duration,
-}
-
-impl std::fmt::Debug for Job<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Job")
-            .field("at", &self.at)
-            .field("until", &self.until)
-            .finish_non_exhaustive()
-    }
+    slow_base: Duration,
 }
 
 impl<'a> Job<'a> {
@@ -538,6 +545,7 @@ impl<'a> Job<'a> {
             until: 0,
             stopped: None,
             took: Duration::ZERO,
+            slow_base: SLOW_BASE,
         })
     }
 
@@ -578,7 +586,7 @@ impl<'a> Job<'a> {
                 read_line(
                     &mut self.state,
                     &mut self.stack,
-                    (&ended, self.at),
+                    (&ended, self.at, self.text.len()),
                     syntaxes,
                     classes,
                     &mut tokens,
@@ -593,18 +601,13 @@ impl<'a> Job<'a> {
             let ended_at = now();
             self.took += ended_at.duration_since(line_started);
             // The line is kept; the rest of the block is not read.
-            if too_slow(self.took, self.at) {
+            if too_slow(self.took, self.at, self.slow_base) {
                 self.stopped = Some(Plain::TooSlow);
             }
             if ended_at.duration_since(started) > STEP_TIME {
                 break;
             }
         }
-        let end = self.at;
-        for token in &mut tokens {
-            token.end = token.end.min(end);
-        }
-        tokens.retain(|token| token.start < token.end);
         (tokens, self.stopped)
     }
 
@@ -624,7 +627,7 @@ impl<'a> Job<'a> {
         read_line(
             &mut ParseState::new(self.syntax),
             &mut ScopeStack::new(),
-            (command, offset),
+            (command, offset, self.text.len()),
             syntaxes,
             classes,
             tokens,
@@ -633,11 +636,12 @@ impl<'a> Job<'a> {
 }
 
 /// Reads one line (with its newline) that starts `offset` bytes into its block, and adds its
-/// tokens.
+/// tokens, cut at `end`, the end of the block's text (its last line is read with a newline it
+/// does not have).
 fn read_line(
     state: &mut ParseState,
     stack: &mut ScopeStack,
-    (line, offset): (&str, usize),
+    (line, offset, end): (&str, usize, usize),
     syntaxes: &SyntaxSet,
     classes: &[(Scope, TokenClass)],
     tokens: &mut Vec<Token>,
@@ -649,8 +653,8 @@ fn read_line(
     for (index, op) in ops {
         push(
             tokens,
-            offset + at,
-            offset + index,
+            (offset + at).min(end),
+            (offset + index).min(end),
             class_of(stack, classes),
         );
         stack.apply(&op).map_err(|_unbalanced| Unparsed)?;
@@ -658,8 +662,8 @@ fn read_line(
     }
     push(
         tokens,
-        offset + at,
-        offset + line.len(),
+        (offset + at).min(end),
+        (offset + line.len()).min(end),
         class_of(stack, classes),
     );
     Ok(())
@@ -802,6 +806,20 @@ mod tests {
         let (tokens, stopped) = read_all(&rust).expect("a grammar");
         assert_eq!(stopped, None);
         let class = |text| class_at(&rust, &tokens, text);
+        // Exactly where they are, on later lines too.
+        let span = |text: &str| {
+            let start = rust.text.find(text).expect("in the text");
+            (start, start + text.len())
+        };
+        let spans = |class| -> Vec<(usize, usize)> {
+            tokens
+                .iter()
+                .filter(|token| token.class == class)
+                .map(|token| (token.start, token.end))
+                .collect()
+        };
+        assert!(spans(TokenClass::Function).contains(&span("main")));
+        assert!(spans(TokenClass::Constant).contains(&span("42")));
         assert_eq!(class("// note"), Some(TokenClass::Comment));
         assert_eq!(class("fn"), Some(TokenClass::Keyword));
         assert_eq!(class("main"), Some(TokenClass::Function));
@@ -829,6 +847,47 @@ mod tests {
             Some(TokenClass::Comment)
         );
         assert_eq!(tokens.last().map(|token| token.end), Some(rust.text.len()));
+    }
+
+    #[test]
+    fn a_token_runs_on_across_lines() {
+        // The string's line ends inside it: the run after the last scope change goes to the
+        // end of the line, and joins the next line's.
+        let rust = source("rust", "let a = 1;\nlet s = \"multi\nline\";\n");
+        let (tokens, _) = read_all(&rust).expect("a grammar");
+        let start = rust.text.find("\"multi").expect("string");
+        let end = rust.text.find("\";").expect("end") + 1;
+        assert!(
+            tokens
+                .iter()
+                .any(|token| (token.start, token.end, token.class)
+                    == (start, end, TokenClass::String)),
+            "{tokens:?}"
+        );
+    }
+
+    #[test]
+    fn tokens_cut_at_the_text_end_are_never_empty() {
+        // Last lines whose final token would run on into the newline the grammar was given.
+        for (name, text) in [
+            ("rust", "let a = 1; // c"),
+            ("rust", "let s = \"open"),
+            ("python", "x = 1 # c"),
+            ("bash", "echo \"$HOME"),
+            ("toml", "a = ["),
+            ("diff", "+added"),
+            ("yaml", "key: value"),
+            ("json", "{\"a\": 1"),
+        ] {
+            let code = source(name, text);
+            let (tokens, _) = read_all(&code).expect("a grammar");
+            assert!(
+                tokens
+                    .iter()
+                    .all(|token| token.start < token.end && token.end <= text.len()),
+                "{name}: {tokens:?}"
+            );
+        }
     }
 
     #[test]
@@ -889,10 +948,16 @@ mod tests {
         assert!(tokens.iter().all(|token| token.end <= 33));
         assert_eq!(tokens.last().map(|token| token.start >= 22), Some(true));
         // Every KiB read allows 10 ms more.
-        assert!(!too_slow(SLOW_BASE + SLOW_PER_KIB * 3, 3 * 1024));
-        assert!(too_slow(SLOW_BASE + SLOW_PER_KIB * 3, 3 * 1024 - 1));
-        assert!(!too_slow(SLOW_BASE, 0));
-        assert!(too_slow(SLOW_BASE + Duration::from_nanos(1), 1023));
+        let base = SLOW_BASE;
+        assert!(!too_slow(base + SLOW_PER_KIB * 3, 3 * 1024, base));
+        assert!(too_slow(base + SLOW_PER_KIB * 3, 3 * 1024 - 1, base));
+        assert!(!too_slow(base, 0, base));
+        assert!(too_slow(base + Duration::from_nanos(1), 1023, base));
+        assert!(!too_slow(
+            Duration::from_secs(10),
+            0,
+            Duration::from_secs(3600)
+        ));
     }
 
     #[test]
@@ -922,6 +987,41 @@ mod tests {
     }
 
     #[test]
+    fn a_step_of_exactly_its_time_goes_on() {
+        let text = "let x = 1;\n".repeat(20);
+        let rust = source("rust", &text);
+        let syntaxes = two_face::syntax::extra_newlines();
+        let mut job = Job::new(&rust, &syntaxes).expect("a grammar");
+        job.until = text.len();
+        // 2.5 ms a read: 15 ms after three lines (not past STEP_TIME), 20 after four.
+        job.step(&syntaxes, &classes(), &ticking(Duration::from_micros(2500)));
+        assert_eq!(job.at, 4 * 11);
+    }
+
+    #[test]
+    fn the_job_with_least_left_steps_next() {
+        let doc = gbk_markdown_core::load(b"```rust\na\n```\n\n```rust\nb\n```\n");
+        let ids = crate::render::highlight::tests::block_ids(&doc);
+        let (a, b) = (*ids.first().expect("a"), *ids.get(1).expect("b"));
+        let long = source("rust", &"let x = 1;\n".repeat(1000));
+        let syntaxes = two_face::syntax::extra_newlines();
+        let job = |at, until| {
+            let mut job = Job::new(&long, &syntaxes).expect("a grammar");
+            job.at = at;
+            job.until = until;
+            job
+        };
+        // A is well on: 1000 left of 10 000 asked. B has 5000 left, though asked for less.
+        let mut jobs = HashMap::from([(a, job(9000, 10_000)), (b, job(0, 5000))]);
+        assert_eq!(next_job(&jobs), Some(a));
+        // A job with nothing to do is never next.
+        jobs.insert(a, job(10_000, 10_000));
+        assert_eq!(next_job(&jobs), Some(b));
+        jobs.insert(b, job(5000, 5000));
+        assert_eq!(next_job(&jobs), None);
+    }
+
+    #[test]
     fn a_language_with_no_grammar_has_no_job() {
         let syntaxes = two_face::syntax::extra_newlines();
         let unknown = CodeSource {
@@ -943,6 +1043,10 @@ mod tests {
         assert_eq!(nearest([(b, 30), (a, 30)].into_iter()), Some(a));
         assert_eq!(nearest(std::iter::empty()), None);
     }
+
+    /// A time limit no test's grammar reaches, however loaded the machine: the limit itself is
+    /// tested with a fake clock.
+    const UNHURRIED: Duration = Duration::from_secs(3600);
 
     /// Collects until nothing is pending, or fails after 20 s. Returns the paints named, once
     /// each (a block may come back in several steps, as fast as the clock allows).
@@ -966,6 +1070,7 @@ mod tests {
         let doc = gbk_markdown_core::load(markdown.as_bytes());
         let paints = crate::render::paint::paint_document(&doc);
         let mut highlighting = Highlighting::new(code_sources(&doc), &paints, true);
+        highlighting.slow_base = UNHURRIED;
         // The empty block is done before anything is asked.
         assert_eq!(highlighting.counts().highlighted, 1);
         let rust = paints.first().expect("rust");
@@ -993,10 +1098,21 @@ mod tests {
                 pending: 0
             }
         );
-        // Done: not asked again. The rest, all at once.
+        // Done: not asked again. The rest, all at once: only what is still to read (TOML),
+        // and once.
         highlighting.want(rust);
         assert_eq!(highlighting.wanted.len(), 0);
         highlighting.want_all();
+        highlighting.want_all();
+        let toml = paints.get(3).and_then(|paint| paint.code).expect("toml");
+        assert_eq!(
+            highlighting
+                .wanted
+                .iter()
+                .map(|request| request.block)
+                .collect::<Vec<_>>(),
+            vec![toml.block]
+        );
         highlighting.dispatch();
         assert_eq!(settle(&mut highlighting), vec![3]);
         assert_eq!(highlighting.counts().highlighted, 3);
@@ -1008,6 +1124,7 @@ mod tests {
         let doc = gbk_markdown_core::load(format!("```rust\n{code}```\n").as_bytes());
         let paints = crate::render::paint::paint_document(&doc);
         let mut highlighting = Highlighting::new(code_sources(&doc), &paints, true);
+        assert_eq!(READ_AHEAD, 16 * 1024);
         let first = paints.first().expect("code");
         highlighting.want(first);
         let asked = first.text.len() + READ_AHEAD;
@@ -1090,6 +1207,7 @@ mod tests {
         highlighting.want(paints.first().expect("rust"));
         assert!(highlighting.dispatch());
         assert!(highlighting.busy());
+        assert_eq!(highlighting.counts().pending, 1);
         // The thread stops.
         drop((requests_in, replies_out));
         assert_eq!(highlighting.collect(), Vec::<usize>::new());

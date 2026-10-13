@@ -322,7 +322,12 @@ Not repeated here, so there is one source each (an earlier copy here drifted fro
   - The probe acted in the same frame callback the view starts its watch in; ordering between
     after-paint handlers is not ours to rely on: act later (a timeout) instead.
   - Benchmark order under rising load faked a 2x regression: ABBA.
-  Open, asked of the user: run scripts/install for real; remote images default-off or not.
+  User decisions (2026-10-12): install as the default for Markdown (done: ReText recorded for
+  text/markdown, nothing for text/x-markdown); remote images keep being fetched.
+  The real install recorded itself as the previous default (xdg-mime falls back to installed
+  desktop files' cache, which the stub did not model): fixed by recording first, the user's
+  record repaired by hand, and the stub now falls back the same way, with the recorded values
+  checked (proved to fail on the old order).
   Next: v1 is complete with M6; after-v1 items are in plan §10.
 - 2026-10-12: A wait loop from M4 ("until no Docker container is running") ran three hours:
   this machine always has other containers. Engineer control (user-approved):

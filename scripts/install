@@ -80,6 +80,18 @@ if [[ -z "${GBK_PREBUILT:-}" ]]; then
   timeout 1800 scripts/in-docker cargo build --release --locked
 fi
 built=${GBK_PREBUILT:-target/docker/release/gbk-markdown}
+# The defaults before ours, recorded before anything is installed: with no default set,
+# xdg-mime answers from the installed desktop files, which would soon include ours (the first
+# real install recorded itself).
+if ((default)) && have xdg-mime; then
+  # Kept from the first install only: a second must not record ours as what was there before.
+  if [[ ! -f "$previous" ]]; then
+    mkdir -p "$(dirname "$previous")"
+    for mime in "${mimes[@]}"; do
+      echo "$mime=$(xdg-mime query default "$mime" 2>/dev/null || true)"
+    done >"$previous"
+  fi
+fi
 mkdir -p "$bin" "$apps"
 install -m 755 "$built" "$bin/gbk-markdown"
 # The installed binary by its full path: a first install makes ~/.local/bin, which the desktop
@@ -90,13 +102,6 @@ chmod 644 "$apps/$desktop"
 if have update-desktop-database; then update-desktop-database "$apps"; fi
 made_default=0
 if ((default)) && have xdg-mime; then
-  # Kept from the first install only: a second must not record ours as what was there before.
-  if [[ ! -f "$previous" ]]; then
-    mkdir -p "$(dirname "$previous")"
-    for mime in "${mimes[@]}"; do
-      echo "$mime=$(xdg-mime query default "$mime" 2>/dev/null || true)"
-    done >"$previous"
-  fi
   xdg-mime default "$desktop" "${mimes[@]}"
   made_default=1
 fi

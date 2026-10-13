@@ -17,7 +17,14 @@ cat >"$home/stubs/xdg-mime" <<'STUB'
 set -euo pipefail
 db=$STUB_DEFAULTS
 case "$1 $2" in
-  "query default") cat "$db/${3//\//_}" 2>/dev/null || true ;;
+  "query default")
+    # As the real one: an explicit default, else an installed desktop file that lists the type.
+    if [[ -f "$db/${3//\//_}" ]]; then
+      cat "$db/${3//\//_}"
+    else
+      grep -l "^MimeType=.*$3;" "$XDG_DATA_HOME"/applications/*.desktop 2>/dev/null | head -1 | xargs -r basename
+    fi
+    ;;
   "default "*)
     app=$2
     shift 2
@@ -48,6 +55,10 @@ grep -qxF "Exec=$home/.local/bin/gbk-markdown %f" "$installed" &&
 "$home/.local/bin/gbk-markdown" --help >/dev/null || fail "the installed binary does not run"
 [[ "$(default text/markdown)" == gbk-markdown.desktop && "$(default text/x-markdown)" == gbk-markdown.desktop ]] ||
   fail "not made the default for Markdown"
+# What was there before: other.desktop, and nothing for text/x-markdown (not ours: recorded
+# before ours was installed).
+[[ "$(cat "$home/.local/share/gbk-markdown/previous-defaults")" == $'text/markdown=other.desktop\ntext/x-markdown=' ]] ||
+  fail "the previous defaults were not recorded before installing: $(cat "$home/.local/share/gbk-markdown/previous-defaults")"
 # A second install must not record ours as what was there before.
 GBK_PREBUILT=${CARGO_TARGET_DIR:-target}/release/gbk-markdown scripts/install --home "$home" >/dev/null
 

@@ -419,6 +419,15 @@ added later without changing the model.
   a file gone is noticed, its last version left on show, and loaded again if it comes back
   (an editor that deletes and recreates shows no notice). A change while reading reads once
   more.
+- **The view's own scrolling and GTK's kinetic scrolling.** `GtkScrolledWindow` scrolls the
+  wheel from its own copy of the position, which it does not update while a fling or a bounce
+  back (after scrolling past an end) runs; the deceleration sets the position every frame
+  meanwhile. A drag of the scroll indicator just after scrolling up to the top was undone, and
+  the next wheel step went on from the top (user report, after M6). Every move the view makes
+  itself (the indicator, keys, links, going back) first cancels any deceleration (turning
+  kinetic scrolling off and on, GTK 4.22's only way), the indicator on every step of a drag (a
+  bounce scheduled before it starts during it). A smoke run drives the real sequence with
+  xdotool and `--report-after`; it puts the view at leaf 0 without the fix and 901 with it.
 - **Notices** (`document_view/imp/notice.rs`): a message at the bottom of the view for 6 s, and
   on stderr, from a typed `Message`: links that fail (a missing anchor, a program refused, a
   launch error), reloads that fail, a file removed, a file that cannot be watched. Drawn by the view
@@ -700,6 +709,8 @@ M5. The viewer is not distributed; review them before it is.
 - Run as `--user $(id -u):$(id -g)`; repo at `/work`; named volumes on `/cargo/registry`, `/cargo/git` and `/cargo/advisory-dbs` (registry, git,
   advisory database); `CARGO_TARGET_DIR=/work/target/docker` so host tools (rust-analyzer) do not
   contend for the same lock.
+- `xdotool` (after M6): the smoke drives real pointer input (drag, wheel) where only real
+  input shows a bug.
 - Image tag = hash of `Dockerfile` + `rust-toolchain.toml`; `scripts/in-docker` builds it if
   missing, and then removes this project's images it replaces (each was 2.4 GB).
 - `scripts/in-docker` refuses to start with under 5 GiB free on the repo's disk (Engineer, M6:

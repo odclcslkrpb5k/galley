@@ -53,6 +53,7 @@ Optimisation goals, in priority order as stated:
 | 2026-10-12 | Notices drawn by the view (typed Message), not a GTK overlay widget | M6; one widget, no new allocation path; the layout is made outside frames; not heard by screen readers (after v1) |
 | 2026-10-13 | MIT licence; repository made public; history published as is | User decision |
 | 2026-10-13 | Releases as gbk-file: named by commit hash, install.sh piped from main, SHA256SUMS, Ubuntu 26.04 x86_64 only; THIRD-PARTY-NOTICES.md generated and gated, `--licenses` | User asked for gbk-file's method; scripts/install keeps make-default and restore, copying through install.sh |
+| 2026-10-13 | The view cancels GtkScrolledWindow's kinetic deceleration before moving the position itself | User report: the wheel after a scroll-indicator drag jumped to the top; GTK's wheel uses a copy of the position it does not update during a bounce or fling. Smoke drives it with xdotool |
 | 2026-10-13 | Racket grammar also left out (20 in all): no licence at bat's pin; MIT added later with a rewrite by another author | Found while collecting notices |
 | 2026-10-13 | Ship two-face's grammars less 20 (1 GPL-3.0 package, 7 unlicensed at bat's pins), built in build.rs by renumbering references; two-face build/test-only | User chose to curate now; equivalence test and binary scope check (plan §7 "Licences") |
 | 2026-10-12 | `--theme=light|dark` via GTK_THEME before init | M6 review: setting the colour scheme after init reparsed the theme, 15-33 ms before the first frame |

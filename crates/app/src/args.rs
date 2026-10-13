@@ -35,6 +35,8 @@ options:
   --press=KEY[,KEY...]      with --exit-after-first-frame, press GDK keys (Page_Down,
                             ctrl+plus) after the first frame, then report and screenshot the
                             next frame
+  --report-after=SECONDS    with --exit-after-first-frame, report the view's state that many
+                            seconds after the first frame (real input, from xdotool, in between)
   --rewrite-with=PATH       with --exit-after-first-frame, write PATH's contents over FILE after
                             the first frame, then report and screenshot once it has reloaded
   --click-at=X,Y            with --exit-after-first-frame, click there after the first frame
@@ -118,6 +120,8 @@ pub(crate) struct ProbeArgs {
     pub(crate) press: Vec<String>,
     /// A file whose contents are written over the document after the first frame.
     pub(crate) rewrite_with: Option<PathBuf>,
+    /// Report the view's state this long after the first frame.
+    pub(crate) report_after: Option<Duration>,
 }
 
 #[derive(Debug, PartialEq, Eq, thiserror::Error)]
@@ -138,6 +142,8 @@ pub(crate) enum UsageError {
     BadZoom,
     #[error("--press needs key names, separated by commas")]
     BadKeys,
+    #[error("--report-after needs a whole number of seconds")]
+    BadReportAfter,
     #[error("no FILE given")]
     MissingFile,
     #[error("more than one FILE given")]
@@ -206,6 +212,12 @@ pub(crate) fn parse(args: impl IntoIterator<Item = OsString>) -> Result<Args, Us
                     .ok_or(UsageError::BadZoom)?;
             }
             ("--rewrite-with", Some(path)) => probe.rewrite_with = Some(PathBuf::from(path)),
+            ("--report-after", Some(seconds)) => {
+                let seconds = seconds
+                    .parse::<u64>()
+                    .map_err(|_not_a_number| UsageError::BadReportAfter)?;
+                probe.report_after = Some(Duration::from_secs(seconds));
+            }
             ("--press", Some(keys)) => {
                 probe.press = keys.split(',').map(str::trim).map(str::to_owned).collect();
                 if probe.press.iter().any(String::is_empty) {
@@ -289,6 +301,14 @@ mod tests {
         assert_eq!(
             parse_strs(&["--rewrite-with=b.md", "a.md"]).map(|args| args.probe.rewrite_with),
             Ok(Some(PathBuf::from("b.md")))
+        );
+        assert_eq!(
+            parse_strs(&["--report-after=4", "a.md"]).map(|args| args.probe.report_after),
+            Ok(Some(Duration::from_secs(4)))
+        );
+        assert_eq!(
+            parse_strs(&["--report-after=soon", "a.md"]),
+            Err(UsageError::BadReportAfter)
         );
         assert_eq!(
             parse_strs(&["--theme=light", "a.md"]).map(|a| a.theme),

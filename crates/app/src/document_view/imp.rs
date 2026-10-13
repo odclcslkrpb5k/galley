@@ -1283,6 +1283,7 @@ impl DocumentView {
         let Some(adjustment) = self.vadjustment.borrow().clone() else {
             return;
         };
+        self.stop_kinetic();
         let em = self
             .document
             .borrow()
@@ -1396,6 +1397,27 @@ impl DocumentView {
     }
 
     /// Shows paint `paint` at the top, remembering where the view was.
+    /// Stops `GtkScrolledWindow`'s kinetic deceleration (a fling's, or the bounce back after
+    /// scrolling past an end) before the view moves the scroll position itself. While one runs,
+    /// it sets the position every frame from its own trajectory, and its copy of the position,
+    /// which the wheel scrolls from, ignores every other change: a drag of the indicator just
+    /// after scrolling up to the top was undone, and the next wheel step went on from the top
+    /// (GTK 4.22, gtkscrolledwindow.c). Turning kinetic scrolling off cancels it; the change
+    /// that follows brings its copy up to date.
+    fn stop_kinetic(&self) {
+        let Some(scrolled) = self
+            .obj()
+            .ancestor(gtk::ScrolledWindow::static_type())
+            .and_downcast::<gtk::ScrolledWindow>()
+        else {
+            return;
+        };
+        if scrolled.is_kinetic_scrolling() {
+            scrolled.set_kinetic_scrolling(false);
+            scrolled.set_kinetic_scrolling(true);
+        }
+    }
+
     fn jump_to(&self, paint: usize) {
         let (top, value) = {
             let document = self.document.borrow();
@@ -1413,6 +1435,7 @@ impl DocumentView {
         if let Some(spot) = top {
             self.history.borrow_mut().push(spot);
         }
+        self.stop_kinetic();
         self.configure_vadjustment(Some(value));
         self.obj().queue_draw();
     }
@@ -1427,6 +1450,7 @@ impl DocumentView {
             .borrow()
             .as_ref()
             .map(|doc| units::px_to_f64(doc.positions.y_of(spot) + doc.margin()));
+        self.stop_kinetic();
         self.configure_vadjustment(value);
         self.obj().queue_draw();
     }
@@ -1558,6 +1582,7 @@ impl DocumentView {
             return;
         }
         gesture.set_state(gtk::EventSequenceState::Claimed);
+        self.stop_kinetic();
         let start = if scroll.on_thumb(y) {
             scroll.value
         } else {
@@ -1575,6 +1600,8 @@ impl DocumentView {
         ) else {
             return;
         };
+        // On every step: a bounce back scheduled before the drag starts during it.
+        self.stop_kinetic();
         adjustment.set_value(scroll.dragged(start, dy));
     }
 }

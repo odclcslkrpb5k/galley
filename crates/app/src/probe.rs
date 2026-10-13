@@ -71,6 +71,8 @@ pub(crate) struct Probe {
     highlights_sent_in_frames: Cell<usize>,
     /// The file shown.
     document: Option<PathBuf>,
+    /// For --report-after: the time has come.
+    report_due: Cell<bool>,
     /// Whether `--rewrite-with` has tried to write the file, and did (if not, no reload is
     /// waited for).
     rewrite_tried: Cell<bool>,
@@ -151,6 +153,7 @@ impl Probe {
             layouts_in_scroll_frames: Cell::new(0),
             recoloured: Cell::new(0),
             highlights_sent_in_frames: Cell::new(0),
+            report_due: Cell::new(false),
             rewrite_tried: Cell::new(false),
             rewritten: Cell::new(false),
             notices: Cell::new(0),
@@ -322,9 +325,11 @@ impl Probe {
         let report = self.startup_report(window);
         let report = self.act_after_first_frame(report);
         self.rewrite_soon(window);
+        self.report_later(window);
         if self.args.click_at.is_some()
             || !self.args.press.is_empty()
             || self.args.rewrite_with.is_some()
+            || self.args.report_after.is_some()
             || self.args.wait_images
             || self.args.wait_highlights
         {
@@ -360,6 +365,19 @@ impl Probe {
             report = format!("{report} pressed={}", pressed.join(","));
         }
         report
+    }
+
+    /// For --report-after: a frame to report from, that long after the first.
+    fn report_later(self: &Rc<Self>, window: &gtk::Window) {
+        let Some(after) = self.args.report_after else {
+            return;
+        };
+        let probe = Rc::clone(self);
+        let window = window.clone();
+        glib::timeout_add_local_once(after, move || {
+            probe.report_due.set(true);
+            window.queue_draw();
+        });
     }
 
     /// For --rewrite-with: writes the file a while after the first frame, as an edit would come
@@ -408,12 +426,16 @@ impl Probe {
         {
             return;
         }
+        if self.args.report_after.is_some() && !self.report_due.get() {
+            return;
+        }
         let Some(mut report) = self.deferred.take() else {
             return;
         };
         if self.args.click_at.is_some()
             || !self.args.press.is_empty()
             || self.args.rewrite_with.is_some()
+            || self.args.report_after.is_some()
         {
             let (height, top) = view.as_ref().map(|view| (view.state)()).unwrap_or_default();
             report = format!(

@@ -200,6 +200,32 @@ elif [[ "$(field pressed "$zoomed")" != ctrl+plus:handled:zoom110 ]] ||
   fail=1
 fi
 
+# The pointer, for real (xdotool): wheel up at the top (GTK schedules a bounce back), drag the
+# scroll indicator down, one wheel step. The view must stay far down. Before the fix, the bounce
+# undid the drag and the wheel went on from the top (GtkScrolledWindow scrolls from its own copy
+# of the position, which it does not update during a bounce or fling).
+pointer_log=$(mktemp)
+timeout 60 "$bin" --offline --exit-after-first-frame --report-after=6 "$readme" >"$pointer_log" 2>&1 &
+pointer_pid=$!
+if window=$(timeout 20 xdotool search --sync --onlyvisible --name 'readme-200kb\.md' | head -1) && [[ -n "$window" ]]; then
+  eval "$(xdotool getwindowgeometry --shell "$window")"
+  edge=$((X + WIDTH - 4))
+  xdotool mousemove $((X + 400)) $((Y + 500)) click 4 click 4
+  xdotool mousemove "$edge" $((Y + 30)) mousedown 1 sleep 0.2 mousemove "$edge" $((Y + 180)) \
+    sleep 0.2 mousemove "$edge" $((Y + 600)) sleep 0.2 mouseup 1
+  sleep 0.5
+  xdotool mousemove $((X + 400)) $((Y + 500)) click 5
+fi
+wait "$pointer_pid" || true
+pointed=$(cat "$pointer_log")
+rm -f "$pointer_log"
+n=$((n + 1))
+pointed_top=$(field top_leaf "$pointed")
+if ! [[ "$pointed_top" =~ ^[0-9]+$ ]] || ((pointed_top < 500)); then
+  echo "smoke: after dragging the scroll indicator down and a wheel step, the view is at leaf ${pointed_top:-?}, not far down: $pointed" >&2
+  fail=1
+fi
+
 # Theme: light by default here (no desktop portal in the container), dark when asked.
 probe_run lit "$readme"
 probe_run darkened --theme=dark --screenshot="$screens/dark.png" target/fixtures/code.md

@@ -238,7 +238,8 @@ impl Highlighting {
             let Some(&from) = done.get(&block.key) else {
                 continue;
             };
-            if block.state != State::Reading || block.len == 0 {
+            // An empty block is highlighted from the start.
+            if block.state != State::Reading {
                 continue;
             }
             Rc::make_mut(&mut self.table).extend(id, old.table.tokens(from).to_vec());

@@ -361,3 +361,44 @@ Watch item: highlighted code's p99 busy time is about 3 ms above M4's (p50 is lo
 text is drawn as many more glyph runs than plain, so the heaviest frames cost more. Per-leaf
 textures (§4.5) remain the lever. table-1mb (M4's watch item): M5 drops no more than M4 in the
 same rounds, with the same p99.
+
+## M6 (2026-10-12): keys, zoom, light or dark, reload, install
+
+Nothing new runs before the first frame: the file monitor starts after it, and `--theme`
+goes through `GTK_THEME` before GTK starts. Release binary 7.18 -> 7.23 MB. All 34 earlier
+smoke screenshots identical to M5's; new: zoomed, dark, notice.
+
+### First frame, `bench-startup -n 5`, three rounds alternating M5 and M6 (median of medians, ms)
+
+| Fixture | M5 | M6 |
+|---|---|---|
+| one-line | 163.4 | 160.1 |
+| ripgrep README | 183.0 | 178.4 |
+| code-1mb | 169.6 | 173.8 |
+
+Unchanged (both directions, within the rounds' spread). The machine was slower than for the
+M5 table (load 1-1.5, other work running). Theme, same rounds, ripgrep README: default 172.1,
+`--theme=dark` 173.6, `--theme=light` 172.4. Before the review fix, setting the colour scheme
+after GTK started cost 15-33 ms (GTK parsed its theme again).
+
+### Scroll, code-1mb, ABBA order (M6, M5, M5, M6, twice)
+
+| | dropped | p50 busy | p99 busy |
+|---|---|---|---|
+| M5 | 8, 3, 8, 2 | 6.3-6.4 ms | 17.1-19.5 ms |
+| M6 | 6, 5, 15, 5 | 6.3-6.6 ms | 17.2-19.9 ms |
+
+The same. A first run alternating M5 then M6 in that order, while the machine's load rose from
+4 to 7, had M6 dropping twice M5's frames in every round (23/13, 82/46, 100/55): the order, not
+M6. Lesson: alternate ABBA when load can drift. readme-200kb at 200% zoom: 1 dropped, p99
+14.7 ms, `layouts_in_scroll_frames=0`.
+
+### Zoom and reload (M6 performance review, host)
+
+- One zoom step re-estimates every leaf and restarts the height worker (as a resize or DPI
+  change does); no measurable wall time against a key that changes nothing, and
+  `--check-heights` after it finds 0 mismatches.
+- A reload, from the reading thread's end to the reloaded frame: 28-42 ms of main-thread time
+  on the 1 MB fixtures and readme-200kb (measured under strace, so inflated; up to 16 ms of it
+  is the poll interval). Nothing that startup does on the loader thread moved to the main
+  thread. Images shown and code highlighted are now kept across it.

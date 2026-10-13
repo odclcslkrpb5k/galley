@@ -292,6 +292,38 @@ Not repeated here, so there is one source each (an earlier copy here drifted fro
   Known gap, not M5's: 9 surviving mutants in text.rs measure_table (M3/M4: the stale-widths
   check `measured < arrived`, cell wrap width, `left` advance), found by M5's filtered run.
   Next: M6 (viewer features), awaiting the user's go-ahead.
+- 2026-10-12: M6 (viewer features) built, reviewed and pushed. Keys (navigation.rs, in
+  --help), zoom 50-400% (Ctrl+plus/minus/0, Ctrl+wheel summed, --zoom), --theme (GTK_THEME
+  before init; the *-dark name fallback after), reload on change (imp/reload.rs: canonical
+  path, after the first frame, 200 ms / 2 s / 1 s rule, empty read twice, images and code
+  colours kept), notices (imp/notice.rs, typed), data/gbk-markdown.desktop and scripts/install
+  (restores previous defaults; absolute Exec), linked documents inherit options.
+  Probe: --press, --rewrite-with (writes 500 ms after the first frame), theme=, notices=,
+  reloads=; gate: install step, desktop-file-validate; test floor 147 -> 158.
+  Reviews: correctness (wheel per event, symlink never reloaded, slow writer showed empty,
+  install path/PATH/uninstall issues), performance (--theme +15-33 ms, wheel relayout storm,
+  continuous rewrite never reloaded, badges refetched every save), coherence (reload's second
+  path, monitor before first frame, typed notices, imp.rs size). All fixed or recorded.
+  Mutants: navigation/appearance/reload rule/adopt: 6 survivors left, all equivalent
+  (disjoint bit flags `|` -> `^`); 2 real ones (Up/Page Up with modifiers) got cases; one guard
+  removed as redundant (Eliminate). Screens: 34 identical to M5, 3 new.
+  Learned:
+  - The disk filled (scratch builds, superseded 2.4 GB images, mutation runs' stale test
+    binaries): Engineer, scripts/in-docker refuses under 5 GiB and removes replaced images.
+    Delete scratch builds as soon as their numbers are in (but not before: I deleted M5's
+    binary once too early and rebuilt it).
+  - A temporary borrow in an argument (`self.path.borrow().clone()` inside a call that
+    replaces it) lasts the whole call: the first reload panicked. Bind it first.
+  - The real xdg-mime ignores associations whose desktop file is missing and falls back to the
+    machine's defaults, so a test using it passed or failed by machine (Eliminate: stubs).
+  - Grepping for errors exits 1 when clean (Engineer: scripts/quick exits with the real
+    status). Exact-text edits of code I had changed failed three times (rustfmt reflow, my own
+    earlier edits): use scratchpad tools/wsedit.py and save edit scripts first.
+  - The probe acted in the same frame callback the view starts its watch in; ordering between
+    after-paint handlers is not ours to rely on: act later (a timeout) instead.
+  - Benchmark order under rising load faked a 2x regression: ABBA.
+  Open, asked of the user: run scripts/install for real; remote images default-off or not.
+  Next: v1 is complete with M6; after-v1 items are in plan §10.
 - 2026-10-12: A wait loop from M4 ("until no Docker container is running") ran three hours:
   this machine always has other containers. Engineer control (user-approved):
   .claude/hooks/guard-wait refuses unbounded polling loops; use

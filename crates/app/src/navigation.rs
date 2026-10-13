@@ -220,6 +220,8 @@ mod tests {
             // Wrong or extra modifiers: nothing.
             (Key::Left, NONE, None),
             (Key::Down, CTRL, None),
+            (Key::Up, CTRL, None),
+            (Key::Page_Up, SHIFT, None),
             (Key::Down, SHIFT, None),
             (Key::Page_Down, ALT, None),
             (Key::space, CTRL, None),

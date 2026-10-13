@@ -127,9 +127,47 @@ pub(crate) fn safe_to_open(path: &Path, metadata: &std::fs::Metadata) -> bool {
     metadata.is_file() && metadata.permissions().mode() & 0o111 == 0 && !launcher
 }
 
+/// The application to edit a document in (Ctrl+E), by desktop file id: the default for plain
+/// text, as Markdown's may well be this viewer; unless that is this viewer too (`ours`), then
+/// the first other one that handles plain text.
+pub(crate) fn editor<'a>(
+    default: Option<&'a str>,
+    handlers: &[&'a str],
+    ours: &str,
+) -> Option<&'a str> {
+    default
+        .into_iter()
+        .chain(handlers.iter().copied())
+        .find(|&id| id != ours)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_editor_is_plain_texts_default_unless_that_is_this_viewer() {
+        let ours = "gbk-markdown.desktop";
+        let handlers = [
+            "gbk-markdown.desktop",
+            "org.xfce.mousepad.desktop",
+            "vim.desktop",
+        ];
+        assert_eq!(
+            editor(Some("gedit.desktop"), &handlers, ours),
+            Some("gedit.desktop")
+        );
+        assert_eq!(
+            editor(Some(ours), &handlers, ours),
+            Some("org.xfce.mousepad.desktop")
+        );
+        assert_eq!(
+            editor(None, &handlers, ours),
+            Some("org.xfce.mousepad.desktop")
+        );
+        assert_eq!(editor(Some(ours), &[ours], ours), None);
+        assert_eq!(editor(None, &[], ours), None);
+    }
 
     fn no_repository(_folder: &Path) -> bool {
         false

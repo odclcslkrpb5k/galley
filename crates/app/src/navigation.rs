@@ -22,6 +22,10 @@ pub(crate) enum Action {
     Scroll(Scroll),
     /// Back to where the view was before the last jump to a link.
     Back,
+    /// Forward again to where going back left.
+    Forward,
+    /// Open the file in the text editor.
+    Edit,
     Zoom(Zoom),
     Reload,
     Close,
@@ -72,6 +76,8 @@ pub(crate) fn action(key: Key, modifiers: ModifierType) -> Option<Action> {
         Key::Home | Key::KP_Home if plain || control => Action::Scroll(Scroll::Top),
         Key::End | Key::KP_End if plain || control => Action::Scroll(Scroll::Bottom),
         Key::Left if alt => Action::Back,
+        Key::Right if alt => Action::Forward,
+        Key::e | Key::E if control => Action::Edit,
         Key::BackSpace if plain => Action::Back,
         Key::plus | Key::equal | Key::KP_Add if control || control_shifted => {
             Action::Zoom(Zoom::In)
@@ -85,6 +91,47 @@ pub(crate) fn action(key: Key, modifiers: ModifierType) -> Option<Action> {
         _ => return None,
     };
     Some(action)
+}
+
+/// Where the view was before each jump to a link inside the document, and where going back
+/// left, as a browser keeps them: back (Alt+Left, the back button) and forward (Alt+Right, the
+/// forward button) step through them, and a new jump forgets the way forward. A place is the
+/// view's position (`None`: the top of the document).
+#[derive(Debug)]
+pub(crate) struct History<T> {
+    back: Vec<T>,
+    forward: Vec<T>,
+}
+
+impl<T> Default for History<T> {
+    fn default() -> Self {
+        Self {
+            back: Vec::new(),
+            forward: Vec::new(),
+        }
+    }
+}
+
+impl<T> History<T> {
+    /// A jump from `from`.
+    pub(crate) fn jumped(&mut self, from: T) {
+        self.back.push(from);
+        self.forward.clear();
+    }
+
+    /// Back from `here`: where to go, if anywhere.
+    pub(crate) fn back(&mut self, here: T) -> Option<T> {
+        let to = self.back.pop()?;
+        self.forward.push(here);
+        Some(to)
+    }
+
+    /// Forward from `here`: where to go, if anywhere.
+    pub(crate) fn forward(&mut self, here: T) -> Option<T> {
+        let to = self.forward.pop()?;
+        self.back.push(here);
+        Some(to)
+    }
 }
 
 /// A key written as GDK names it, after any of `ctrl+`, `shift+` and `alt+` (`ctrl+plus`,
@@ -200,6 +247,13 @@ mod tests {
             (Key::KP_End, NONE, Some(Action::Scroll(Scroll::Bottom))),
             (Key::End, CTRL, Some(Action::Scroll(Scroll::Bottom))),
             (Key::Left, ALT, Some(Action::Back)),
+            (Key::Right, ALT, Some(Action::Forward)),
+            (Key::Right, NONE, None),
+            (Key::Right, CTRL, None),
+            (Key::e, CTRL, Some(Action::Edit)),
+            (Key::E, CTRL, Some(Action::Edit)),
+            (Key::e, NONE, None),
+            (Key::e, ALT, None),
             (Key::BackSpace, NONE, Some(Action::Back)),
             (Key::plus, CTRL, Some(Action::Zoom(Zoom::In))),
             (Key::plus, CTRL | SHIFT, Some(Action::Zoom(Zoom::In))),
@@ -240,6 +294,26 @@ mod tests {
         for (key, modifiers, expected) in cases {
             assert_eq!(action(key, modifiers), expected, "{key:?} {modifiers:?}");
         }
+    }
+
+    #[test]
+    fn history_goes_back_and_forward_and_a_jump_forgets_forward() {
+        let mut history = History::default();
+        assert_eq!(history.back(0), None);
+        // At 0, jump to 10; at 10, jump to 20.
+        history.jumped(0);
+        history.jumped(10);
+        assert_eq!(history.back(20), Some(10));
+        assert_eq!(history.back(10), Some(0));
+        assert_eq!(history.back(0), None);
+        assert_eq!(history.forward(0), Some(10));
+        assert_eq!(history.forward(10), Some(20));
+        assert_eq!(history.forward(20), None);
+        // Back once, then a new jump: nothing forward.
+        assert_eq!(history.back(20), Some(10));
+        history.jumped(10);
+        assert_eq!(history.forward(30), None);
+        assert_eq!(history.back(30), Some(10));
     }
 
     #[test]

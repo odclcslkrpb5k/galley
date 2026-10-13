@@ -53,7 +53,10 @@ keys:
   Page Up, Page Down, Space, Shift+Space
                             scroll a page
   Home, End                 the top, the end
-  Alt+Left, Backspace       back to where a link inside the document was followed from
+  Alt+Left, Backspace       back to where a link inside the document was followed from (the
+                            mouse's back button too)
+  Alt+Right                 forward again (the mouse's forward button too)
+  Ctrl+E                    open the file in the text editor (plain text's default application)
   Ctrl+plus, Ctrl+minus, Ctrl+0, Ctrl+wheel
                             text size
   Ctrl+R, F5                reload (the file is also reloaded when it changes)

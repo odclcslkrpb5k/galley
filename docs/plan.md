@@ -419,6 +419,16 @@ added later without changing the model.
   a file gone is noticed, its last version left on show, and loaded again if it comes back
   (an editor that deletes and recreates shows no notice). A change while reading reads once
   more.
+- **Back, forward, edit** (after M6, user requests):
+  - **History:** link jumps inside the document keep a browser's history
+    (`navigation::History`, pure and tested). Alt+Left, Backspace and the mouse's back button
+    go back; Alt+Right and the forward button go forward; a new jump forgets the way forward.
+    A jump from the very top is kept too: the top is a place, which it was not before.
+  - **Ctrl+E** opens the file in plain text's default application. Markdown's default may be
+    this viewer, so it is not used; if plain text's is this viewer as well, the first other
+    application for plain text is used (`links::editor`, tested). With none, a notice.
+  - **Smoke:** back and forward after following a link; Ctrl+E handing the file to a stand-in
+    editor in a desktop of its own (XDG directories), and a notice without one.
 - **The view's own scrolling and GTK's kinetic scrolling.** `GtkScrolledWindow` scrolls the
   wheel from its own copy of the position, which it does not update while a fling or a bounce
   back (after scrolling past an end) runs; the deceleration sets the position every frame

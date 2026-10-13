@@ -95,7 +95,9 @@ gbk-markdown --anchor=installation README.md
 | arrows, Page Up/Down, Space, Home/End | scroll |
 | Ctrl + plus/minus/0 | text size |
 | Ctrl+R or F5 | reload |
-| Alt+Left or Backspace | go back after following a link |
+| Alt+Left or Backspace, the mouse's back button | go back after following a link |
+| Alt+Right, the mouse's forward button | go forward again |
+| Ctrl+E | open the file in your text editor |
 
 `--theme=light|dark` overrides the desktop's choice. `--offline` fetches no remote images.
 

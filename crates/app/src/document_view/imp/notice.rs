@@ -30,6 +30,10 @@ pub(in crate::document_view) enum Message {
     Spawn(std::io::ErrorKind),
     #[error("changes to the file will not show by themselves ({0}); Ctrl+R reloads it")]
     Unwatched(String),
+    #[error("no application to edit text with (set one for plain text files)")]
+    NoEditor,
+    #[error("cannot open the file in {0}: {1}")]
+    Editor(String, String),
 }
 
 /// A notice on show: laid out when it was set, and the timer that hides it.

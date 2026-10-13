@@ -49,6 +49,8 @@ const MOTION_SETTLE: Duration = Duration::from_millis(150);
 /// How often finished image loads are collected while any are in flight: a row of badges
 /// arriving within it is laid out again once, not once per badge.
 const IMAGE_POLL: Duration = Duration::from_millis(100);
+/// This viewer's desktop file, as installed: not a text editor to open the file in.
+const DESKTOP_ID: &str = "gbk-markdown.desktop";
 /// Layout time a key scroll may take at once for where it lands.
 const KEY_SCROLL_BUDGET: Duration = Duration::from_millis(8);
 /// How often highlighted code is collected while any is being read: the thread sends a chunk
@@ -108,7 +110,7 @@ pub(crate) struct DocumentView {
     /// The paint to show at the top once the view has a size (`--anchor`).
     start: Cell<Option<usize>>,
     /// Where the view was before each jump to a link inside the document, for going back.
-    history: RefCell<Vec<Spot>>,
+    history: RefCell<navigation::History<Option<Spot>>>,
     /// The link or summary under the pointer.
     hovered: RefCell<Option<Pointed>>,
     /// Text size, as a factor of the desktop's.
@@ -426,7 +428,7 @@ impl DocumentView {
         // A reload replaces a document: what it has already shown is kept (images, code
         // colours), and where it was is forgotten.
         let old = self.document.borrow_mut().take();
-        self.history.borrow_mut().clear();
+        self.history.replace(navigation::History::default());
         self.hovered.replace(None);
         self.viewer_args.replace(viewer_args);
         // While --check-heights compares layouts, images load only if it waits for them.
@@ -1250,8 +1252,9 @@ impl DocumentView {
                     self.activate(pointed, Scope::Everywhere);
                 }
             }
-            // The "back" side button.
+            // The "back" and "forward" side buttons.
             8 => self.go_back(),
+            9 => self.go_forward(),
             _ => {}
         }
     }
@@ -1267,6 +1270,8 @@ impl DocumentView {
         match action {
             Action::Scroll(scroll) => self.scroll_by(scroll),
             Action::Back => self.go_back(),
+            Action::Forward => self.go_forward(),
+            Action::Edit => self.edit(),
             Action::Zoom(zoom) => self.zoom(zoom),
             Action::Reload => self.reload(),
             Action::Close => {
@@ -1432,9 +1437,8 @@ impl DocumentView {
                 units::px_to_f64(doc.top_of(paint)),
             )
         };
-        if let Some(spot) = top {
-            self.history.borrow_mut().push(spot);
-        }
+        // From the very top too (no spot there: the top is `None`).
+        self.history.borrow_mut().jumped(top);
         self.stop_kinetic();
         self.configure_vadjustment(Some(value));
         self.obj().queue_draw();
@@ -1442,17 +1446,71 @@ impl DocumentView {
 
     /// Returns to where the view was before the last jump.
     fn go_back(&self) {
-        let Some(spot) = self.history.borrow_mut().pop() else {
+        self.travel(navigation::History::back);
+    }
+
+    /// Goes forward again to where the last step back left.
+    fn go_forward(&self) {
+        self.travel(navigation::History::forward);
+    }
+
+    /// Moves to the place `step` takes the history to from here.
+    fn travel(
+        &self,
+        step: impl FnOnce(&mut navigation::History<Option<Spot>>, Option<Spot>) -> Option<Option<Spot>>,
+    ) {
+        let Some((top, _page)) = self.viewport() else {
             return;
         };
-        let value = self
-            .document
-            .borrow()
-            .as_ref()
-            .map(|doc| units::px_to_f64(doc.positions.y_of(spot) + doc.margin()));
+        let value = {
+            let document = self.document.borrow();
+            let Some(doc) = document.as_ref() else {
+                return;
+            };
+            let here = doc.positions.spot(top - doc.margin());
+            let Some(to) = step(&mut self.history.borrow_mut(), here) else {
+                return;
+            };
+            to.map_or(0.0, |spot| {
+                units::px_to_f64(doc.positions.y_of(spot) + doc.margin())
+            })
+        };
         self.stop_kinetic();
-        self.configure_vadjustment(value);
+        self.configure_vadjustment(Some(value));
         self.obj().queue_draw();
+    }
+
+    /// Opens the file in the text editor (Ctrl+E): see `links::editor`.
+    fn edit(&self) {
+        let Some(path) = self.path.borrow().clone() else {
+            return;
+        };
+        let default = gio::AppInfo::default_for_type("text/plain", false);
+        let handlers = gio::AppInfo::all_for_type("text/plain");
+        let ids: Vec<String> = handlers
+            .iter()
+            .filter_map(|app| app.id().map(String::from))
+            .collect();
+        let default_id = default
+            .as_ref()
+            .and_then(gio::prelude::AppInfoExt::id)
+            .map(String::from);
+        let id_refs: Vec<&str> = ids.iter().map(String::as_str).collect();
+        let Some(chosen) = links::editor(default_id.as_deref(), &id_refs, DESKTOP_ID) else {
+            self.notice(&Message::NoEditor);
+            return;
+        };
+        let Some(app) = default
+            .into_iter()
+            .chain(handlers)
+            .find(|app| app.id().is_some_and(|id| id == chosen))
+        else {
+            return;
+        };
+        let context = self.obj().display().app_launch_context();
+        if let Err(error) = app.launch(&[gio::File::for_path(&path)], Some(&context)) {
+            self.notice(&Message::Editor(app.name().to_string(), error.to_string()));
+        }
     }
 
     fn launch_uri(&self, uri: String) {

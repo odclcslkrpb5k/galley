@@ -20,6 +20,10 @@ while read -r binary count; do
   if [[ -z "$min" ]]; then
     echo "test floor: $binary has no floor in $floor (it has $count tests)" >&2
     fail=1
+  elif ! [[ "$min" =~ ^[0-9]+$ ]] || ((min == 0)); then
+    # A floor of 0 checks nothing (one was once written by a count that had failed).
+    echo "test floor: $binary's floor is '$min'; it must be a count above 0" >&2
+    fail=1
   elif ((count < min)); then
     echo "test floor: $binary has $count tests, floor is $min" >&2
     fail=1

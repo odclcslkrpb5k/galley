@@ -140,6 +140,42 @@ elif [[ -z "$end_leaf" || "$(field top_leaf "$clicked")" != "$end_leaf" ]]; then
   fail=1
 fi
 
+# Back and forward: after following the top link, Alt+Left returns to the top (a jump from the
+# very top used to record nothing), and Alt+Right goes to the link's target again.
+probe_run returned --click-at=120,44 --press=alt+Left "$links"
+probe_run forwarded --click-at=120,44 --press=alt+Left,alt+Right "$links"
+if [[ "$(field top_leaf "$returned")" != 0 ]]; then
+  echo "smoke: Alt+Left after following a link from the top did not return to the top: $returned" >&2
+  fail=1
+elif [[ -z "$end_leaf" || "$(field top_leaf "$forwarded")" != "$end_leaf" ]]; then
+  echo "smoke: Alt+Right after going back did not return to the link's target ($end_leaf): $forwarded" >&2
+  fail=1
+fi
+
+# Ctrl+E opens the file in plain text's default application: here a stand-in "editor", in a
+# desktop of its own, that records what it was given. With no editor at all, a notice.
+desktop=$(mktemp -d)
+mkdir -p "$desktop/data/applications" "$desktop/config"
+printf '#!/bin/sh\nprintf %%s "$1" >"%s/opened"\n' "$desktop" >"$desktop/editor"
+chmod +x "$desktop/editor"
+printf '%s\n' '[Desktop Entry]' 'Type=Application' 'Name=Stand-in Editor' \
+  "Exec=$desktop/editor %f" 'MimeType=text/plain;' >"$desktop/data/applications/stand-in-editor.desktop"
+printf '%s\n' '[Default Applications]' 'text/plain=stand-in-editor.desktop' >"$desktop/config/mimeapps.list"
+edited=$(XDG_DATA_HOME=$desktop/data XDG_CONFIG_HOME=$desktop/config XDG_DATA_DIRS=$desktop/none \
+  timeout 60 "$bin" --offline --exit-after-first-frame --press=ctrl+e "$links" 2>&1 || true)
+n=$((n + 1))
+for _ in 1 2 3 4 5 6 7 8 9 10; do [[ -s "$desktop/opened" ]] && break; sleep 0.2; done
+if [[ "$(cat "$desktop/opened" 2>/dev/null)" != "$(realpath "$links")" ]]; then
+  echo "smoke: Ctrl+E did not open the file in plain text's default application: $edited" >&2
+  fail=1
+fi
+rm -rf "$desktop"
+probe_run uneditable --press=ctrl+e "$links"
+if [[ "$(field notices "$uneditable")" != 1 ]]; then
+  echo "smoke: Ctrl+E with no editor showed no notice: $uneditable" >&2
+  fail=1
+fi
+
 # A summary opens its <details>: the document is taller than after a click on nothing.
 details=target/fixtures/details.md
 probe_run opened --click-at=120,44 "$details"

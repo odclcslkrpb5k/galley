@@ -9,6 +9,7 @@ version = "0.1.0"
 edition = "2024"
 rust-version = "1.99"
 publish = false
+license = "MIT"
 
 [workspace.dependencies]
 gbk-markdown-core = { path = "crates/core" }
@@ -25,6 +26,8 @@ rustls = { version = "0.23", default-features = false, features = ["ring", "std"
 # two-face, not syntect's own 75. The binary grew 4.3 -> 7.2 MB.
 syntect = { version = "5.3.0", default-features = false, features = ["parsing", "regex-fancy"] }
 two-face = { version = "0.5.2", default-features = false, features = ["syntect-fancy"] }
+# For build.rs only: renumbering grammar references (crates/app/build.rs).
+serde_json = "1.0"
 # Exact: core calls comrak::Anchorizer, which is #[doc(hidden)] and so outside semver (plan §2).
 comrak = { version = "=0.56.0", default-features = false, features = ["shortcodes"] }
 html5gum = "0.8.4"

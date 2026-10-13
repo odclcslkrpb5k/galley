@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# The release binary ships none of the grammars left out for their licences
+# (crates/app/grammars-excluded.txt, docs/plan.md §7): their scopes, stored uncompressed with
+# each grammar's name, must not be in it. A kept grammar's scope must be, or the search found
+# nothing because it could not. Gate step, after the release build.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+bin=${CARGO_TARGET_DIR:-target}/release/gbk-markdown
+fail=0
+if ! grep -qaF 'source.rust' "$bin"; then
+  echo "check-grammars: no grammar scope found at all in $bin; the check cannot work" >&2
+  exit 1
+fi
+while IFS=$'\t' read -r name scope _package why; do
+  [[ -z "$name" || "$name" == \#* ]] && continue
+  # The scope as a whole word: source.less, not source.less.embedded.html.
+  if grep -qaP "(?<![\\w.])\\Q$scope\\E(?![\\w.-])" "$bin"; then
+    echo "check-grammars: $name ($scope, $why) is in the binary" >&2
+    fail=1
+  fi
+done <crates/app/grammars-excluded.txt
+if ((fail)); then exit 1; fi
+echo "check-grammars: none of the excluded grammars is in the binary"

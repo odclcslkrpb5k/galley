@@ -436,7 +436,10 @@ fn run(
     replies: &Sender<Reply>,
     slow_base: Duration,
 ) {
-    let syntaxes = two_face::syntax::extra_newlines();
+    // A set that does not load leaves every block plain (the main thread sees the thread gone).
+    let Some(syntaxes) = syntaxes() else {
+        return;
+    };
     let classes = classes();
     let mut jobs: HashMap<CodeBlockId, Job<'_>> = HashMap::new();
     loop {
@@ -522,6 +525,16 @@ fn next_job(jobs: &HashMap<CodeBlockId, Job<'_>>) -> Option<CodeBlockId> {
             .filter(|(_, job)| !job.idle())
             .map(|(&block, job)| (block, job.until - job.at)),
     )
+}
+
+/// The grammars: two-face's, less those whose licences do not allow shipping them in this
+/// binary (`build.rs`, `grammars-excluded.txt`).
+fn syntaxes() -> Option<SyntaxSet> {
+    syntect::dumps::from_uncompressed_data(include_bytes!(concat!(
+        env!("OUT_DIR"),
+        "/syntaxes.packdump"
+    )))
+    .ok()
 }
 
 /// The block with least left to read; the first in the document of those with as little.
@@ -747,7 +760,7 @@ mod tests {
         source: &CodeSource,
         now: &dyn Fn() -> Instant,
     ) -> Option<(Vec<Token>, Option<Plain>)> {
-        let syntaxes = two_face::syntax::extra_newlines();
+        let syntaxes = syntaxes()?;
         let mut job = Job::new(source, &syntaxes)?;
         job.until = source.text.len();
         let (mut tokens, mut stopped) = (Vec::new(), None);
@@ -785,6 +798,126 @@ mod tests {
             .map(|token| token.class)
     }
 
+    /// The grammars left out, by name and scope (`grammars-excluded.txt`).
+    fn excluded() -> Vec<(&'static str, &'static str)> {
+        include_str!("../grammars-excluded.txt")
+            .lines()
+            .filter(|line| !line.starts_with('#') && !line.trim().is_empty())
+            .filter_map(|line| {
+                let mut fields = line.split('\t');
+                Some((fields.next()?, fields.next()?))
+            })
+            .collect()
+    }
+
+    #[test]
+    fn grammars_whose_licences_forbid_shipping_are_left_out() {
+        let ours = syntaxes().expect("the grammars load");
+        let theirs = two_face::syntax::extra_newlines();
+        let excluded = excluded();
+        assert_eq!(excluded.len(), 19);
+        for (name, scope) in &excluded {
+            // In two-face's set (so the name is right), and not in ours.
+            assert!(theirs.find_syntax_by_name(name).is_some(), "{name}");
+            assert!(ours.find_syntax_by_name(name).is_none(), "{name}");
+            let scope = Scope::new(scope).expect("a scope");
+            assert!(ours.find_syntax_by_scope(scope).is_none(), "{name}");
+            assert!(theirs.find_syntax_by_scope(scope).is_some(), "{name}");
+        }
+        assert_eq!(
+            ours.syntaxes().len() + excluded.len(),
+            theirs.syntaxes().len()
+        );
+    }
+
+    #[test]
+    fn every_grammar_kept_highlights_as_two_faces_does() {
+        // References between grammars are renumbered in build.rs: a wrong one shows here as
+        // different scopes, a wrong grammar or context.
+        let ours = syntaxes().expect("the grammars load");
+        let theirs = two_face::syntax::extra_newlines();
+        let sample: Vec<&str> = [
+            include_str!("../../core/tests/data/corpus/sharkdp__bat/input.md"),
+            include_str!("../../core/tests/data/corpus/tauri-apps__tauri/input.md"),
+        ]
+        .iter()
+        .flat_map(|text| text.lines().take(120))
+        .collect();
+        for syntax in ours.syntaxes() {
+            let original = theirs
+                .find_syntax_by_name(&syntax.name)
+                .expect("in two-face");
+            let (mut a, mut b) = (ParseState::new(syntax), ParseState::new(original));
+            for line in &sample {
+                let line = format!("{line}\n");
+                let (ours_ops, theirs_ops) =
+                    (a.parse_line(&line, &ours), b.parse_line(&line, &theirs));
+                assert_eq!(
+                    format!("{ours_ops:?}"),
+                    format!("{theirs_ops:?}"),
+                    "{}: {line:?}",
+                    syntax.name
+                );
+            }
+        }
+    }
+
+    /// Every scope a grammar puts `text` in, read with `set`.
+    fn scopes_of(set: &SyntaxSet, name: &str, text: &str) -> Vec<String> {
+        let syntax = set.find_syntax_by_name(name).expect(name);
+        let mut state = ParseState::new(syntax);
+        let mut stack = ScopeStack::new();
+        let mut scopes = Vec::new();
+        for line in text.lines() {
+            let ops = state.parse_line(&format!("{line}\n"), set).expect(name);
+            for (_, op) in ops {
+                stack.apply(&op).expect(name);
+                scopes.extend(stack.as_slice().iter().map(|scope| scope.build_string()));
+            }
+        }
+        scopes
+    }
+
+    #[test]
+    fn grammars_that_embedded_one_left_out_use_a_stand_in() {
+        let ours = syntaxes().expect("the grammars load");
+        let theirs = two_face::syntax::extra_newlines();
+        // Less-only text (a variable): only the Less grammar's rules give it `.less` scopes.
+        let less = "@c: red;\na { color: @c; }\n";
+        let style = format!("<style lang=\"less\">\n{less}</style>\n");
+        let slim = "less:\n  @c: red;\n  a { color: @c; }\n";
+        // Each text reaches the grammar left out in two-face's set (scopes ending in its
+        // suffix); in ours, none do, and the stand-in's rules apply where there is one.
+        let cases = [
+            ("Vue Component", style.as_str(), ".less", Some(".css")),
+            ("Svelte", style.as_str(), ".less", Some(".css")),
+            ("Ruby Slim", slim, ".less", Some(".css")),
+            (
+                "MediaWiki",
+                "<syntaxhighlight lang=\"ini\">\n[a]\nb=c\n</syntaxhighlight>\n",
+                ".ini",
+                None,
+            ),
+        ];
+        for (name, text, left_out, stand_in) in cases {
+            let before = scopes_of(&theirs, name, text);
+            let after = scopes_of(&ours, name, text);
+            let any_ends =
+                |scopes: &[String], suffix: &str| scopes.iter().any(|s| s.ends_with(suffix));
+            assert!(
+                any_ends(&before, left_out),
+                "{name}: the text does not reach {left_out}: {before:?}"
+            );
+            assert!(!any_ends(&after, left_out), "{name}: {after:?}");
+            if let Some(stand_in) = stand_in {
+                assert!(
+                    any_ends(&after, stand_in),
+                    "{name}: no {stand_in} in {after:?}"
+                );
+            }
+        }
+    }
+
     #[test]
     fn every_scope_parses() {
         assert_eq!(classes().len(), CLASSES.len());
@@ -792,7 +925,7 @@ mod tests {
 
     #[test]
     fn every_alias_and_common_name_has_a_grammar() {
-        let syntaxes = two_face::syntax::extra_newlines();
+        let syntaxes = syntaxes().expect("the grammars load");
         let common = [
             "rust",
             "bash",
@@ -1005,7 +1138,7 @@ mod tests {
     fn a_step_ends_after_its_time_or_its_lines() {
         let text = "let x = 1;\n".repeat(CHUNK_LINES * 2 + 5);
         let rust = source("rust", &text);
-        let syntaxes = two_face::syntax::extra_newlines();
+        let syntaxes = syntaxes().expect("the grammars load");
         let mut job = Job::new(&rust, &syntaxes).expect("a grammar");
         let frozen = Instant::now();
         let still = move || frozen;
@@ -1031,7 +1164,7 @@ mod tests {
     fn a_step_of_exactly_its_time_goes_on() {
         let text = "let x = 1;\n".repeat(20);
         let rust = source("rust", &text);
-        let syntaxes = two_face::syntax::extra_newlines();
+        let syntaxes = syntaxes().expect("the grammars load");
         let mut job = Job::new(&rust, &syntaxes).expect("a grammar");
         job.until = text.len();
         // 2.5 ms a read: 15 ms after three lines (not past STEP_TIME), 20 after four.
@@ -1045,7 +1178,7 @@ mod tests {
         let ids = crate::render::highlight::tests::block_ids(&doc);
         let (a, b) = (*ids.first().expect("a"), *ids.get(1).expect("b"));
         let long = source("rust", &"let x = 1;\n".repeat(1000));
-        let syntaxes = two_face::syntax::extra_newlines();
+        let syntaxes = syntaxes().expect("the grammars load");
         let job = |at, until| {
             let mut job = Job::new(&long, &syntaxes).expect("a grammar");
             job.at = at;
@@ -1064,7 +1197,7 @@ mod tests {
 
     #[test]
     fn a_language_with_no_grammar_has_no_job() {
-        let syntaxes = two_face::syntax::extra_newlines();
+        let syntaxes = syntaxes().expect("the grammars load");
         let unknown = CodeSource {
             language: Language {
                 name: "nonesuch".to_owned(),

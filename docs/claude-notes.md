@@ -51,6 +51,8 @@ Optimisation goals, in priority order as stated:
 | 2026-10-12 | Install records the Markdown defaults it replaces and gives them back on uninstall (where ours is still the default) | M6; xdg-mime default replaces the whole list; run only with the user's go-ahead (writes outside the repo) |
 | 2026-10-12 | Reload: FileMonitor on the canonical path after the first frame; 200 ms after a save ends, 2 s after a bare write, 1 s at most; through set_document; shown images and code colours kept | M6 reviews: symlinks, slow writers, continuous rewrites, badges fetched on every save |
 | 2026-10-12 | Notices drawn by the view (typed Message), not a GTK overlay widget | M6; one widget, no new allocation path; the layout is made outside frames; not heard by screen readers (after v1) |
+| 2026-10-13 | MIT licence; repository made public; history published as is | User decision |
+| 2026-10-13 | Ship two-face's grammars less 19 (1 GPL-3.0 package, 6 unlicensed), built in build.rs by renumbering references; two-face build/test-only | User chose to curate now; equivalence test and binary scope check (plan §7 "Licences") |
 | 2026-10-12 | `--theme=light|dark` via GTK_THEME before init | M6 review: setting the colour scheme after init reparsed the theme, 15-33 ms before the first frame |
 
 Push guard (installed 2026-10-11): `.claude/hooks/guard-push` refuses Bash commands whose text

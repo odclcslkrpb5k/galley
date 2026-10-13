@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Fetch the GitHub rendering corpus used as a fidelity oracle (docs/plan.md §9, oracle 3).
 #
-# For each repo: the README at a pinned commit, GitHub's own rendered HTML of it, its licence,
+# For each repo: the README at a pinned commit, GitHub's own rendered HTML of it, its licence
+# (and NOTICE, if it has one),
 # and a SOURCE.toml recording where it came from. Synthetic inputs (directories starting with
 # "_synthetic-") are ours. They are rendered as GitHub's repository file view renders them, which
 # means they must be committed and pushed first. POST /markdown is not used: it skips alerts, math
@@ -44,6 +45,11 @@ for repo in "${repos[@]}"; do
   gh api -H "Accept: application/vnd.github.html+json" "repos/$repo/readme?ref=$sha" |
     strip_tokens >"$dir/github.html"
   gh api "repos/$repo/license?ref=$sha" --jq .content | base64 -d >"$dir/LICENSE"
+  # Apache-2.0 §4(d): a NOTICE file the project has goes with anything taken from it.
+  notice=$(gh api "repos/$repo/contents?ref=$sha" --jq '[.[].name | select(test("^NOTICE"; "i"))][0] // empty')
+  if [[ -n "$notice" ]]; then
+    gh api -H "Accept: application/vnd.github.raw" "repos/$repo/contents/$notice?ref=$sha" >"$dir/NOTICE"
+  fi
   cat >"$dir/SOURCE.toml" <<TOML
 repo = "$repo"
 commit = "$sha"

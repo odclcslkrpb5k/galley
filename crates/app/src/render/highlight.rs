@@ -86,7 +86,7 @@ const PLAIN: [&str; 8] = [
 /// Info strings for a shell session.
 pub(crate) const SESSIONS: [&str; 4] = ["console", "shellsession", "shell-session", "sh-session"];
 /// Names GitHub knows that the grammars do not, and the grammars' names for them.
-pub(crate) const ALIASES: [(&str, &str); 15] = [
+pub(crate) const ALIASES: [(&str, &str); 14] = [
     ("shell", "bash"),
     ("shell-script", "bash"),
     ("golang", "go"),
@@ -96,7 +96,6 @@ pub(crate) const ALIASES: [(&str, &str); 15] = [
     ("objc", "h"),
     ("objective-c", "h"),
     ("csharp", "cs"),
-    ("fsharp", "f#"),
     ("docker", "dockerfile"),
     ("containerfile", "dockerfile"),
     ("jsonc", "json"),

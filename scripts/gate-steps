@@ -52,6 +52,9 @@ cargo deny --locked check
 step "release build"
 cargo build --release --locked
 
+step "grammar licences"
+scripts/check-grammars
+
 step "install"
 scripts/test-install
 

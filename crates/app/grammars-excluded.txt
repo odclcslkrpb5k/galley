@@ -1,0 +1,24 @@
+# Grammars left out of the viewer's set (build.rs): two-face bundles bat's grammars, and these
+# could not be redistributed in a binary under this project's MIT licence. Reviewed 2026-10-13
+# against two-face 0.5.2 (bat 0.26.1) and each package's repository.
+#
+# name	scope	package	why
+Authorized Keys	text.authorized_keys	robballou/sublimetext-sshconfig	GPL-3.0
+Known Hosts	text.known_hosts	robballou/sublimetext-sshconfig	GPL-3.0
+Private Key	source.ssh.private-key	robballou/sublimetext-sshconfig	GPL-3.0
+SSH Common	text.ssh.common	robballou/sublimetext-sshconfig	GPL-3.0
+SSH Config	source.ssh_config	robballou/sublimetext-sshconfig	GPL-3.0
+SSH Crypto	text.ssh.crypto	robballou/sublimetext-sshconfig	GPL-3.0
+SSHD Config	source.sshd_config	robballou/sublimetext-sshconfig	GPL-3.0
+F#	source.fsharp	hoest/sublimetext-fsharp	no licence
+Fortran (Fixed Form)	source.fixedform-fortran	315234/SublimeFortran	no licence
+Fortran (Modern)	source.modern-fortran	315234/SublimeFortran	no licence
+Fortran Namelist	source.fortran-namelist	315234/SublimeFortran	no licence
+GFortran Build Results	source.gfortran-build	315234/SublimeFortran	no licence
+OpenMP (Fortran)	source.openmp	315234/SublimeFortran	no licence
+INI	source.ini	clintberry/sublime-text-2-ini	no licence
+HTML (Jinja2)	text.html.jinja2	Martin819/sublime-jinja2	no licence
+Jinja2	source.jinja2	Martin819/sublime-jinja2	no licence
+Less	source.less	danro/LESS-sublime	no licence
+Todo.txt	text.todotxt	dertuxmalwieder/SublimeTodoTxt	no licence
+Verilog	source.verilog	pro711/sublime-verilog	no licence

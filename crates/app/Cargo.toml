@@ -5,6 +5,7 @@ version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 publish.workspace = true
+license.workspace = true
 
 [dependencies]
 gbk-markdown-core.workspace = true
@@ -14,6 +15,16 @@ thiserror.workspace = true
 ureq.workspace = true
 rustls.workspace = true
 syntect.workspace = true
+
+# build.rs builds the grammar set from two-face's, less grammars whose licences do not allow
+# shipping them (grammars-excluded.txt); two-face itself is never linked into the binary.
+[build-dependencies]
+syntect.workspace = true
+two-face.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+# The tests compare every grammar kept with two-face's own.
 two-face.workspace = true
 
 [lints]

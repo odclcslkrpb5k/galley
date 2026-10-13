@@ -44,8 +44,10 @@ Wall-clock numbers are reports (noisy). Work counters are deterministic and gate
   images (M4): a small blocking client on worker threads, certificates checked against the
   system's store (no bundled roots).
 - `syntect` 5.3 (`parsing`, `regex-fancy`: fancy-regex, pure Rust, rather than Oniguruma in C)
-  with `two-face` 0.5.2, bat 0.26.1's 213 grammars (syntect's own 75 lack TOML, TypeScript,
+  with `two-face` 0.5.2, bat 0.26.1's grammars (syntect's own 75 lack TOML, TypeScript,
   Dockerfile, fish, Nix), for syntax highlighting (M5). Parsing only: the colours are ours.
+  two-face is a build and test dependency: `crates/app/build.rs` builds the shipped set from
+  its 213 grammars less 19 whose licences forbid it (§7, "Licences"), 194 in all.
 
 ## 3. Repository layout
 
@@ -74,6 +76,8 @@ crates/core/tests/data/ spec.txt + extensions.txt (from M1) (cmark-gfm, CC-BY-SA
                         corpus-deviations.txt (oracle 3's known differences)
 fuzz/                   cargo-fuzz targets (nightly; outside the workspace), later
 docs/                   plan.md, claude-notes.md, perf-baseline.md
+LICENSE, README.md      MIT; what it is, how to build and install it, licences of others' material
+crates/app/build.rs     the shipped grammar set; grammars-excluded.txt lists those left out (§7)
 ```
 
 ### Crate boundaries
@@ -621,6 +625,40 @@ exemption). So tests return `()` and use `.expect("what")` and `assert_eq!`. Sha
   hook is the only record (Protect, deliberate; the lints above are the Engineer controls that aim
   to make panics unreachable).
 
+### Licences
+
+The project is MIT (user decision, 2026-10-13, on making the repository public). Reviewed
+2026-10-13:
+
+- **In the repository:**
+  - The cmark-gfm spec files are CC-BY-SA 4.0, kept under it, with their notice.
+  - The 21 corpus READMEs keep their projects' permissive licences. Each has its LICENSE, and
+    a NOTICE where the project has one (Apache-2.0 §4(d): TypeScript, requests and bat).
+    `scripts/fetch-corpus` refuses other licences and copies NOTICE files.
+- **In the binary:**
+  - Every crate is under a permissive licence (cargo-deny, below).
+  - The grammars come from bat through two-face. Its listing covers the licence files it
+    found, but bat's builder lets a grammar package with no licence through. Comparing every
+    bundled package with the listing and each one's repository found:
+    - ssh-config: GPL-3.0;
+    - eight packages with no licence (F#, Fortran, INI, Jinja2, Less, todo.txt, Verilog, and
+      ARM Assembly, which two-face does not ship);
+    - four that do have licences, missed for spelling (`LICENCE`) or for being stated in the
+      README (Racket, jq, strace MIT; Go mod WTFPL).
+
+    `build.rs` leaves the 19 grammars of the first seven packages out of the shipped set
+    (`crates/app/grammars-excluded.txt`, with each one's reason). It renumbers the
+    cross-grammar references after them, and points references into them at a stand-in:
+    CSS for Less, else Plain Text.
+- **Controls (Engineer):**
+  - Tests: no excluded grammar is in the set; every kept grammar highlights a corpus sample
+    exactly as two-face's does; the four grammars that embedded excluded ones reach their
+    stand-ins.
+  - Gate (`scripts/check-grammars`): none of the excluded grammars' scopes is in the release
+    binary, and a kept one's is. Checked to fail on a binary built before.
+- **Not yet done:** a notice file to go with a distributed binary (crates' and grammars'
+  copyright notices). Needed before binaries are published, not for the source.
+
 ### cargo-deny (0.20 syntax)
 
 Licence allow-list (MIT, Apache-2.0, BSD-2/3, Zlib, Unicode-3.0, MPL-2.0, and ISC since M4 for
@@ -670,8 +708,9 @@ M5. The viewer is not distributed; review them before it is.
    no tests; a committed minimum test count per binary catches a test suite that shrinks
    silently.
 6. `cargo deny check`
-7. `cargo build --release --locked`, then `scripts/test-install` (M6: install into a throwaway
-   home and uninstall again).
+7. `cargo build --release --locked`, then `scripts/check-grammars` (no excluded grammar in the
+   binary, §7 "Licences") and `scripts/test-install` (M6: install into a throwaway home and
+   uninstall again).
 8. Xvfb smoke: `--exit-after-first-frame` on every fixture; asserts exit 0 and the work counters
    (§6); saves a screenshot per fixture to `target/docker/screens/` for before/after comparison
    at each milestone.

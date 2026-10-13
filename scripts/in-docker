@@ -27,6 +27,10 @@ if ! docker image inspect "$tag" >/dev/null 2>&1; then
     xargs -r docker rmi >/dev/null 2>&1 || true
 fi
 
+# Passed only when set: an empty one would build a binary calling itself "gbk-markdown ".
+version=()
+if [[ -n "${GBK_VERSION:-}" ]]; then version=(-e "GBK_VERSION=$GBK_VERSION"); fi
+
 tty=()
 if [[ -t 0 && -t 1 ]]; then tty=(-it); fi
 
@@ -42,4 +46,5 @@ exec docker run --rm --init "${tty[@]}" \
   -e CARGO_TARGET_DIR=/work/target/docker \
   -e CARGO_TERM_COLOR="${CARGO_TERM_COLOR:-auto}" \
   -e GATE_TREE="${GATE_TREE:-}" \
+  "${version[@]}" \
   "$tag" "$@"

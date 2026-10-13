@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+# Publishes the gate's release build of HEAD as a GitHub release, named by its 12-character
+# commit hash: what install.sh fetches (as gbk-file publishes). Maintainer only.
+#
+#   scripts/publish
+#
+# Refuses unless the tree is clean, the gate passed for exactly HEAD's tree (its stamp), the
+# binary says it is HEAD's build, HEAD is on origin/main, and no release of it exists. The
+# release holds the binary, the desktop file template, LICENSE, THIRD-PARTY-NOTICES.md and
+# SHA256SUMS of them all.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+repo=odclcslkrpb5k/gbk-markdown
+die() { echo "publish: $*" >&2; exit 1; }
+
+[[ -z "$(git status --porcelain)" ]] || die "working tree is dirty; commit first so the hash names exact source"
+hash=$(git rev-parse --short=12 HEAD)
+full=$(git rev-parse HEAD)
+tree=$(git rev-parse 'HEAD^{tree}')
+[[ -e "target/gate/$tree" ]] || die "the gate has not passed for $hash; run scripts/check"
+bin=target/docker/release/gbk-markdown
+# Belt and braces: the binary itself must say it is this commit (the gate's build does).
+got=$("$bin" --version) || die "$bin does not run"
+[[ "$got" == "gbk-markdown $hash" ]] || die "$bin says '$got', expected 'gbk-markdown $hash': run scripts/check"
+git fetch -q origin
+git merge-base --is-ancestor HEAD origin/main || die "$hash is not on origin/main; push first"
+if gh release view "$hash" --repo "$repo" >/dev/null 2>&1; then die "release $hash already exists"; fi
+
+dist=target/dist/$hash
+rm -rf "$dist"
+mkdir -p "$dist"
+cp "$bin" data/gbk-markdown.desktop.in LICENSE THIRD-PARTY-NOTICES.md "$dist/"
+(cd "$dist" && sha256sum gbk-markdown gbk-markdown.desktop.in LICENSE THIRD-PARTY-NOTICES.md >SHA256SUMS)
+
+gh release create "$hash" --repo "$repo" --target "$full" --latest --title "gbk-markdown $hash" \
+  --notes "Built from $full on Ubuntu 26.04 (x86_64); the full gate passed (lints, tests, licence checks, smoke run).
+
+Install or update: \`curl -fsSL https://raw.githubusercontent.com/$repo/main/install.sh | bash\`" \
+  "$dist/gbk-markdown" "$dist/gbk-markdown.desktop.in" "$dist/LICENSE" \
+  "$dist/THIRD-PARTY-NOTICES.md" "$dist/SHA256SUMS"
+echo "publish: released $hash"

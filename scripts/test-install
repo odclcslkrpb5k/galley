@@ -8,7 +8,9 @@ cd "$(dirname "$0")/.."
 home=$(mktemp -d)
 trap 'rm -rf "$home"' EXIT
 fail() { echo "test-install: $*" >&2; exit 1; }
-desktop-file-validate data/gbk-markdown.desktop || fail "the desktop file is not valid"
+sed 's|@BIN@|/usr/bin/gbk-markdown|g' data/gbk-markdown.desktop.in >"$home/template-check.desktop"
+desktop-file-validate "$home/template-check.desktop" || fail "the desktop file template is not valid"
+rm "$home/template-check.desktop"
 
 # Stubs: the defaults live one file per MIME type in $home/defaults.
 mkdir -p "$home/stubs" "$home/defaults"
@@ -82,4 +84,20 @@ scripts/install --uninstall --home "$home" >/dev/null
 echo other.desktop >"$home/defaults/text_markdown"
 GBK_PREBUILT=${CARGO_TARGET_DIR:-target}/release/gbk-markdown scripts/install --no-default --home "$home" >/dev/null
 [[ "$(default text/markdown)" == other.desktop ]] || fail "--no-default changed the default"
+# install.sh refuses what it cannot install safely, touching nothing.
+staged=$home/staged
+mkdir -p "$staged"
+cp "${CARGO_TARGET_DIR:-target}/release/gbk-markdown" data/gbk-markdown.desktop.in "$staged/"
+refused() { # what, environment...
+  local what=$1
+  shift
+  if env "$@" GBK_FROM="$staged" bash install.sh 2>/dev/null; then fail "install.sh accepted $what"; fi
+}
+refused "a prefix with a space" GBK_PREFIX="$home/with space"
+refused "a relative prefix" GBK_PREFIX=relative/dir
+refused "a version that is not a build hash" GBK_PREFIX="$home/x" GBK_VERSION=latest
+[[ ! -e "$home/x" && ! -e "$home/with space" ]] || fail "a refused install wrote files"
+printf '#!/bin/sh\nexit 1\n' >"$staged/gbk-markdown"
+refused "a binary that does not run" GBK_PREFIX="$home/y"
+[[ ! -e "$home/y/bin/gbk-markdown" ]] || fail "a binary that does not run was installed"
 echo "test-install: ok"

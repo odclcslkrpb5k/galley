@@ -815,7 +815,7 @@ mod tests {
         let ours = syntaxes().expect("the grammars load");
         let theirs = two_face::syntax::extra_newlines();
         let excluded = excluded();
-        assert_eq!(excluded.len(), 19);
+        assert_eq!(excluded.len(), 20);
         for (name, scope) in &excluded {
             // In two-face's set (so the name is right), and not in ours.
             assert!(theirs.find_syntax_by_name(name).is_some(), "{name}");

@@ -12,6 +12,8 @@ pub(crate) const USAGE: &str = "\
 usage: gbk-markdown [OPTIONS] [--] FILE
 
   --help                    show this and exit
+  --version                 show the build (its commit) and exit
+  --licenses                show the licences of the program and of what is built into it
 
 options:
   --anchor=NAME             open at the heading or anchor NAME (as in FILE#NAME)
@@ -79,6 +81,10 @@ pub(crate) enum Mode {
     EmptyWindow,
     /// Print the usage and exit.
     Help,
+    /// Print the build and exit.
+    Version,
+    /// Print the licence and third-party notices and exit.
+    Licenses,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -210,6 +216,8 @@ pub(crate) fn parse(args: impl IntoIterator<Item = OsString>) -> Result<Args, Us
             ("--click-at", Some(point)) => probe.click_at = Some(parse_point(point)?),
             ("--empty-window", None) => mode = Mode::EmptyWindow,
             ("--help", None) => mode = Mode::Help,
+            ("--version", None) => mode = Mode::Version,
+            ("--licenses", None) => mode = Mode::Licenses,
             ("--renderer", Some("cairo")) => renderer = Some(Renderer::Cairo),
             ("--renderer", Some("gl")) => renderer = Some(Renderer::Gl),
             ("--renderer", Some(_)) => return Err(UsageError::BadRenderer),
@@ -378,6 +386,14 @@ mod tests {
         assert_eq!(
             parse_strs(&["--help"]).map(|args| args.mode),
             Ok(Mode::Help)
+        );
+        assert_eq!(
+            parse_strs(&["--version"]).map(|args| args.mode),
+            Ok(Mode::Version)
+        );
+        assert_eq!(
+            parse_strs(&["--licenses"]).map(|args| args.mode),
+            Ok(Mode::Licenses)
         );
         assert_eq!(args.file, None);
     }

@@ -19,7 +19,8 @@ fi
 tree=$(git rev-parse 'HEAD^{tree}')
 started=$(date +%s)
 
-GATE_TREE=$tree scripts/in-docker scripts/gate-steps
+# The release build says which commit it is (--version; releases are named by it).
+GBK_VERSION=$(git rev-parse --short=12 HEAD) GATE_TREE=$tree scripts/in-docker scripts/gate-steps
 
 if [[ -n "$(git status --porcelain)" ]]; then
   echo "gate: the checks changed files in the tree:" >&2

@@ -22,3 +22,4 @@ Jinja2	source.jinja2	Martin819/sublime-jinja2	no licence
 Less	source.less	danro/LESS-sublime	no licence
 Todo.txt	text.todotxt	dertuxmalwieder/SublimeTodoTxt	no licence
 Verilog	source.verilog	pro711/sublime-verilog	no licence
+Racket	source.racket	follesoe/sublime-racket	no licence at the commit bat ships (MIT came in 2026-09, with a rewrite by another author)

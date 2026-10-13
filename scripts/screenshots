@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# The README's screenshots: docs/screenshots/demo.md, light and dark, from the release build,
+# with its code highlighted. Runs inside the build container: scripts/in-docker scripts/screenshots
+set -euo pipefail
+cd "$(dirname "$0")/.."
+if [[ -z "${DISPLAY:-}" ]]; then
+  exec xvfb-run -a -s "-screen 0 1280x1024x24" "$0" "$@"
+fi
+export NO_AT_BRIDGE=1 GTK_A11Y=none XDG_RUNTIME_DIR=/tmp/xdg-runtime
+mkdir -p -m 700 "$XDG_RUNTIME_DIR"
+bin=${CARGO_TARGET_DIR:-target}/release/gbk-markdown
+for theme in light dark; do
+  timeout 60 "$bin" --offline --theme="$theme" --exit-after-first-frame --wait-highlights \
+    --screenshot="docs/screenshots/$theme.png" docs/screenshots/demo.md >/dev/null
+done
+echo "screenshots: docs/screenshots/light.png, docs/screenshots/dark.png"

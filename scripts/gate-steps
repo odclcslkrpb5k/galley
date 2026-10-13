@@ -55,6 +55,9 @@ cargo build --release --locked
 step "grammar licences"
 scripts/check-grammars
 
+step "third-party notices"
+scripts/third-party --check
+
 step "install"
 scripts/test-install
 

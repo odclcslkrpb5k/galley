@@ -1,13 +1,15 @@
 #!/usr/bin/env bash
-# Installs the viewer for this user (docs/plan.md §10, M6): the release binary to
-# ~/.local/bin, the desktop file to ~/.local/share/applications, and, unless --no-default,
-# makes it the default application for Markdown (text/markdown, text/x-markdown).
+# Installs this checkout's build for this user (docs/plan.md §10, M6): copied by install.sh (the
+# piped installer, as from a release) to ~/.local/bin and ~/.local/share/applications; and,
+# unless --no-default, made the default application for Markdown (text/markdown,
+# text/x-markdown), the defaults it replaces recorded for --uninstall to give back.
 #
 #   scripts/install [--no-default] [--home DIR]     build (in the container) and install
 #   scripts/install --uninstall [--home DIR]        remove both, and give Markdown back to the
 #                                                   applications that had it before
 #
-# --home installs under another directory instead of $HOME (scripts/test-install uses it).
+# --home installs under another directory instead of $HOME (scripts/test-install uses it); as
+# install.sh requires, an absolute path of [A-Za-z0-9/._+-].
 # Nothing outside that home is touched; the only system tools used are update-desktop-database
 # and xdg-mime, each only if present.
 set -euo pipefail
@@ -92,14 +94,12 @@ if ((default)) && have xdg-mime; then
     done >"$previous"
   fi
 fi
-mkdir -p "$bin" "$apps"
-install -m 755 "$built" "$bin/gbk-markdown"
-# The installed binary by its full path: a first install makes ~/.local/bin, which the desktop
-# session's PATH only has from the next login.
-sed -e "s|^Exec=gbk-markdown |Exec=$bin/gbk-markdown |" -e "s|^TryExec=gbk-markdown\$|TryExec=$bin/gbk-markdown|" \
-  "data/$desktop" >"$apps/$desktop"
-chmod 644 "$apps/$desktop"
-if have update-desktop-database; then update-desktop-database "$apps"; fi
+# The copying is install.sh's, the piped installer's: from a directory staged like a release.
+staged=$(mktemp -d)
+trap 'rm -rf "$staged"' EXIT
+cp "$built" "$staged/gbk-markdown"
+cp "data/$desktop.in" "$staged/$desktop.in"
+GBK_FROM=$staged GBK_PREFIX=$home/.local bash install.sh 2>/dev/null
 made_default=0
 if ((default)) && have xdg-mime; then
   xdg-mime default "$desktop" "${mimes[@]}"

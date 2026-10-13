@@ -91,6 +91,13 @@ fn main() {
     let out = PathBuf::from(std::env::var_os("OUT_DIR").expect("cargo sets OUT_DIR"));
     syntect::dumps::dump_to_uncompressed_file(&builder.build(), out.join("syntaxes.packdump"))
         .expect("the set is written");
+    // The kept grammars' licence notices (bat's listing: grammars left out have none in it),
+    // for scripts/third-party to put in THIRD-PARTY-NOTICES.md.
+    std::fs::write(
+        out.join("grammar-notices.md"),
+        two_face::acknowledgement::listing().to_md(),
+    )
+    .expect("the notices are written");
 }
 
 /// Renumbers every context reference (`{syntax_index, context_index}`) in `value`: to the

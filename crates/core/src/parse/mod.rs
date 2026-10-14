@@ -180,6 +180,7 @@ impl Walker<'_> {
                 }
             }
             NodeValue::List(list) => {
+                let items = node.children().count();
                 for (offset, item) in node.children().enumerate() {
                     let marker = match (&item.data().value, list.list_type) {
                         (NodeValue::TaskItem(task), _) => Marker::Task {
@@ -198,6 +199,7 @@ impl Walker<'_> {
                         Container::ListItem {
                             marker,
                             tight: list.tight,
+                            last: offset + 1 == items,
                         },
                         item,
                     );

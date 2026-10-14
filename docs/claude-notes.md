@@ -354,3 +354,11 @@ Not repeated here, so there is one source each (an earlier copy here drifted fro
   a left or right `align` takes that side, on its own row (builder `images_align`, tested).
   True floats were declined: they make leaf widths depend on earlier heights, against goals
   1 and 2. Test floor raised by one.
+- 2026-10-14: No space after a tight list (user request; Quoin's README, a paragraph after a
+  bulleted list sat against it). The tight gap applied to every paragraph in a tight item,
+  the list's last included. List items now record whether they are their list's last
+  (`Container::ListItem::last`); `paint::tight_after` keeps the tight gap only while the same
+  tight list goes on (more of the item, the next item, or an enclosing tight item), tested
+  with nesting, quotes, loose lists and adjacent lists. Learned: an edit script's Python
+  string turned `\n` in Rust test strings into real newlines; write edit scripts as raw
+  strings (Administer: wsedit cannot tell an intended newline from an escape).

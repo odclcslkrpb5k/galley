@@ -277,6 +277,9 @@ pub enum Container {
         marker: Marker,
         /// Whether the list is tight (no blank lines between items): drawn with less spacing.
         tight: bool,
+        /// The list's last item: after it the list ends, and what follows is spaced as after
+        /// a paragraph.
+        last: bool,
     },
     Footnote(FootnoteId),
     Details {

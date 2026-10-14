@@ -1812,6 +1812,7 @@ mod tests {
         let item = builder.begin_container(Container::ListItem {
             marker: crate::model::Marker::Bullet,
             tight: true,
+            last: true,
         });
         paragraph(&mut builder, "one");
         paragraph(&mut builder, ""); // empty: dropped
@@ -1830,6 +1831,7 @@ mod tests {
         let item = builder.begin_container(Container::ListItem {
             marker: crate::model::Marker::Bullet,
             tight: true,
+            last: true,
         });
         builder.html_block("<!-- only a comment -->");
         builder.ensure_started(item);
@@ -1954,6 +1956,7 @@ mod tests {
         let item = builder.begin_container(Container::ListItem {
             marker: crate::model::Marker::Bullet,
             tight: false,
+            last: true,
         });
         paragraph(&mut builder, "a");
         builder.html_block("<details>");

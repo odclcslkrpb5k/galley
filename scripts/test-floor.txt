@@ -1,5 +1,5 @@
 # Minimum test count per nextest binary (scripts/check-test-floor). Raise when adding tests.
-galley::bin/galley 164
+galley::bin/galley 165
 galley-core 67
 galley-core::corpus 1
 galley-core::gfm 28

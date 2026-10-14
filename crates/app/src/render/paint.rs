@@ -20,8 +20,8 @@ use std::sync::Arc;
 
 use galley_core::Document;
 use galley_core::model::{
-    AlertKind, Align, Container, Delimiter, HeadingLevel, InlineObject, Inlines, LEAF_TEXT_BYTES,
-    Leaf, LeafKind, LinkTarget, Marker, Style,
+    AlertKind, Align, Container, Context, Delimiter, HeadingLevel, InlineObject, Inlines,
+    LEAF_TEXT_BYTES, Leaf, LeafKind, LinkTarget, Marker, Style,
 };
 use galley_core::units::{
     ContextId, DetailsId, FootnoteId, ImageId, LeafId, LinkId, RowNo, TableId,
@@ -391,6 +391,34 @@ pub(crate) fn paint_document(doc: &Document) -> Vec<LeafPaint> {
     paints
 }
 
+/// Whether the space after a leaf of a tight list item stays tight: whether what follows is in
+/// the same tight list (more of the item, or the next item), and not after the list's end.
+/// `stack` is the leaf's containers, innermost first; `next` the next leaf's.
+fn tight_after(stack: &[(ContextId, &Context)], next: &[ContextId]) -> bool {
+    for &(id, context) in stack {
+        let goes_on = next.contains(&id);
+        match context.container() {
+            // The item goes on, or the next item follows: its list's spacing. Its list ends:
+            // the container around the list decides.
+            &Container::ListItem { tight, last, .. } => {
+                if goes_on || !last {
+                    return tight;
+                }
+            }
+            // A list ended inside it, and more of it follows: spaced as after a paragraph.
+            Container::Quote
+            | Container::Alert(_)
+            | Container::Footnote(_)
+            | Container::Details { .. } => {
+                if goes_on {
+                    return false;
+                }
+            }
+        }
+    }
+    false
+}
+
 /// The leaf of each footnote's first reference, where its number links back to.
 fn first_references(doc: &Document) -> HashMap<FootnoteId, LeafId> {
     let mut references = HashMap::new();
@@ -572,7 +600,7 @@ impl Painter<'_> {
         let tight = matches!(
             stack.first().map(|(_id, context)| context.container()),
             Some(Container::ListItem { tight: true, .. })
-        );
+        ) && tight_after(&stack, next);
         stack.reverse();
         let mut list_depth = 0;
         for (context_id, context) in stack {
@@ -1180,7 +1208,43 @@ mod tests {
         );
         let indents: Vec<f64> = paints.iter().map(|paint| paint.indent_em).collect();
         assert_eq!(indents, vec![1.75, 1.75, 3.5, 5.25, 1.75]);
-        assert!(paints.iter().all(|paint| paint.gap_below_em == TIGHT_GAP));
+        // The ordered list ends at "d" (the task list is another list), and the task list at
+        // the end.
+        let gaps: Vec<f64> = paints.iter().map(|paint| paint.gap_below_em).collect();
+        assert_eq!(
+            gaps,
+            vec![
+                TIGHT_GAP,
+                TIGHT_GAP,
+                TIGHT_GAP,
+                PARAGRAPH_GAP,
+                PARAGRAPH_GAP
+            ]
+        );
+    }
+
+    #[test]
+    fn a_tight_list_is_spaced_from_what_follows_it() {
+        let gaps = |markdown: &str| -> Vec<f64> {
+            paints(markdown)
+                .iter()
+                .map(|paint| paint.gap_below_em)
+                .collect()
+        };
+        let (tight, para) = (TIGHT_GAP, PARAGRAPH_GAP);
+        // As Quoin's README: a paragraph after the list.
+        assert_eq!(gaps("- a\n- b\n\nafter\n"), vec![tight, para, para]);
+        // A nested list ending inside an item, and before the next item: still tight.
+        assert_eq!(
+            gaps("- a\n  - b\n- c\n\nafter\n"),
+            vec![tight, tight, para, para]
+        );
+        // A blank line inside an item makes its list loose.
+        assert_eq!(gaps("- a\n  - b\n\n  more\n"), vec![para, para, para]);
+        // A list ending inside a quote, with more of the quote after it.
+        assert_eq!(gaps("> - a\n>\n> after\n"), vec![para, para]);
+        // A loose list's paragraphs are spaced already.
+        assert_eq!(gaps("- a\n\n- b\n"), vec![para, para]);
     }
 
     #[test]

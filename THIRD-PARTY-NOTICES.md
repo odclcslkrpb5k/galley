@@ -87,7 +87,7 @@ The Galley binary is MIT (LICENSE) and is built with the crates and syntax gramm
 | regex-syntax | 0.8.11 | MIT OR Apache-2.0 |
 | ring | 0.17.14 | Apache-2.0 AND ISC |
 | rustc-hash | 2.1.3 | Apache-2.0 OR MIT |
-| rustls | 0.23.45 | Apache-2.0 OR ISC OR MIT |
+| rustls | 0.23.46 | Apache-2.0 OR ISC OR MIT |
 | rustls-native-certs | 0.8.4 | Apache-2.0 OR ISC OR MIT |
 | rustls-pki-types | 1.15.1 | MIT OR Apache-2.0 |
 | rustls-platform-verifier | 0.7.1 | MIT OR Apache-2.0 |
@@ -407,7 +407,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-### base64 0.23.1 (LICENSE-APACHE), bitflags 2.13.2 (LICENSE-APACHE), cfg-if 1.0.5 (LICENSE-APACHE), equivalent 1.0.2 (LICENSE-APACHE), flate2 1.1.10 (LICENSE-APACHE), fnv 1.0.7 (LICENSE-APACHE), hashbrown 0.17.1 (LICENSE-APACHE), heck 0.5.0 (LICENSE-APACHE), httparse 1.10.1 (LICENSE-APACHE), indexmap 2.14.2 (LICENSE-APACHE), log 0.4.34 (LICENSE-APACHE), once_cell 1.21.4 (LICENSE-APACHE), openssl-probe 0.2.1 (LICENSE-APACHE), percent-encoding 2.3.2 (LICENSE-APACHE), regex-automata 0.4.18 (LICENSE-APACHE), regex-syntax 0.8.11 (LICENSE-APACHE), rustls 0.23.45 (LICENSE-APACHE), rustls-native-certs 0.8.4 (LICENSE-APACHE), smallvec 1.16.3 (LICENSE-APACHE), unicode-normalization 0.1.25 (LICENSE-APACHE)
+### base64 0.23.1 (LICENSE-APACHE), bitflags 2.13.2 (LICENSE-APACHE), cfg-if 1.0.5 (LICENSE-APACHE), equivalent 1.0.2 (LICENSE-APACHE), flate2 1.1.10 (LICENSE-APACHE), fnv 1.0.7 (LICENSE-APACHE), hashbrown 0.17.1 (LICENSE-APACHE), heck 0.5.0 (LICENSE-APACHE), httparse 1.10.1 (LICENSE-APACHE), indexmap 2.14.2 (LICENSE-APACHE), log 0.4.34 (LICENSE-APACHE), once_cell 1.21.4 (LICENSE-APACHE), openssl-probe 0.2.1 (LICENSE-APACHE), percent-encoding 2.3.2 (LICENSE-APACHE), regex-automata 0.4.18 (LICENSE-APACHE), regex-syntax 0.8.11 (LICENSE-APACHE), rustls 0.23.46 (LICENSE-APACHE), rustls-native-certs 0.8.4 (LICENSE-APACHE), smallvec 1.16.3 (LICENSE-APACHE), unicode-normalization 0.1.25 (LICENSE-APACHE)
 
 ```text
 Apache License
@@ -4125,7 +4125,7 @@ OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN
 CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 ```
 
-### rustls 0.23.45 (LICENSE-ISC), rustls-native-certs 0.8.4 (LICENSE-ISC)
+### rustls 0.23.46 (LICENSE-ISC), rustls-native-certs 0.8.4 (LICENSE-ISC)
 
 ```text
 ISC License (ISC)
@@ -4145,7 +4145,7 @@ ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
 THIS SOFTWARE.
 ```
 
-### rustls 0.23.45 (LICENSE-MIT), rustls-native-certs 0.8.4 (LICENSE-MIT)
+### rustls 0.23.46 (LICENSE-MIT), rustls-native-certs 0.8.4 (LICENSE-MIT)
 
 ```text
 Copyright (c) 2016 Joseph Birr-Pixton <jpixton@gmail.com>

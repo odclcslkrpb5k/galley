@@ -38,7 +38,7 @@ if [[ -n "$unprioritised" ]]; then
 fi
 
 # Clippy fails on the canary by design; what matters is which codes it emitted.
-out=$(cargo clippy -p gbk-markdown-lint-canary --locked --message-format=json -q 2>/dev/null) || true
+out=$(cargo clippy -p galley-lint-canary --locked --message-format=json -q 2>/dev/null) || true
 fired=$(jq -r 'select(.reason == "compiler-message") | .message.code.code // empty' <<<"$out" | sort -u)
 
 missing=0

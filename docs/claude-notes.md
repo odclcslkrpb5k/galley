@@ -40,7 +40,7 @@ Optimisation goals, in priority order as stated:
 | 2026-10-11 | Flat leaf document model (lists, quotes, tables, code chunked into leaves) | Red-team blocker: per-block virtualisation can't meet TTFP on big lists/tables/code |
 | 2026-10-11 | No text selection, copy or find in v1; keep (leaf, ByteOffset) addressing | User decision; addressing keeps them addable later |
 | 2026-10-11 | Remote images: placeholder first, fetch async once placeholder is visible | User decision |
-| 2026-10-11 | Binary name `gbk-markdown` | User decision |
+| 2026-10-11 | Binary name `gbk-markdown` | User decision (renamed Galley, `galley`, 2026-10-14) |
 | 2026-10-11 | Budgets split: GTK floor (measured) + our added cost; work counters gate, wall clock reports | Red-team: GTK startup may exceed a fixed TTFP budget |
 | 2026-10-12 | Remote images via ureq 3 + rustls (ring), system certificates (platform-verifier); ISC licence allowed after review | M4; no bundled roots, no OpenSSL; startup unchanged within 1 ms |
 | 2026-10-12 | Cairo renderer by default, `--renderer=cairo\|gl` overrides GSK_RENDERER; `unsafe_code` deny with one exception (set_var in main) | User decision: 70-90 ms faster first frame, scrolling even; check-boundaries keeps it the only unsafe |
@@ -51,6 +51,7 @@ Optimisation goals, in priority order as stated:
 | 2026-10-12 | Install records the Markdown defaults it replaces and gives them back on uninstall (where ours is still the default) | M6; xdg-mime default replaces the whole list; run only with the user's go-ahead (writes outside the repo) |
 | 2026-10-12 | Reload: FileMonitor on the canonical path after the first frame; 200 ms after a save ends, 2 s after a bare write, 1 s at most; through set_document; shown images and code colours kept | M6 reviews: symlinks, slow writers, continuous rewrites, badges fetched on every save |
 | 2026-10-12 | Notices drawn by the view (typed Message), not a GTK overlay widget | M6; one widget, no new allocation path; the layout is made outside frames; not heard by screen readers (after v1) |
+| 2026-10-14 | Renamed gbk-markdown -> Galley: executable, crates, desktop file and release assets `galley`; "Galley" where read; app id io.github.odclcslkrpb5k.Galley; GitHub repo renamed | User decision; name checked: no Ubuntu, Flathub or Snap package; crates.io and PyPI "galley" are unrelated (not published there); beeware/galley, a docs reviewer, archived |
 | 2026-10-13 | MIT licence; repository made public; history published as is | User decision |
 | 2026-10-13 | Releases as gbk-file: named by commit hash, install.sh piped from main, SHA256SUMS, Ubuntu 26.04 x86_64 only; THIRD-PARTY-NOTICES.md generated and gated, `--licenses` | User asked for gbk-file's method; scripts/install keeps make-default and restore, copying through install.sh |
 | 2026-10-13 | Forward navigation (Alt+Right, mouse button 9) with a browser-style history; Ctrl+E opens plain text's default application | User requests; Markdown's default is this viewer, so plain text's is the editor |

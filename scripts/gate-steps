@@ -17,7 +17,7 @@ step "clippy"
 # no longer resolves only warns), so any warning in the output fails the step.
 clippy_log=target/gate/clippy.log
 mkdir -p target/gate
-cargo clippy --workspace --exclude gbk-markdown-lint-canary --all-targets --locked -- -D warnings \
+cargo clippy --workspace --exclude galley-lint-canary --all-targets --locked -- -D warnings \
     2>&1 | tee "$clippy_log"
 if grep -q '^warning' "$clippy_log"; then
     echo "gate: clippy printed warnings (see above)" >&2

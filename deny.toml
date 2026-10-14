@@ -49,7 +49,7 @@ wildcards = "deny"
 allow-wildcard-paths = true
 deny = [
     { crate = "anyhow", reason = "errors are typed enums in our own words (docs/plan.md §7)" },
-    { crate = "comrak", wrappers = ["gbk-markdown-core"], reason = "only core may parse; the renderer sees core's model (docs/plan.md §3)" },
+    { crate = "comrak", wrappers = ["galley-core"], reason = "only core may parse; the renderer sees core's model (docs/plan.md §3)" },
 ]
 
 [sources]

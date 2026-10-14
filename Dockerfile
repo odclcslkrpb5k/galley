@@ -1,4 +1,4 @@
-# Build environment for gbk-markdown (docs/plan.md §8).
+# Build environment for galley (docs/plan.md §8).
 #
 # The binary built here runs on the host, which has the same libgtk-4 (4.22.4) and Pango (1.57).
 # Every download is pinned by version and sha256. The tag scripts/check uses is a hash of this file

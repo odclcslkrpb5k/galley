@@ -5,7 +5,7 @@
 # nothing because it could not. Gate step, after the release build.
 set -euo pipefail
 cd "$(dirname "$0")/.."
-bin=${CARGO_TARGET_DIR:-target}/release/gbk-markdown
+bin=${CARGO_TARGET_DIR:-target}/release/galley
 fail=0
 if ! grep -qaF 'source.rust' "$bin"; then
   echo "check-grammars: no grammar scope found at all in $bin; the check cannot work" >&2

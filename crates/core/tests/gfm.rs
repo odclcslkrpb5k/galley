@@ -7,10 +7,10 @@
 mod gfm {
     use std::path::Path;
 
-    use gbk_markdown_core::model::{
+    use galley_core::model::{
         AlertKind, Container, Inlines, Leaf, LeafKind, LinkTarget, Marker, Span, Style,
     };
-    use gbk_markdown_core::{Document, load};
+    use galley_core::{Document, load};
 
     fn doc(markdown: &str) -> Document {
         load(markdown.as_bytes())
@@ -54,7 +54,7 @@ mod gfm {
             .spans()
             .iter()
             .find(|span| span.range().start.index() <= at && at < span.range().end.index())
-            .map_or(Style::PLAIN, gbk_markdown_core::model::Span::style)
+            .map_or(Style::PLAIN, galley_core::model::Span::style)
     }
 
     // On.
@@ -301,7 +301,7 @@ mod gfm {
         assert_eq!(
             doc.code_blocks()
                 .first()
-                .map(gbk_markdown_core::model::CodeBlock::text),
+                .map(galley_core::model::CodeBlock::text),
             Some("a\nb")
         );
     }
@@ -340,23 +340,23 @@ mod gfm {
         assert_eq!(images.len(), 2);
         assert_eq!(images.first().and_then(|i| i.title()), Some("Image title"));
         assert_eq!(
-            images.first().map(gbk_markdown_core::model::Image::size),
+            images.first().map(galley_core::model::Image::size),
             Some((None, None))
         );
         assert_eq!(
-            images.get(1).map(gbk_markdown_core::model::Image::size),
+            images.get(1).map(galley_core::model::Image::size),
             Some((Some(30), Some(20)))
         );
         assert_eq!(images.get(1).and_then(|i| i.title()), None);
         let aligns: Vec<_> = doc.leaves().iter().map(Leaf::align).collect();
-        assert_eq!(aligns.get(2), Some(&gbk_markdown_core::model::Align::End));
+        assert_eq!(aligns.get(2), Some(&galley_core::model::Align::End));
         let table = doc.tables().first().expect("table");
         assert_eq!(
             table.alignments(),
             &[
-                gbk_markdown_core::model::Align::Start,
-                gbk_markdown_core::model::Align::Center,
-                gbk_markdown_core::model::Align::End
+                galley_core::model::Align::Start,
+                galley_core::model::Align::Center,
+                galley_core::model::Align::End
             ]
         );
         let nested = doc.leaves().last().expect("nested item");
@@ -389,7 +389,7 @@ mod gfm {
         let names: Vec<&str> = raw
             .anchors()
             .iter()
-            .map(gbk_markdown_core::model::Anchor::slug)
+            .map(galley_core::model::Anchor::slug)
             .collect();
         assert_eq!(names, vec!["install", "install", "here"]);
         // A footnote's context knows its first leaf, where links to it go.
@@ -404,7 +404,7 @@ mod gfm {
         assert_eq!(doc.notices(), &[]);
         assert_eq!(
             load(b"\xFF").notices(),
-            &[gbk_markdown_core::model::Notice::InvalidUtf8Replaced]
+            &[galley_core::model::Notice::InvalidUtf8Replaced]
         );
     }
 

@@ -16,7 +16,7 @@ pub(crate) fn report_error(message: impl Display) {
         clippy::let_underscore_must_use,
         reason = "if stderr cannot be written there is nowhere left to report that"
     )]
-    let _ = writeln!(std::io::stderr().lock(), "gbk-markdown: {message}");
+    let _ = writeln!(std::io::stderr().lock(), "galley: {message}");
 }
 
 /// Writes one line of machine-read output (the probe report). Returns whether it was written.

@@ -90,7 +90,7 @@ mod spec {
         let mut unexpected = Vec::new();
         let mut differing = Vec::new();
         for example in spec.iter().chain(&extensions) {
-            let doc = gbk_markdown_core::load(example.markdown.as_bytes());
+            let doc = galley_core::load(example.markdown.as_bytes());
             // "<IGNORE>": the example only checks that parsing does not crash.
             if example.html.trim() == "<IGNORE>" {
                 continue;

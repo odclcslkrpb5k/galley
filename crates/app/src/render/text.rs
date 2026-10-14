@@ -18,9 +18,9 @@ use super::image::ImageTable;
 use super::paint::{AttrKind, FontRole, LeafPaint, LinkSpan, Target, TextAttr};
 use super::table::{self, CELL_PAD_X_EM, CELL_PAD_Y_EM, ColumnSample, Grid, MIN_COLUMN_EM};
 use crate::units;
-use gbk_markdown_core::model::{AlertKind, Align, HeadingLevel};
-use gbk_markdown_core::units::ImageId;
-use gbk_markdown_core::units::TableId;
+use galley_core::model::{AlertKind, Align, HeadingLevel};
+use galley_core::units::ImageId;
+use galley_core::units::TableId;
 
 /// Body text is sans-serif and code monospace, at the desktop font's size: the desktop font may
 /// itself be monospace (this host's is Source Code Pro), which suits a terminal, not a document.
@@ -792,7 +792,7 @@ mod tests {
 
     /// Lays out every paint of `markdown` at 600 px.
     fn laid_out(markdown: &str) -> Vec<(LeafPaint, Measured, LeafGeometry)> {
-        let doc = gbk_markdown_core::load(markdown.as_bytes());
+        let doc = galley_core::load(markdown.as_bytes());
         let typesetter = Typesetter {
             images: Arc::new(ImageTable::new(crate::render::paint::image_infos(&doc))),
             ..typesetter()
@@ -960,7 +960,7 @@ mod tests {
         // Long enough to wrap at 200 px, so colour runs fall across line breaks.
         let code =
             "let total: u32 = values.iter().map(|value| value * 2).sum(); // doubled\n".repeat(6);
-        let doc = gbk_markdown_core::load(format!("```rust\n{code}```\n").as_bytes());
+        let doc = galley_core::load(format!("```rust\n{code}```\n").as_bytes());
         let paint = crate::render::paint::paint_document(&doc)
             .into_iter()
             .next()

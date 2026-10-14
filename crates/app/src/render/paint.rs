@@ -18,12 +18,12 @@ use std::collections::HashMap;
 use std::ops::Range;
 use std::sync::Arc;
 
-use gbk_markdown_core::Document;
-use gbk_markdown_core::model::{
+use galley_core::Document;
+use galley_core::model::{
     AlertKind, Align, Container, Delimiter, HeadingLevel, InlineObject, Inlines, LEAF_TEXT_BYTES,
     Leaf, LeafKind, LinkTarget, Marker, Style,
 };
-use gbk_markdown_core::units::{
+use galley_core::units::{
     ContextId, DetailsId, FootnoteId, ImageId, LeafId, LinkId, RowNo, TableId,
 };
 
@@ -400,7 +400,7 @@ fn first_references(doc: &Document) -> HashMap<FootnoteId, LeafId> {
                 if let Some(LinkTarget::Footnote(footnote)) = span
                     .link()
                     .and_then(|link| doc.link(link))
-                    .map(gbk_markdown_core::model::Link::target)
+                    .map(galley_core::model::Link::target)
                 {
                     references.entry(*footnote).or_insert(id);
                 }
@@ -693,7 +693,7 @@ impl Painter<'_> {
     /// cell that long is wider than any view anyway, and the sample is measured before the first
     /// frame when a table is on the first screen (the M3 smoke run: 50 rows of 2 KiB cells gave
     /// Pango 104 KiB before the first frame).
-    fn sample_rows(&self, table: &gbk_markdown_core::model::Table) -> Vec<RowPaint> {
+    fn sample_rows(&self, table: &galley_core::model::Table) -> Vec<RowPaint> {
         let mut rows: Vec<RowPaint> = self.header_row(table).into_iter().collect();
         let body = table.rows();
         let body = body.get(..SAMPLE_ROWS.min(body.len())).unwrap_or_default();
@@ -714,7 +714,7 @@ impl Painter<'_> {
         kept
     }
 
-    fn header_row(&self, table: &gbk_markdown_core::model::Table) -> Option<RowPaint> {
+    fn header_row(&self, table: &galley_core::model::Table) -> Option<RowPaint> {
         if table.header().is_empty() {
             return None;
         }
@@ -728,7 +728,7 @@ impl Painter<'_> {
 
     fn body_rows(
         &self,
-        table: &gbk_markdown_core::model::Table,
+        table: &galley_core::model::Table,
         first: usize,
         rows: &[Vec<Inlines>],
     ) -> Vec<RowPaint> {
@@ -738,12 +738,7 @@ impl Painter<'_> {
             .collect()
     }
 
-    fn row(
-        &self,
-        table: &gbk_markdown_core::model::Table,
-        cells: &[Inlines],
-        striped: bool,
-    ) -> RowPaint {
+    fn row(&self, table: &galley_core::model::Table, cells: &[Inlines], striped: bool) -> RowPaint {
         RowPaint {
             cells: cells
                 .iter()
@@ -1151,7 +1146,7 @@ mod tests {
     use super::*;
 
     fn paints(markdown: &str) -> Vec<LeafPaint> {
-        paint_document(&gbk_markdown_core::load(markdown.as_bytes()))
+        paint_document(&galley_core::load(markdown.as_bytes()))
     }
 
     fn markers(paint: &LeafPaint) -> Vec<(f64, String)> {
@@ -1330,7 +1325,7 @@ mod tests {
 
     #[test]
     fn image_infos_keep_alt_size_and_loadable_sources() {
-        let doc = gbk_markdown_core::load(
+        let doc = galley_core::load(
             b"![a](x.png) <img src=\"https://h/y.svg\" width=\"30\" alt=\"b\"> ![c](#frag) ![d](data:x) ![e](?query)",
         );
         let infos = image_infos(&doc);
@@ -1405,7 +1400,7 @@ mod tests {
             .map(|i| format!("{i:030}\n"))
             .collect::<Vec<_>>()
             .concat();
-        let doc = gbk_markdown_core::load(
+        let doc = galley_core::load(
             format!("```rust\n{code}```\n\n```\nplain\n```\n\n```math\nx\n```\n").as_bytes(),
         );
         let paints = paint_document(&doc);
@@ -1699,12 +1694,9 @@ mod tests {
             markers(summary),
             vec![(DETAILS_INDENT - MARKER_GAP, "disclosure".to_owned())]
         );
-        let doc = gbk_markdown_core::load(b"<details open></details><details></details>x");
+        let doc = galley_core::load(b"<details open></details><details></details>x");
         assert_eq!(details_open(&doc), vec![true, false]);
-        assert_eq!(
-            details_open(&gbk_markdown_core::load(b"x")),
-            Vec::<bool>::new()
-        );
+        assert_eq!(details_open(&galley_core::load(b"x")), Vec::<bool>::new());
     }
 
     #[test]
@@ -1745,7 +1737,7 @@ mod tests {
             "# Top\n\n```\n{}```\n\n<a id=\"x\"></a>after\n",
             "line\n".repeat(1000)
         );
-        let doc = gbk_markdown_core::load(code.as_bytes());
+        let doc = galley_core::load(code.as_bytes());
         let paints = paint_document(&doc);
         assert!(paints.len() > 3, "the code is split");
         let last_leaf = paints.last().expect("paints").source;
@@ -1828,7 +1820,7 @@ mod tests {
 
     #[test]
     fn targets_have_one_word_labels() {
-        let doc = gbk_markdown_core::load(b"a\n\nb\n\nc\n\nd\n");
+        let doc = galley_core::load(b"a\n\nb\n\nc\n\nd\n");
         let fourth = doc
             .leaves_with_ids()
             .nth(3)

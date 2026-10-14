@@ -1,6 +1,6 @@
 [Desktop Entry]
 Type=Application
-Name=GBK Markdown
+Name=Galley
 GenericName=Markdown Viewer
 Comment=View Markdown documents
 Exec=@BIN@ %f
@@ -10,4 +10,4 @@ Terminal=false
 MimeType=text/markdown;text/x-markdown;
 Categories=Utility;TextTools;
 Keywords=markdown;md;readme;viewer;
-StartupWMClass=gbk-markdown
+StartupWMClass=galley

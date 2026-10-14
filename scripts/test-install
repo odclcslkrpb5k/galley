@@ -8,7 +8,7 @@ cd "$(dirname "$0")/.."
 home=$(mktemp -d)
 trap 'rm -rf "$home"' EXIT
 fail() { echo "test-install: $*" >&2; exit 1; }
-sed 's|@BIN@|/usr/bin/gbk-markdown|g' data/gbk-markdown.desktop.in >"$home/template-check.desktop"
+sed 's|@BIN@|/usr/bin/galley|g' data/galley.desktop.in >"$home/template-check.desktop"
 desktop-file-validate "$home/template-check.desktop" || fail "the desktop file template is not valid"
 rm "$home/template-check.desktop"
 
@@ -44,30 +44,30 @@ default() { cat "$home/defaults/${1//\//_}" 2>/dev/null || true; }
 # also lists ours (as an earlier install's xdg-mime would have left it) beside others.
 echo other.desktop >"$home/defaults/text_markdown"
 mkdir -p "$home/.config"
-printf '%s\n' '[Default Applications]' 'text/markdown=gbk-markdown.desktop;other.desktop;' \
-  'text/x-markdown=gbk-markdown.desktop;' 'text/html=browser.desktop;' >"$home/.config/mimeapps.list"
+printf '%s\n' '[Default Applications]' 'text/markdown=galley.desktop;other.desktop;' \
+  'text/x-markdown=galley.desktop;' 'text/html=browser.desktop;' >"$home/.config/mimeapps.list"
 
-GBK_PREBUILT=${CARGO_TARGET_DIR:-target}/release/gbk-markdown scripts/install --home "$home" >/dev/null
-[[ -x "$home/.local/bin/gbk-markdown" ]] || fail "no executable installed"
-installed=$home/.local/share/applications/gbk-markdown.desktop
+GBK_PREBUILT=${CARGO_TARGET_DIR:-target}/release/galley scripts/install --home "$home" >/dev/null
+[[ -x "$home/.local/bin/galley" ]] || fail "no executable installed"
+installed=$home/.local/share/applications/galley.desktop
 desktop-file-validate "$installed" || fail "the installed desktop file is not valid"
-grep -qxF "Exec=$home/.local/bin/gbk-markdown %f" "$installed" &&
-  grep -qxF "TryExec=$home/.local/bin/gbk-markdown" "$installed" ||
+grep -qxF "Exec=$home/.local/bin/galley %f" "$installed" &&
+  grep -qxF "TryExec=$home/.local/bin/galley" "$installed" ||
   fail "the installed desktop file does not name the installed binary by its full path"
-"$home/.local/bin/gbk-markdown" --help >/dev/null || fail "the installed binary does not run"
-[[ "$(default text/markdown)" == gbk-markdown.desktop && "$(default text/x-markdown)" == gbk-markdown.desktop ]] ||
+"$home/.local/bin/galley" --help >/dev/null || fail "the installed binary does not run"
+[[ "$(default text/markdown)" == galley.desktop && "$(default text/x-markdown)" == galley.desktop ]] ||
   fail "not made the default for Markdown"
 # What was there before: other.desktop, and nothing for text/x-markdown (not ours: recorded
 # before ours was installed).
-[[ "$(cat "$home/.local/share/gbk-markdown/previous-defaults")" == $'text/markdown=other.desktop\ntext/x-markdown=' ]] ||
-  fail "the previous defaults were not recorded before installing: $(cat "$home/.local/share/gbk-markdown/previous-defaults")"
+[[ "$(cat "$home/.local/share/galley/previous-defaults")" == $'text/markdown=other.desktop\ntext/x-markdown=' ]] ||
+  fail "the previous defaults were not recorded before installing: $(cat "$home/.local/share/galley/previous-defaults")"
 # A second install must not record ours as what was there before.
-GBK_PREBUILT=${CARGO_TARGET_DIR:-target}/release/gbk-markdown scripts/install --home "$home" >/dev/null
+GBK_PREBUILT=${CARGO_TARGET_DIR:-target}/release/galley scripts/install --home "$home" >/dev/null
 
 scripts/install --uninstall --home "$home" >/dev/null
-[[ ! -e "$home/.local/bin/gbk-markdown" && ! -e "$home/.local/share/applications/gbk-markdown.desktop" ]] ||
+[[ ! -e "$home/.local/bin/galley" && ! -e "$home/.local/share/applications/galley.desktop" ]] ||
   fail "uninstall left files behind"
-[[ ! -e "$home/.local/share/gbk-markdown" ]] || fail "uninstall left its record behind"
+[[ ! -e "$home/.local/share/galley" ]] || fail "uninstall left its record behind"
 [[ "$(default text/markdown)" == other.desktop ]] ||
   fail "text/markdown was not given back to other.desktop: $(default text/markdown)"
 expected=$(printf '%s\n' '[Default Applications]' 'text/markdown=other.desktop;' 'text/html=browser.desktop;')
@@ -75,19 +75,42 @@ expected=$(printf '%s\n' '[Default Applications]' 'text/markdown=other.desktop;'
   fail "uninstall did not remove only its own associations: $(cat "$home/.config/mimeapps.list")"
 
 # A default the user chose after installing is theirs: uninstall leaves it.
-GBK_PREBUILT=${CARGO_TARGET_DIR:-target}/release/gbk-markdown scripts/install --home "$home" >/dev/null
+GBK_PREBUILT=${CARGO_TARGET_DIR:-target}/release/galley scripts/install --home "$home" >/dev/null
 echo typora.desktop >"$home/defaults/text_markdown"
 scripts/install --uninstall --home "$home" >/dev/null
 [[ "$(default text/markdown)" == typora.desktop ]] || fail "uninstall replaced a default chosen since"
 
 # --no-default touches no default.
 echo other.desktop >"$home/defaults/text_markdown"
-GBK_PREBUILT=${CARGO_TARGET_DIR:-target}/release/gbk-markdown scripts/install --no-default --home "$home" >/dev/null
+GBK_PREBUILT=${CARGO_TARGET_DIR:-target}/release/galley scripts/install --no-default --home "$home" >/dev/null
 [[ "$(default text/markdown)" == other.desktop ]] || fail "--no-default changed the default"
+# An install from before the rename (gbk-markdown), the default for Markdown, with ReText
+# recorded as what was there before it: replaced, its record kept, its associations gone.
+migrated=$home/migrated
+mkdir -p "$migrated/.local/bin" "$migrated/.local/share/applications" \
+  "$migrated/.local/share/gbk-markdown" "$migrated/.config"
+touch "$migrated/.local/bin/gbk-markdown" "$migrated/.local/share/applications/gbk-markdown.desktop"
+printf '%s\n' 'text/markdown=retext.desktop' 'text/x-markdown=' \
+  >"$migrated/.local/share/gbk-markdown/previous-defaults"
+printf '%s\n' '[Default Applications]' 'text/markdown=gbk-markdown.desktop;' 'text/html=browser.desktop;' \
+  >"$migrated/.config/mimeapps.list"
+echo gbk-markdown.desktop >"$home/defaults/text_markdown"
+GBK_PREBUILT=${CARGO_TARGET_DIR:-target}/release/galley scripts/install --home "$migrated" >/dev/null
+[[ ! -e "$migrated/.local/bin/gbk-markdown" && ! -e "$migrated/.local/share/applications/gbk-markdown.desktop" &&
+  ! -e "$migrated/.local/share/gbk-markdown" ]] || fail "the gbk-markdown install was left behind"
+[[ -x "$migrated/.local/bin/galley" ]] || fail "galley was not installed over gbk-markdown"
+[[ "$(cat "$migrated/.local/share/galley/previous-defaults")" == $'text/markdown=retext.desktop\ntext/x-markdown=' ]] ||
+  fail "gbk-markdown's record of the defaults before it was not kept"
+! grep -q gbk-markdown "$migrated/.config/mimeapps.list" || fail "gbk-markdown's associations were kept"
+[[ "$(default text/markdown)" == galley.desktop ]] || fail "galley was not made the default"
+scripts/install --uninstall --home "$migrated" >/dev/null
+[[ "$(default text/markdown)" == retext.desktop ]] ||
+  fail "uninstall after the rename did not give Markdown back to ReText: $(default text/markdown)"
+
 # install.sh refuses what it cannot install safely, touching nothing.
 staged=$home/staged
 mkdir -p "$staged"
-cp "${CARGO_TARGET_DIR:-target}/release/gbk-markdown" data/gbk-markdown.desktop.in "$staged/"
+cp "${CARGO_TARGET_DIR:-target}/release/galley" data/galley.desktop.in "$staged/"
 refused() { # what, environment...
   local what=$1
   shift
@@ -97,7 +120,7 @@ refused "a prefix with a space" GBK_PREFIX="$home/with space"
 refused "a relative prefix" GBK_PREFIX=relative/dir
 refused "a version that is not a build hash" GBK_PREFIX="$home/x" GBK_VERSION=latest
 [[ ! -e "$home/x" && ! -e "$home/with space" ]] || fail "a refused install wrote files"
-printf '#!/bin/sh\nexit 1\n' >"$staged/gbk-markdown"
+printf '#!/bin/sh\nexit 1\n' >"$staged/galley"
 refused "a binary that does not run" GBK_PREFIX="$home/y"
-[[ ! -e "$home/y/bin/gbk-markdown" ]] || fail "a binary that does not run was installed"
+[[ ! -e "$home/y/bin/galley" ]] || fail "a binary that does not run was installed"
 echo "test-install: ok"

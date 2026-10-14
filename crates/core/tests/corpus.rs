@@ -190,7 +190,7 @@ mod corpus {
             let markdown = std::fs::read(dir.join("input.md")).expect("input");
             let github = std::fs::read_to_string(dir.join("github.html")).expect("rendering");
             let expected_view = html_view(&github);
-            let actual = model_view(&gbk_markdown_core::load(&markdown));
+            let actual = model_view(&galley_core::load(&markdown));
             let mut expected: Vec<(StyledChar, bool)> = expected_view
                 .chars
                 .iter()

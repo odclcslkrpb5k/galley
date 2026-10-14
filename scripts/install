@@ -34,21 +34,23 @@ if [[ -n "${GBK_PREBUILT:-}" ]]; then GBK_PREBUILT=$(realpath -- "$GBK_PREBUILT"
 cd "$(dirname "$0")/.."
 bin=$home/.local/bin
 apps=$home/.local/share/applications
-desktop=gbk-markdown.desktop
+desktop=galley.desktop
 mimes=(text/markdown text/x-markdown)
 # xdg-mime and update-desktop-database work on the real home: with another one, they are told
 # about it through XDG_DATA_HOME and XDG_CONFIG_HOME.
 export XDG_DATA_HOME=$home/.local/share XDG_CONFIG_HOME=$home/.config
 have() { command -v "$1" >/dev/null 2>&1; }
 # The defaults before ours, one `mime=desktop` a line, for --uninstall to give back.
-previous=$XDG_DATA_HOME/gbk-markdown/previous-defaults
+previous=$XDG_DATA_HOME/galley/previous-defaults
+# The name this viewer was installed under before it was Galley.
+old=gbk-markdown
 
-if ((uninstall)); then
-  rm -f "$bin/gbk-markdown" "$apps/$desktop"
-  # Only our own entries: other applications' associations stay as they were.
-  list=$XDG_CONFIG_HOME/mimeapps.list
-  if [[ -f "$list" ]]; then
-    python3 -I - "$list" "$desktop" <<'PY'
+# forget_associations ID: removes desktop file ID from mimeapps.list; other applications'
+# associations stay as they were.
+forget_associations() {
+  local list=$XDG_CONFIG_HOME/mimeapps.list
+  [[ -f "$list" ]] || return 0
+  python3 -I - "$list" "$1" <<'PY'
 import sys
 path, ours = sys.argv[1], sys.argv[2]
 lines = []
@@ -62,7 +64,11 @@ for line in open(path, encoding="utf-8").read().splitlines():
     lines.append(line)
 open(path, "w", encoding="utf-8").write("\n".join(lines) + "\n")
 PY
-  fi
+}
+
+if ((uninstall)); then
+  rm -f "$bin/galley" "$apps/$desktop"
+  forget_associations "$desktop"
   # Given back only where ours is still the default: one chosen since is the user's.
   if [[ -f "$previous" ]] && have xdg-mime; then
     while IFS='=' read -r mime app; do
@@ -74,14 +80,27 @@ PY
   fi
   rm -rf "$(dirname "$previous")"
   if have update-desktop-database; then update-desktop-database "$apps" 2>/dev/null || true; fi
-  echo "install: removed gbk-markdown from $home"
+  echo "install: removed galley from $home"
   exit 0
 fi
 
 if [[ -z "${GBK_PREBUILT:-}" ]]; then
   timeout 1800 scripts/in-docker cargo build --release --locked
 fi
-built=${GBK_PREBUILT:-target/docker/release/gbk-markdown}
+built=${GBK_PREBUILT:-target/docker/release/galley}
+# An install from before the rename (gbk-markdown): its files go, its record of the defaults
+# before it becomes ours (so --uninstall still gives Markdown back to what had it then), and
+# its associations are forgotten.
+if [[ -e "$bin/$old" || -e "$apps/$old.desktop" || -d "$XDG_DATA_HOME/$old" ]]; then
+  if [[ -f "$XDG_DATA_HOME/$old/previous-defaults" && ! -f "$previous" ]]; then
+    mkdir -p "$(dirname "$previous")"
+    cp "$XDG_DATA_HOME/$old/previous-defaults" "$previous"
+  fi
+  rm -rf "$bin/$old" "$apps/$old.desktop" "$XDG_DATA_HOME/$old"
+  forget_associations "$old.desktop"
+  echo "install: removed the gbk-markdown install it replaces"
+fi
+
 # The defaults before ours, recorded before anything is installed: with no default set,
 # xdg-mime answers from the installed desktop files, which would soon include ours (the first
 # real install recorded itself).
@@ -90,14 +109,17 @@ if ((default)) && have xdg-mime; then
   if [[ ! -f "$previous" ]]; then
     mkdir -p "$(dirname "$previous")"
     for mime in "${mimes[@]}"; do
-      echo "$mime=$(xdg-mime query default "$mime" 2>/dev/null || true)"
+      app=$(xdg-mime query default "$mime" 2>/dev/null || true)
+      # The old install was ours too: nothing to give back to.
+      [[ "$app" == "$old.desktop" ]] && app=""
+      echo "$mime=$app"
     done >"$previous"
   fi
 fi
 # The copying is install.sh's, the piped installer's: from a directory staged like a release.
 staged=$(mktemp -d)
 trap 'rm -rf "$staged"' EXIT
-cp "$built" "$staged/gbk-markdown"
+cp "$built" "$staged/galley"
 cp "data/$desktop.in" "$staged/$desktop.in"
 GBK_FROM=$staged GBK_PREFIX=$home/.local bash install.sh 2>/dev/null
 made_default=0
@@ -105,6 +127,6 @@ if ((default)) && have xdg-mime; then
   xdg-mime default "$desktop" "${mimes[@]}"
   made_default=1
 fi
-echo "install: gbk-markdown in $bin, $desktop in $apps$( ((made_default)) && echo ", default for Markdown")"
+echo "install: galley in $bin, $desktop in $apps$( ((made_default)) && echo ", default for Markdown")"
 if ((default && !made_default)); then echo "install: note: no xdg-mime, so not made the default"; fi
 case ":$PATH:" in *":$bin:"*) ;; *) echo "install: note: $bin is not on PATH" ;; esac

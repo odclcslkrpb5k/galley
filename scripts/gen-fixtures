@@ -187,13 +187,13 @@ for f in *.md; do echo "$f"; done # list
 
 ```console
 $ cargo build --release
-   Compiling gbk-markdown v0.1.0
+   Compiling galley v0.1.0
 % ls -l target
 ```
 
 ```toml
 [package]
-name = "gbk-markdown"
+name = "galley"
 version = "0.1.0"
 ```
 

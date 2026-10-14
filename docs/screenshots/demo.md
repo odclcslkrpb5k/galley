@@ -1,7 +1,7 @@
-# gbk-markdown
+# Galley
 
 A lightweight viewer for **GitHub-flavoured Markdown**, with *emphasis*, `inline code`,
-~~strikethrough~~ and [links](https://github.com/odclcslkrpb5k/gbk-markdown).
+~~strikethrough~~ and [links](https://github.com/odclcslkrpb5k/galley).
 
 > [!TIP]
 > Saving the file reloads it in place: the view stays where it was.
@@ -16,7 +16,7 @@ fn words(text: &str) -> usize {
 ```
 
 ```console
-$ gbk-markdown --theme=dark README.md
+$ galley --theme=dark README.md
 ```
 
 ## Tables and tasks

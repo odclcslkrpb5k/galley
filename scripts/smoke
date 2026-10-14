@@ -11,7 +11,7 @@ fi
 export NO_AT_BRIDGE=1 GTK_A11Y=none XDG_RUNTIME_DIR=/tmp/xdg-runtime
 mkdir -p -m 700 "$XDG_RUNTIME_DIR"
 
-bin=${CARGO_TARGET_DIR:-target}/release/gbk-markdown
+bin=${CARGO_TARGET_DIR:-target}/release/galley
 # Every run is --offline: the gate must not depend on, or contact, the network (images from the
 # corpus READMEs are remote).
 screens=${CARGO_TARGET_DIR:-target}/screens/${GATE_TREE:-adhoc}

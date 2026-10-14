@@ -3,10 +3,10 @@
 
 #[cfg(test)]
 mod properties {
-    use gbk_markdown_core::model::{
+    use galley_core::model::{
         Container, InlineObject, Inlines, LEAF_TEXT_BYTES, LeafKind, LinkTarget,
     };
-    use gbk_markdown_core::{Document, load};
+    use galley_core::{Document, load};
     use proptest::prelude::*;
 
     /// Checks every invariant; returns the first broken one.
@@ -81,10 +81,7 @@ mod properties {
         }
         for (id, leaf) in doc.leaves_with_ids() {
             if let LeafKind::Heading { anchor, .. } = leaf.kind()
-                && doc
-                    .anchor(*anchor)
-                    .map(gbk_markdown_core::model::Anchor::leaf)
-                    != Some(id)
+                && doc.anchor(*anchor).map(galley_core::model::Anchor::leaf) != Some(id)
             {
                 return Err(format!("heading {} has another's anchor", id.index()));
             }

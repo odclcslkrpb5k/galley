@@ -1,4 +1,4 @@
-//! Markdown loading for gbk-markdown: bytes in, document model out.
+//! Markdown loading for galley: bytes in, document model out.
 //!
 //! This crate has no GTK, Pango, `GLib` or file I/O dependency, so everything in it is tested
 //! headless (docs/plan.md §3). comrak is used only inside the private `parse` module.

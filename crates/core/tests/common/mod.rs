@@ -15,11 +15,11 @@
 
 use std::fmt;
 
-use gbk_markdown_core::Document;
+use galley_core::Document;
 use std::ops::Range;
 
-use gbk_markdown_core::model::{Container, Inlines, LeafKind, LinkTarget, Marker, Style};
-use gbk_markdown_core::units::{RowNo, TableId};
+use galley_core::model::{Container, Inlines, LeafKind, LinkTarget, Marker, Style};
+use galley_core::units::{RowNo, TableId};
 use html5gum::{Token, Tokenizer};
 
 /// The styles the oracles compare. Others (keyboard, sub/superscript, ...) only come from raw
@@ -347,7 +347,7 @@ fn push_table_rows(
     }
 }
 
-fn model_path(doc: &Document, leaf: &gbk_markdown_core::model::Leaf) -> Vec<String> {
+fn model_path(doc: &Document, leaf: &galley_core::model::Leaf) -> Vec<String> {
     let mut path = Vec::new();
     for (_id, context) in doc.containers(leaf) {
         // Innermost first; reversed at the end.
@@ -428,7 +428,7 @@ fn push_inlines(view: &mut View, seen: &mut usize, doc: &Document, inlines: &Inl
             .iter()
             .find(|span| span.range().start.index() <= at && at < span.range().end.index());
         let link = span
-            .and_then(gbk_markdown_core::model::Span::link)
+            .and_then(galley_core::model::Span::link)
             .and_then(|id| doc.link(id))
             .map(|link| model_target(doc, link.target()));
         let c = if c == '\n' { HARD_BREAK } else { c };
@@ -443,7 +443,7 @@ fn push_inlines(view: &mut View, seen: &mut usize, doc: &Document, inlines: &Inl
         );
     }
     for (_at, object) in inlines.objects() {
-        let gbk_markdown_core::model::InlineObject::Image(id) = object;
+        let galley_core::model::InlineObject::Image(id) = object;
         if let Some(image) = doc.image(*id) {
             view.images.push((
                 image.alt().to_owned(),

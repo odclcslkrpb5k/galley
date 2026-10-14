@@ -9,7 +9,7 @@ use crate::navigation;
 use crate::renderer::Renderer;
 
 pub(crate) const USAGE: &str = "\
-usage: gbk-markdown [OPTIONS] [--] FILE
+usage: galley [OPTIONS] [--] FILE
 
   --help                    show this and exit
   --version                 show the build (its commit) and exit

@@ -10,7 +10,7 @@
 use std::sync::RwLock;
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use gbk_markdown_core::units::ImageId;
+use galley_core::units::ImageId;
 
 use super::geometry::Metrics;
 use crate::units;
@@ -233,12 +233,12 @@ pub(crate) mod tests {
 
     /// The ids of a one-paragraph document's images (core makes ids only for its own images).
     pub(crate) fn image_ids(markdown: &str) -> Vec<ImageId> {
-        let doc = gbk_markdown_core::load(markdown.as_bytes());
+        let doc = galley_core::load(markdown.as_bytes());
         let mut ids = Vec::new();
         for leaf in doc.leaves() {
-            if let gbk_markdown_core::model::LeafKind::Paragraph(inlines) = leaf.kind() {
+            if let galley_core::model::LeafKind::Paragraph(inlines) = leaf.kind() {
                 for (_at, object) in inlines.objects() {
-                    let gbk_markdown_core::model::InlineObject::Image(id) = object;
+                    let galley_core::model::InlineObject::Image(id) = object;
                     ids.push(*id);
                 }
             }

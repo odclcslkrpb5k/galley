@@ -1,5 +1,5 @@
 [package]
-name = "gbk-markdown-lint-canary"
+name = "galley-lint-canary"
 description = "One deliberate violation per configured lint; scripts/lint-canary checks each fires."
 version.workspace = true
 edition.workspace = true

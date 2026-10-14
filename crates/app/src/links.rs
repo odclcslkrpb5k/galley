@@ -147,12 +147,8 @@ mod tests {
 
     #[test]
     fn the_editor_is_plain_texts_default_unless_that_is_this_viewer() {
-        let ours = "gbk-markdown.desktop";
-        let handlers = [
-            "gbk-markdown.desktop",
-            "org.xfce.mousepad.desktop",
-            "vim.desktop",
-        ];
+        let ours = "galley.desktop";
+        let handlers = ["galley.desktop", "org.xfce.mousepad.desktop", "vim.desktop"];
         assert_eq!(
             editor(Some("gedit.desktop"), &handlers, ours),
             Some("gedit.desktop")

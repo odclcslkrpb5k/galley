@@ -135,7 +135,7 @@ to be checked before the metric is trusted. Renderer decision stays with M2 (pla
 
 ## M1 (2026-10-11): `core::load` time
 
-`cargo run --release -p gbk-markdown-core --example load_time`, in the build container, 15 runs:
+`cargo run --release -p galley-core --example load_time`, in the build container, 15 runs:
 
 | Input | Size | Leaves | Median |
 |---|---|---|---|

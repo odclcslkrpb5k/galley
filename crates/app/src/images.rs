@@ -17,7 +17,7 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 
-use gbk_markdown_core::units::ImageId;
+use galley_core::units::ImageId;
 use gtk::gdk;
 use gtk::gdk_pixbuf;
 use gtk::glib;
@@ -477,7 +477,7 @@ fn agent() -> ureq::Agent {
     ureq::Agent::config_builder()
         .timeout_global(Some(TIMEOUT))
         .max_redirects(MAX_REDIRECTS)
-        .user_agent(concat!("gbk-markdown/", env!("CARGO_PKG_VERSION")))
+        .user_agent(concat!("galley/", env!("CARGO_PKG_VERSION")))
         .tls_config(tls)
         .build()
         .new_agent()
@@ -786,7 +786,7 @@ mod tests {
 
     #[test]
     fn a_reloaded_gallery_keeps_remote_images_it_has_shown() {
-        let doc = gbk_markdown_core::load(b"![a](https://x.org/a.png) ![b](local.png)\n");
+        let doc = galley_core::load(b"![a](https://x.org/a.png) ![b](local.png)\n");
         let paints = crate::render::paint::paint_document(&doc);
         let infos = || crate::render::paint::image_infos(&doc);
         let file = Some(std::env::temp_dir().join("doc.md"));
@@ -799,8 +799,7 @@ mod tests {
         old.table.set_natural(*remote, shown.natural);
         old.set(*local, ImageState::Ready(shown.texture.clone()));
         // The same document again: the remote image is shown at once, the local one loads.
-        let doc =
-            gbk_markdown_core::load(b"New text.\n\n![b](local.png) ![a](https://x.org/a.png)\n");
+        let doc = galley_core::load(b"New text.\n\n![b](local.png) ![a](https://x.org/a.png)\n");
         let paints = crate::render::paint::paint_document(&doc);
         let mut new = Gallery::new(
             crate::render::paint::image_infos(&doc),
@@ -835,7 +834,7 @@ mod tests {
         std::fs::write(dir.join("dot.png"), png()).expect("write");
         let markdown =
             "![a](dot.png) ![b](https://x.org/b.png) ![c](missing.png) ![d](#x) ![e](dot.png)\n";
-        let doc = gbk_markdown_core::load(markdown.as_bytes());
+        let doc = galley_core::load(markdown.as_bytes());
         let paints = crate::render::paint::paint_document(&doc);
         let infos = crate::render::paint::image_infos(&doc);
         let mut gallery = Gallery::new(infos, &paints, Some(dir.join("doc.md")), true, true);
@@ -896,7 +895,7 @@ mod tests {
         std::fs::create_dir_all(&dir).expect("temp dir");
         // 3 × 2 pixels: 24 bytes decoded.
         std::fs::write(dir.join("dot.png"), sized_png(3, 2)).expect("write");
-        let doc = gbk_markdown_core::load(b"text\n\n![a](dot.png)\n\n![b](dot.png)\n");
+        let doc = galley_core::load(b"text\n\n![a](dot.png)\n\n![b](dot.png)\n");
         let paints = crate::render::paint::paint_document(&doc);
         let infos = crate::render::paint::image_infos(&doc);
         let mut gallery = Gallery::new(infos, &paints, Some(dir.join("doc.md")), true, true);
@@ -921,7 +920,7 @@ mod tests {
 
     #[test]
     fn loads_past_the_deadline_fail() {
-        let doc = gbk_markdown_core::load(b"![a](https://example.invalid/a.png)\n");
+        let doc = galley_core::load(b"![a](https://example.invalid/a.png)\n");
         let paints = crate::render::paint::paint_document(&doc);
         let mut gallery = Gallery::new(
             crate::render::paint::image_infos(&doc),

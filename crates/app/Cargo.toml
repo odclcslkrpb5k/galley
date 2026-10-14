@@ -1,5 +1,5 @@
 [package]
-name = "gbk-markdown"
+name = "galley"
 description = "A lightweight Markdown viewer."
 version.workspace = true
 edition.workspace = true
@@ -8,7 +8,7 @@ publish.workspace = true
 license.workspace = true
 
 [dependencies]
-gbk-markdown-core.workspace = true
+galley-core.workspace = true
 gtk.workspace = true
 pangocairo.workspace = true
 thiserror.workspace = true

@@ -1,4 +1,4 @@
-# gbk-markdown: implementation plan
+# Galley: implementation plan
 
 Status: draft 3, 2026-10-11; M0-M5 complete (see §10, docs/perf-baseline.md). Draft 2 was revised after a three-way red-team (performance; GFM and
 renderer design; build, rules and process); §13 lists those changes. Draft 3 applies the user's
@@ -63,7 +63,7 @@ scripts/in-docker       runs a command in the build container (refuses under 5 G
 scripts/quick           the working loop: cargo fmt, then gate-steps --quick (clippy, tests)
 install.sh              the piped installer (curl ... | bash): a release into ~/.local (§8)
 scripts/install         this checkout's build through install.sh, default for Markdown (§4.5
-                        M6); test-install checks both; data/gbk-markdown.desktop.in the template
+                        M6); test-install checks both; data/galley.desktop.in the template
 scripts/publish         a GitHub release of the gate's build of HEAD (§8, "Releases")
 scripts/third-party     THIRD-PARTY-NOTICES.md (§7, "Licences"); check-grammars, its sibling
 scripts/screenshots     docs/screenshots/{light,dark}.png of demo.md, for the README
@@ -72,8 +72,8 @@ scripts/wait-for        polls a command with a deadline (§8)
 scripts/gate-steps      the gate's container steps; check-boundaries, check-test-floor, smoke,
                         lint-canary are its helpers; gen-fixtures and fetch-corpus make test data
 .githooks/pre-push      refuses a push whose tree has no gate stamp (§8)
-crates/core/            gbk-markdown-core: library; no GTK, no I/O
-crates/app/             gbk-markdown: binary; GTK adapter layer
+crates/core/            galley-core: library; no GTK, no I/O
+crates/app/             galley: binary; GTK adapter layer
 crates/lint-canary/     one line per configured lint; the gate checks each one fires (§7)
 crates/core/tests/data/ spec.txt + extensions.txt (from M1) (cmark-gfm, CC-BY-SA 4.0, with LICENSE and
                         attribution), README corpus + GitHub-rendered HTML (§9),
@@ -89,7 +89,7 @@ crates/app/build.rs     the shipped grammar set; grammars-excluded.txt lists tho
 - `core` takes bytes, returns a `Document`. No GTK, Pango, GLib or file I/O.
 - comrak is confined to **one private module** (`core::parse`). The gate fails if `comrak`
   appears in any other file under `crates/core/src` or anywhere in `crates/app` (Engineer;
-  cargo-deny `wrappers = ["gbk-markdown-core"]` additionally refuses a direct comrak dependency
+  cargo-deny `wrappers = ["galley-core"]` additionally refuses a direct comrak dependency
   from `app`). The red-team showed the earlier "Eliminate" label was overstated: `wrappers` only
   checks direct dependents, and `core` could re-export comrak types.
 - syntect and two-face are confined to `app/src/highlighting.rs`, the same way (Engineer:
@@ -442,7 +442,7 @@ added later without changing the model.
   on stderr, from a typed `Message`: links that fail (a missing anchor, a program refused, a
   launch error), reloads that fail, a file removed, a file that cannot be watched. Drawn by the view
   like its scroll indicator; its layout is made when it is set, never inside a frame.
-- **Install** (`scripts/install`): the release binary to `~/.local/bin`, `data/gbk-markdown.desktop`
+- **Install** (`scripts/install`): the release binary to `~/.local/bin`, `data/galley.desktop`
   (validated in the gate) to `~/.local/share/applications`, and the default for `text/markdown`
   and `text/x-markdown` (unless `--no-default`). The installed desktop file names the binary by
   its full path (a first install makes `~/.local/bin`, on the session's PATH only from the next
@@ -734,7 +734,7 @@ M5. The viewer is not distributed; review them before it is.
 1. Refuse to run if `git status --porcelain` is non-empty (the gate checks a commit, not a
    working tree).
 2. `cargo fmt --all --check`
-3. `cargo clippy --workspace --exclude gbk-markdown-lint-canary --all-targets --locked -- -D warnings`
+3. `cargo clippy --workspace --exclude galley-lint-canary --all-targets --locked -- -D warnings`
 4. Lint canary (§7), the boundary grep (§3), `.claude/hooks/test-guard-push` and
    `test-guard-wait`, plus the `unsafe` count check if §4.4 needs it.
 5. `cargo nextest run --locked` over the default members (the canary is excluded via
@@ -766,7 +766,7 @@ As gbk-file publishes:
   - no release of it exists.
 
   It then creates the release, named by the hash and marked latest. The release holds the
-  binary, `gbk-markdown.desktop.in`, LICENSE, THIRD-PARTY-NOTICES.md and SHA256SUMS of them
+  binary, `galley.desktop.in`, LICENSE, THIRD-PARTY-NOTICES.md and SHA256SUMS of them
   all.
 - `install.sh`, piped from `raw.githubusercontent.com/.../main/install.sh`:
   - downloads the latest release, or `GBK_VERSION=<hash>`, over https;
@@ -910,7 +910,7 @@ Answered 2026-10-11:
 
 - Remote images: render a placeholder, fetch asynchronously once the placeholder is visible.
 - Text selection, copy and find: not in v1.
-- Binary name: `gbk-markdown`.
+- Binary name: `galley`.
 
 - GitHub corpus: approved; fetched.
 - Claude Code push-guard hook: approved; installed (§8).

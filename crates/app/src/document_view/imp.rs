@@ -23,7 +23,7 @@ use crate::render::paint::{self, BarColor, LeafPaint, Target};
 use crate::render::positions::{Positions, Spot};
 use crate::render::text::{self, ColumnWidths, Content, Measured, Palette, TextSetup, Typesetter};
 use crate::units;
-use gbk_markdown_core::units::{DetailsId, ImageId, LeafId, TableId};
+use galley_core::units::{DetailsId, ImageId, LeafId, TableId};
 
 mod notice;
 mod reload;
@@ -50,7 +50,7 @@ const MOTION_SETTLE: Duration = Duration::from_millis(150);
 /// arriving within it is laid out again once, not once per badge.
 const IMAGE_POLL: Duration = Duration::from_millis(100);
 /// This viewer's desktop file, as installed: not a text editor to open the file in.
-const DESKTOP_ID: &str = "gbk-markdown.desktop";
+const DESKTOP_ID: &str = "galley.desktop";
 /// Layout time a key scroll may take at once for where it lands.
 const KEY_SCROLL_BUDGET: Duration = Duration::from_millis(8);
 /// How often highlighted code is collected while any is being read: the thread sends a chunk

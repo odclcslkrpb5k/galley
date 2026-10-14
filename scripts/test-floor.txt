@@ -1,8 +1,8 @@
 # Minimum test count per nextest binary (scripts/check-test-floor). Raise when adding tests.
-gbk-markdown::bin/gbk-markdown 163
-gbk-markdown-core 66
-gbk-markdown-core::corpus 1
-gbk-markdown-core::gfm 28
-gbk-markdown-core::properties 3
-gbk-markdown-core::scaling 3
-gbk-markdown-core::spec 1
+galley::bin/galley 163
+galley-core 66
+galley-core::corpus 1
+galley-core::gfm 28
+galley-core::properties 3
+galley-core::scaling 3
+galley-core::spec 1

@@ -26,7 +26,7 @@ import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-BIN = Path(os.environ.get("GBK_BIN", ROOT / "target/docker/release/gbk-markdown"))
+BIN = Path(os.environ.get("GBK_BIN", ROOT / "target/docker/release/galley"))
 FIELD = re.compile(r"(\w+)=(\S+)")
 
 

@@ -18,8 +18,8 @@ use crate::probe::Probe;
 use crate::render::highlight::CodeSource;
 use crate::render::image::ImageInfo;
 use crate::render::paint::LeafPaint;
-use gbk_markdown_core::model::anchor_name;
-use gbk_markdown_core::units::{CodeBlockId, LeafId};
+use galley_core::model::anchor_name;
+use galley_core::units::{CodeBlockId, LeafId};
 
 /// A loaded document, as the view takes it.
 #[derive(Debug)]

@@ -7,7 +7,7 @@
 mod scaling {
     use std::time::{Duration, Instant};
 
-    use gbk_markdown_core::load;
+    use galley_core::load;
 
     /// The fastest of five loads, to take noise out.
     fn best_of_five(input: &str) -> Duration {

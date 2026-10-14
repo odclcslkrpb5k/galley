@@ -20,7 +20,7 @@ use std::sync::mpsc::{self, Receiver, Sender, TryRecvError};
 use std::thread;
 use std::time::{Duration, Instant};
 
-use gbk_markdown_core::units::CodeBlockId;
+use galley_core::units::CodeBlockId;
 use syntect::parsing::{ParseState, Scope, ScopeStack, SyntaxReference, SyntaxSet};
 
 use crate::render::highlight::{CodeSource, Highlights, Token, TokenClass};
@@ -1174,7 +1174,7 @@ mod tests {
 
     #[test]
     fn the_job_with_least_left_steps_next() {
-        let doc = gbk_markdown_core::load(b"```rust\na\n```\n\n```rust\nb\n```\n");
+        let doc = galley_core::load(b"```rust\na\n```\n\n```rust\nb\n```\n");
         let ids = crate::render::highlight::tests::block_ids(&doc);
         let (a, b) = (*ids.first().expect("a"), *ids.get(1).expect("b"));
         let long = source("rust", &"let x = 1;\n".repeat(1000));
@@ -1210,7 +1210,7 @@ mod tests {
 
     #[test]
     fn the_request_with_least_left_goes_first() {
-        let doc = gbk_markdown_core::load(b"```a\nx\n```\n\n```b\ny\n```\n");
+        let doc = galley_core::load(b"```a\nx\n```\n\n```b\ny\n```\n");
         let ids = crate::render::highlight::tests::block_ids(&doc);
         let (a, b) = (*ids.first().expect("a"), *ids.get(1).expect("b"));
         assert_eq!(nearest([(a, 900), (b, 30)].into_iter()), Some(b));
@@ -1241,7 +1241,7 @@ mod tests {
     fn wanted_code_is_highlighted_and_its_paints_named() {
         let markdown = "```rust\nfn a() {}\n```\n\n```nonesuch\nx\n```\n\n```\nplain\n```\n\n\
                         ```toml\n[x]\ny = 1\n```\n\n```rust\n```\n";
-        let doc = gbk_markdown_core::load(markdown.as_bytes());
+        let doc = galley_core::load(markdown.as_bytes());
         let paints = crate::render::paint::paint_document(&doc);
         let mut highlighting = Highlighting::new(code_sources(&doc), &paints, true);
         highlighting.slow_base = UNHURRIED;
@@ -1295,7 +1295,7 @@ mod tests {
     #[test]
     fn a_paint_asks_for_code_ahead_of_it() {
         let code = "let x = 1;\n".repeat(5000);
-        let doc = gbk_markdown_core::load(format!("```rust\n{code}```\n").as_bytes());
+        let doc = galley_core::load(format!("```rust\n{code}```\n").as_bytes());
         let paints = crate::render::paint::paint_document(&doc);
         let mut highlighting = Highlighting::new(code_sources(&doc), &paints, true);
         assert_eq!(READ_AHEAD, 16 * 1024);
@@ -1347,7 +1347,7 @@ mod tests {
     fn replies_name_the_paints_they_reach() {
         // Three paints of one block; a reply up to the middle of the second.
         let code = "let x = 1;\n".repeat(600);
-        let doc = gbk_markdown_core::load(format!("```rust\n{code}```\n").as_bytes());
+        let doc = galley_core::load(format!("```rust\n{code}```\n").as_bytes());
         let paints = crate::render::paint::paint_document(&doc);
         assert!(paints.len() >= 3);
         let mut highlighting = Highlighting::new(code_sources(&doc), &paints, true);
@@ -1383,7 +1383,7 @@ mod tests {
 
     #[test]
     fn when_the_thread_is_gone_code_stays_plain() {
-        let doc = gbk_markdown_core::load(b"```rust\nfn a() {}\n```\n\n```toml\nx = 1\n```\n");
+        let doc = galley_core::load(b"```rust\nfn a() {}\n```\n\n```toml\nx = 1\n```\n");
         let paints = crate::render::paint::paint_document(&doc);
         let mut highlighting = Highlighting::new(code_sources(&doc), &paints, true);
         let (requests, requests_in) = mpsc::channel();
@@ -1414,7 +1414,7 @@ mod tests {
     #[test]
     fn a_reload_keeps_the_colours_of_unchanged_code() {
         let before = "```rust\nfn a() {}\n```\n\n```toml\nx = 1\n```\n";
-        let doc = gbk_markdown_core::load(before.as_bytes());
+        let doc = galley_core::load(before.as_bytes());
         let paints = crate::render::paint::paint_document(&doc);
         let mut old = Highlighting::new(code_sources(&doc), &paints, true);
         old.slow_base = UNHURRIED;
@@ -1423,7 +1423,7 @@ mod tests {
         settle(&mut old);
         // Text added before, the Rust block unchanged, the TOML changed.
         let after = "Intro.\n\n```rust\nfn a() {}\n```\n\n```toml\nx = 2\n```\n";
-        let doc = gbk_markdown_core::load(after.as_bytes());
+        let doc = galley_core::load(after.as_bytes());
         let paints = crate::render::paint::paint_document(&doc);
         let mut new = Highlighting::new(code_sources(&doc), &paints, true);
         new.adopt(&old);
@@ -1448,7 +1448,7 @@ mod tests {
 
     #[test]
     fn disabled_highlighting_asks_for_nothing() {
-        let doc = gbk_markdown_core::load(b"```rust\nfn a() {}\n```\n");
+        let doc = galley_core::load(b"```rust\nfn a() {}\n```\n");
         let paints = crate::render::paint::paint_document(&doc);
         let mut highlighting = Highlighting::new(code_sources(&doc), &paints, false);
         highlighting.want(paints.first().expect("rust"));

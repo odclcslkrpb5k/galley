@@ -12,7 +12,7 @@ publish = false
 license = "MIT"
 
 [workspace.dependencies]
-gbk-markdown-core = { path = "crates/core" }
+galley-core = { path = "crates/core" }
 gtk = { package = "gtk4", version = "0.11.5", features = ["v4_22"] }
 pangocairo = "0.22.9"
 thiserror = "2.0.21"

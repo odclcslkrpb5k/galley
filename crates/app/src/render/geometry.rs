@@ -5,7 +5,7 @@
 //! the boxes the widget draws both come from it, so they cannot drift apart.
 
 use super::paint::{BarColor, CODE_PADDING, Decoration, Fill, LeafPaint, Target};
-use gbk_markdown_core::model::Align;
+use galley_core::model::Align;
 
 use super::table::{CELL_PAD_X_EM, CELL_PAD_Y_EM, Grid, LINE_PX, MIN_COLUMN_EM, column_widths};
 use crate::units;
@@ -289,7 +289,7 @@ mod tests {
     use crate::render::paint::{FontRole, paint_document};
 
     fn paints(markdown: &str) -> Vec<LeafPaint> {
-        paint_document(&gbk_markdown_core::load(markdown.as_bytes()))
+        paint_document(&galley_core::load(markdown.as_bytes()))
     }
 
     const METRICS: Metrics = Metrics { em_px: 16.0 };

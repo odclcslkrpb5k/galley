@@ -9,8 +9,8 @@
 
 use std::collections::HashMap;
 
-use gbk_markdown_core::Document;
-use gbk_markdown_core::units::CodeBlockId;
+use galley_core::Document;
+use galley_core::units::CodeBlockId;
 
 use super::paint::{AttrKind, TextAttr};
 
@@ -216,7 +216,7 @@ pub(crate) mod tests {
 
     #[test]
     fn only_blocks_with_a_language_are_sources() {
-        let doc = gbk_markdown_core::load(b"```rust\nfn x() {}\n```\n\n```\nplain\n```\n");
+        let doc = galley_core::load(b"```rust\nfn x() {}\n```\n\n```\nplain\n```\n");
         let ids = block_ids(&doc);
         let sources = code_sources(&doc);
         assert_eq!((ids.len(), sources.len()), (2, 1));
@@ -227,7 +227,7 @@ pub(crate) mod tests {
 
     #[test]
     fn attrs_are_the_tokens_over_a_piece_relative_to_it() {
-        let doc = gbk_markdown_core::load(b"```a\nx\n```\n\n```b\ny\n```\n");
+        let doc = galley_core::load(b"```a\nx\n```\n\n```b\ny\n```\n");
         let ids = block_ids(&doc);
         let (block, other) = (*ids.first().expect("a"), *ids.get(1).expect("b"));
         let mut highlights = Highlights::default();

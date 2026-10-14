@@ -1,4 +1,4 @@
-//! gbk-markdown: a lightweight Markdown viewer.
+//! galley: a lightweight Markdown viewer.
 
 mod appearance;
 mod args;
@@ -44,7 +44,7 @@ const LICENSES: &str = concat!(
     "\n",
     include_str!("../../../THIRD-PARTY-NOTICES.md")
 );
-const APP_ID: &str = "io.github.odclcslkrpb5k.GbkMarkdown";
+const APP_ID: &str = "io.github.odclcslkrpb5k.Galley";
 /// The window's default size, in logical pixels.
 const DEFAULT_WIDTH: i32 = 900;
 const DEFAULT_HEIGHT: i32 = 1000;
@@ -85,7 +85,7 @@ fn main() -> ExitCode {
     };
     let text = match args.mode {
         Mode::Help => Some(args::USAGE.to_owned()),
-        Mode::Version => Some(format!("gbk-markdown {VERSION}")),
+        Mode::Version => Some(format!("galley {VERSION}")),
         Mode::Licenses => Some(LICENSES.to_owned()),
         Mode::Document | Mode::EmptyWindow => None,
     };
@@ -327,7 +327,7 @@ fn viewer_args(offline: bool, theme: appearance::Theme) -> Vec<String> {
 
 fn window_title(args: &Args) -> String {
     args.file.as_deref().and_then(Path::file_name).map_or_else(
-        || "gbk-markdown".to_owned(),
+        || "Galley".to_owned(),
         |name| name.to_string_lossy().into_owned(),
     )
 }

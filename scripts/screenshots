@@ -8,7 +8,7 @@ if [[ -z "${DISPLAY:-}" ]]; then
 fi
 export NO_AT_BRIDGE=1 GTK_A11Y=none XDG_RUNTIME_DIR=/tmp/xdg-runtime
 mkdir -p -m 700 "$XDG_RUNTIME_DIR"
-bin=${CARGO_TARGET_DIR:-target}/release/gbk-markdown
+bin=${CARGO_TARGET_DIR:-target}/release/galley
 for theme in light dark; do
   timeout 60 "$bin" --offline --theme="$theme" --exit-after-first-frame --wait-highlights \
     --screenshot="docs/screenshots/$theme.png" docs/screenshots/demo.md >/dev/null

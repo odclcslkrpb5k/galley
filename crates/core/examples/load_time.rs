@@ -1,4 +1,4 @@
-//! How long `load` takes per file: `cargo run --release -p gbk-markdown-core --example load_time
+//! How long `load` takes per file: `cargo run --release -p galley-core --example load_time
 //! -- FILE...`. The loader runs while GTK starts (docs/plan.md §4.4), so this has to stay well
 //! under GTK's start-up time to stay off the critical path.
 #![expect(
@@ -17,14 +17,14 @@ fn main() {
         let mut times: Vec<Duration> = (0..15)
             .map(|_| {
                 let started = Instant::now();
-                let doc = gbk_markdown_core::load(&bytes);
+                let doc = galley_core::load(&bytes);
                 let elapsed = started.elapsed();
                 std::hint::black_box(doc);
                 elapsed
             })
             .collect();
         times.sort_unstable();
-        let doc = gbk_markdown_core::load(&bytes);
+        let doc = galley_core::load(&bytes);
         let median = times.get(times.len() / 2).copied().unwrap_or_default();
         let min = times.first().copied().unwrap_or_default();
         println!(

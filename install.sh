@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Install gbk-markdown into ~/.local (no root needed):
+# Install Galley into ~/.local (no root needed):
 #
-#   curl -fsSL https://raw.githubusercontent.com/odclcslkrpb5k/gbk-markdown/main/install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/odclcslkrpb5k/galley/main/install.sh | bash
 #
 # Environment (all optional):
 #   GBK_VERSION=<hash>   install that release instead of the latest
@@ -14,12 +14,12 @@
 set -euo pipefail
 
 main() {
-  local repo=odclcslkrpb5k/gbk-markdown
+  local repo=odclcslkrpb5k/galley
   local prefix=${GBK_PREFIX:-$HOME/.local}
   local version=${GBK_VERSION:-}
 
   say() { printf '%s\n' "$*" >&2; }
-  die() { say "gbk-markdown install: $*"; exit 1; }
+  die() { say "galley install: $*"; exit 1; }
 
   # The prefix goes verbatim into the .desktop Exec line and a sed replacement: allow only
   # characters that need no quoting in either.
@@ -57,7 +57,7 @@ Or build from source: see https://github.com/$repo#building"
     # Expanded now: `src` is local and gone by the time the EXIT trap runs.
     trap "rm -rf '$src'" EXIT
     local f
-    for f in gbk-markdown gbk-markdown.desktop.in LICENSE THIRD-PARTY-NOTICES.md SHA256SUMS; do
+    for f in galley galley.desktop.in LICENSE THIRD-PARTY-NOTICES.md SHA256SUMS; do
       curl -fsSL --proto '=https' --tlsv1.2 -o "$src/$f" "$base/$f" \
         || die "download failed: $base/$f"
     done
@@ -66,29 +66,29 @@ Or build from source: see https://github.com/$repo#building"
     (cd "$src" && sha256sum --quiet --strict -c SHA256SUMS) || die "checksum mismatch"
   fi
 
-  [[ -f $src/gbk-markdown && -f $src/gbk-markdown.desktop.in ]] || die "missing files in $src"
-  chmod 755 "$src/gbk-markdown"
+  [[ -f $src/galley && -f $src/galley.desktop.in ]] || die "missing files in $src"
+  chmod 755 "$src/galley"
   local got
-  got=$("$src/gbk-markdown" --version) || die "the binary doesn't run here (missing libraries?)"
+  got=$("$src/galley" --version) || die "the binary doesn't run here (missing libraries?)"
 
   local bindir=$prefix/bin appdir=$prefix/share/applications
   mkdir -p "$bindir" "$appdir"
   # Copy beside the target, then rename over it: atomic, and running instances keep the old
   # file instead of seeing a half-written one.
-  cp "$src/gbk-markdown" "$bindir/.gbk-markdown.new"
-  chmod 755 "$bindir/.gbk-markdown.new"
-  mv -f "$bindir/.gbk-markdown.new" "$bindir/gbk-markdown"
-  sed "s|@BIN@|$bindir/gbk-markdown|g" "$src/gbk-markdown.desktop.in" > "$appdir/.gbk-markdown.desktop.new"
-  mv -f "$appdir/.gbk-markdown.desktop.new" "$appdir/gbk-markdown.desktop"
+  cp "$src/galley" "$bindir/.galley.new"
+  chmod 755 "$bindir/.galley.new"
+  mv -f "$bindir/.galley.new" "$bindir/galley"
+  sed "s|@BIN@|$bindir/galley|g" "$src/galley.desktop.in" > "$appdir/.galley.desktop.new"
+  mv -f "$appdir/.galley.desktop.new" "$appdir/galley.desktop"
   if command -v update-desktop-database >/dev/null; then
     update-desktop-database "$appdir" 2>/dev/null || true
   fi
 
   say "installed $got"
-  say "  $bindir/gbk-markdown"
-  say "  $appdir/gbk-markdown.desktop"
+  say "  $bindir/galley"
+  say "  $appdir/galley.desktop"
   say "To make it the default for Markdown files:"
-  say "  xdg-mime default gbk-markdown.desktop text/markdown text/x-markdown"
+  say "  xdg-mime default galley.desktop text/markdown text/x-markdown"
 }
 
 main "$@"

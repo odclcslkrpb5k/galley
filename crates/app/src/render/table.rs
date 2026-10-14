@@ -10,8 +10,8 @@
 
 use std::sync::Arc;
 
-use gbk_markdown_core::model::Align;
-use gbk_markdown_core::units::{ImageId, TableId};
+use galley_core::model::Align;
+use galley_core::units::{ImageId, TableId};
 
 use super::geometry::{Rect, Shade};
 use super::paint::{LinkSpan, TextAttr};
@@ -184,11 +184,11 @@ mod tests {
 
     /// A table id (core makes them only for its own tables).
     fn table_id() -> TableId {
-        let doc = gbk_markdown_core::load(b"| a |\n|---|\n");
+        let doc = galley_core::load(b"| a |\n|---|\n");
         doc.leaves()
             .iter()
             .find_map(|leaf| {
-                if let gbk_markdown_core::model::LeafKind::TableRows { table, .. } = leaf.kind() {
+                if let galley_core::model::LeafKind::TableRows { table, .. } = leaf.kind() {
                     Some(*table)
                 } else {
                     None

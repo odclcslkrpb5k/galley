@@ -4,7 +4,7 @@
 use std::collections::HashMap;
 use std::path::Path;
 
-use gbk_markdown_core::units::{CodeBlockId, LeafId};
+use galley_core::units::{CodeBlockId, LeafId};
 
 use crate::render;
 
@@ -31,7 +31,7 @@ pub(crate) struct Loaded {
 /// Reads, parses and paints the document: everything up to Pango, off the main thread.
 pub(crate) fn load(path: &Path) -> Result<Loaded, LoadError> {
     let bytes = std::fs::read(path).map_err(|error| LoadError::Read(error.kind()))?;
-    let doc = gbk_markdown_core::load(&bytes);
+    let doc = galley_core::load(&bytes);
     let paints = render::paint::paint_document(&doc);
     let anchors = render::paint::anchor_leaves(&doc);
     let details = render::paint::details_open(&doc);

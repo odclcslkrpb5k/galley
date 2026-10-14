@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # Runs a command in the build container (docs/plan.md §8), building the image if needed.
 #
-#   scripts/in-docker cargo test -p gbk-markdown-core
+#   scripts/in-docker cargo test -p galley-core
 #
 # The repo is mounted at /work and the build runs as the host user. Cargo's registry, git and
 # advisory-database caches are named volumes; build output goes to target/docker.
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
-tag="gbk-markdown-build:$(cat "$root/Dockerfile" "$root/rust-toolchain.toml" | sha256sum | cut -c1-16)"
+tag="galley-build:$(cat "$root/Dockerfile" "$root/rust-toolchain.toml" | sha256sum | cut -c1-16)"
 
 # A full disk breaks more than the build (M6: scratch builds filled it, and every program on the
 # machine was out of space). Refuse to start below this much free space.
@@ -23,11 +23,11 @@ if ! docker image inspect "$tag" >/dev/null 2>&1; then
   echo "in-docker: building $tag" >&2
   docker build -q -t "$tag" "$root" >&2
   # Each Dockerfile change makes a new image: the ones it replaces go.
-  docker images --format '{{.Repository}}:{{.Tag}}' gbk-markdown-build | grep -vxF "$tag" |
+  docker images --format '{{.Repository}}:{{.Tag}}' galley-build | grep -vxF "$tag" |
     xargs -r docker rmi >/dev/null 2>&1 || true
 fi
 
-# Passed only when set: an empty one would build a binary calling itself "gbk-markdown ".
+# Passed only when set: an empty one would build a binary calling itself "galley ".
 version=()
 if [[ -n "${GBK_VERSION:-}" ]]; then version=(-e "GBK_VERSION=$GBK_VERSION"); fi
 
@@ -39,9 +39,9 @@ if [[ -t 0 && -t 1 ]]; then tty=(-it); fi
 exec docker run --rm --init "${tty[@]}" \
   --user "$(id -u):$(id -g)" \
   -v "$root:/work" -w /work \
-  -v gbk-markdown-registry:/cargo/registry \
-  -v gbk-markdown-git:/cargo/git \
-  -v gbk-markdown-advisory-dbs:/cargo/advisory-dbs \
+  -v galley-registry:/cargo/registry \
+  -v galley-git:/cargo/git \
+  -v galley-advisory-dbs:/cargo/advisory-dbs \
   -e HOME=/tmp \
   -e CARGO_TARGET_DIR=/work/target/docker \
   -e CARGO_TERM_COLOR="${CARGO_TERM_COLOR:-auto}" \

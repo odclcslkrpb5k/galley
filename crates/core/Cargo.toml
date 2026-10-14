@@ -1,6 +1,6 @@
 [package]
-name = "gbk-markdown-core"
-description = "Markdown loading for gbk-markdown: bytes in, document model out. No GTK, no I/O."
+name = "galley-core"
+description = "Markdown loading for galley: bytes in, document model out. No GTK, no I/O."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

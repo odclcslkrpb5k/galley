@@ -35,6 +35,7 @@ cd "$(dirname "$0")/.."
 bin=$home/.local/bin
 apps=$home/.local/share/applications
 desktop=galley.desktop
+icon=io.github.odclcslkrpb5k.Galley.svg
 mimes=(text/markdown text/x-markdown)
 # xdg-mime and update-desktop-database work on the real home: with another one, they are told
 # about it through XDG_DATA_HOME and XDG_CONFIG_HOME.
@@ -67,7 +68,7 @@ PY
 }
 
 if ((uninstall)); then
-  rm -f "$bin/galley" "$apps/$desktop"
+  rm -f "$bin/galley" "$apps/$desktop" "$home/.local/share/icons/hicolor/scalable/apps/$icon"
   forget_associations "$desktop"
   # Given back only where ours is still the default: one chosen since is the user's.
   if [[ -f "$previous" ]] && have xdg-mime; then
@@ -121,6 +122,7 @@ staged=$(mktemp -d)
 trap 'rm -rf "$staged"' EXIT
 cp "$built" "$staged/galley"
 cp "data/$desktop.in" "$staged/$desktop.in"
+cp "data/$icon" "$staged/$icon"
 GBK_FROM=$staged GBK_PREFIX=$home/.local bash install.sh 2>/dev/null
 made_default=0
 if ((default)) && have xdg-mime; then

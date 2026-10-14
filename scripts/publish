@@ -6,7 +6,7 @@
 #
 # Refuses unless the tree is clean, the gate passed for exactly HEAD's tree (its stamp), the
 # binary says it is HEAD's build, HEAD is on origin/main, and no release of it exists. The
-# release holds the binary, the desktop file template, LICENSE, THIRD-PARTY-NOTICES.md and
+# release holds the binary, the desktop file template, the icon, LICENSE, THIRD-PARTY-NOTICES.md and
 # SHA256SUMS of them all.
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -29,13 +29,14 @@ if gh release view "$hash" --repo "$repo" >/dev/null 2>&1; then die "release $ha
 dist=target/dist/$hash
 rm -rf "$dist"
 mkdir -p "$dist"
-cp "$bin" data/galley.desktop.in LICENSE THIRD-PARTY-NOTICES.md "$dist/"
-(cd "$dist" && sha256sum galley galley.desktop.in LICENSE THIRD-PARTY-NOTICES.md >SHA256SUMS)
+icon=io.github.odclcslkrpb5k.Galley.svg
+cp "$bin" data/galley.desktop.in "data/$icon" LICENSE THIRD-PARTY-NOTICES.md "$dist/"
+(cd "$dist" && sha256sum galley galley.desktop.in "$icon" LICENSE THIRD-PARTY-NOTICES.md >SHA256SUMS)
 
 gh release create "$hash" --repo "$repo" --target "$full" --latest --title "Galley $hash" \
   --notes "Built from $full on Ubuntu 26.04 (x86_64); the full gate passed (lints, tests, licence checks, smoke run).
 
 Install or update: \`curl -fsSL https://raw.githubusercontent.com/$repo/main/install.sh | bash\`" \
-  "$dist/galley" "$dist/galley.desktop.in" "$dist/LICENSE" \
+  "$dist/galley" "$dist/galley.desktop.in" "$dist/$icon" "$dist/LICENSE" \
   "$dist/THIRD-PARTY-NOTICES.md" "$dist/SHA256SUMS"
 echo "publish: released $hash"

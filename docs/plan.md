@@ -81,6 +81,9 @@ crates/core/tests/data/ spec.txt + extensions.txt (from M1) (cmark-gfm, CC-BY-SA
 fuzz/                   cargo-fuzz targets (nightly; outside the workspace), later
 docs/                   plan.md, claude-notes.md, perf-baseline.md
 LICENSE, README.md      MIT; what it is, how to build and install it, licences of others' material
+data/                   galley.desktop.in, and the icon io.github.odclcslkrpb5k.Galley.svg
+docs/logo/              the logo (icon and "Galley" in Source Code Pro SemiBold, as outlines),
+                        light and dark, for the README
 crates/app/build.rs     the shipped grammar set; grammars-excluded.txt lists those left out (§7)
 ```
 
@@ -419,6 +422,15 @@ added later without changing the model.
   a file gone is noticed, its last version left on show, and loaded again if it comes back
   (an editor that deletes and recreates shows no notice). A change while reading reads once
   more.
+- **Icon and logo** (after the rename): a galley whose sail is a paragraph, lines of text
+  growing longer towards the boom, over a long, low hull with oars. It sits on a pale rounded
+  tile so it reads on light and dark panels; it was checked at 16-512 px on both. The icon is
+  `data/io.github.odclcslkrpb5k.Galley.svg`, named after the app id. The installers put it in
+  `share/icons/hicolor/scalable/apps`, the desktop file names it, and the window takes it as
+  its default icon. It was checked to reach the window manager (`_NET_WM_ICON`, 48 x 48).
+  Releases carry it; `install.sh` takes it as optional, since older releases lack it. The
+  logo pairs it with "Galley" in Source Code Pro SemiBold (SIL OFL), as outlines, light and
+  dark (`docs/logo/`).
 - **Back, forward, edit** (after M6, user requests):
   - **History:** link jumps inside the document keep a browser's history
     (`navigation::History`, pure and tested). Alt+Left, Backspace and the mouse's back button
@@ -766,8 +778,8 @@ As gbk-file publishes:
   - no release of it exists.
 
   It then creates the release, named by the hash and marked latest. The release holds the
-  binary, `galley.desktop.in`, LICENSE, THIRD-PARTY-NOTICES.md and SHA256SUMS of them
-  all.
+  binary, `galley.desktop.in`, the icon, LICENSE, THIRD-PARTY-NOTICES.md and SHA256SUMS of
+  them all.
 - `install.sh`, piped from `raw.githubusercontent.com/.../main/install.sh`:
   - downloads the latest release, or `GBK_VERSION=<hash>`, over https;
   - checks SHA256SUMS, x86_64 and Ubuntu 26.04 (`GBK_ANY_OS=1` skips the last);

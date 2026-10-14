@@ -1,4 +1,9 @@
-# Galley
+<h1>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/logo/galley-dark.svg">
+    <img src="docs/logo/galley-light.svg" alt="Galley" height="72">
+  </picture>
+</h1>
 
 A lightweight Markdown viewer for the Linux desktop, in Rust and GTK 4. In order of priority, it
 aims for:
@@ -31,11 +36,12 @@ The same file ([docs/screenshots/demo.md](docs/screenshots/demo.md)) in both the
 curl -fsSL https://raw.githubusercontent.com/odclcslkrpb5k/galley/main/install.sh | bash
 ```
 
-This installs the latest release into `~/.local` and needs no root. It copies two files, and
+This installs the latest release into `~/.local` and needs no root. It copies three files, and
 run again it updates them:
 
 - `~/.local/bin/galley`
 - `~/.local/share/applications/galley.desktop`
+- `~/.local/share/icons/hicolor/scalable/apps/io.github.odclcslkrpb5k.Galley.svg`
 
 To make it the default for Markdown files:
 
@@ -52,7 +58,7 @@ The installer takes these options as environment variables before `bash`, for ex
 | `GBK_PREFIX=<dir>` | Install under `<dir>` instead of `~/.local`. |
 | `GBK_ANY_OS=1` | Skip the Ubuntu 26.04 check (see below). |
 
-To uninstall, run `rm ~/.local/bin/galley ~/.local/share/applications/galley.desktop`.
+To uninstall, remove those three files.
 
 **Supported systems.** Release binaries are built on **Ubuntu 26.04, x86_64**, against its GTK
 4.22. The installer refuses other systems rather than leave you a program that won't start.

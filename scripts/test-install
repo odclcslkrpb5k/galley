@@ -55,6 +55,9 @@ grep -qxF "Exec=$home/.local/bin/galley %f" "$installed" &&
   grep -qxF "TryExec=$home/.local/bin/galley" "$installed" ||
   fail "the installed desktop file does not name the installed binary by its full path"
 "$home/.local/bin/galley" --help >/dev/null || fail "the installed binary does not run"
+cmp -s "data/io.github.odclcslkrpb5k.Galley.svg" "$home/.local/share/icons/hicolor/scalable/apps/io.github.odclcslkrpb5k.Galley.svg" ||
+  fail "the icon was not installed"
+grep -qxF "Icon=io.github.odclcslkrpb5k.Galley" "$installed" || fail "the desktop file does not name the icon"
 [[ "$(default text/markdown)" == galley.desktop && "$(default text/x-markdown)" == galley.desktop ]] ||
   fail "not made the default for Markdown"
 # What was there before: other.desktop, and nothing for text/x-markdown (not ours: recorded
@@ -65,7 +68,8 @@ grep -qxF "Exec=$home/.local/bin/galley %f" "$installed" &&
 GBK_PREBUILT=${CARGO_TARGET_DIR:-target}/release/galley scripts/install --home "$home" >/dev/null
 
 scripts/install --uninstall --home "$home" >/dev/null
-[[ ! -e "$home/.local/bin/galley" && ! -e "$home/.local/share/applications/galley.desktop" ]] ||
+[[ ! -e "$home/.local/bin/galley" && ! -e "$home/.local/share/applications/galley.desktop" &&
+  ! -e "$home/.local/share/icons/hicolor/scalable/apps/io.github.odclcslkrpb5k.Galley.svg" ]] ||
   fail "uninstall left files behind"
 [[ ! -e "$home/.local/share/galley" ]] || fail "uninstall left its record behind"
 [[ "$(default text/markdown)" == other.desktop ]] ||

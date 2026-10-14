@@ -15,6 +15,7 @@ set -euo pipefail
 
 main() {
   local repo=odclcslkrpb5k/galley
+  local icon=io.github.odclcslkrpb5k.Galley.svg
   local prefix=${GBK_PREFIX:-$HOME/.local}
   local version=${GBK_VERSION:-}
 
@@ -61,6 +62,8 @@ Or build from source: see https://github.com/$repo#building"
       curl -fsSL --proto '=https' --tlsv1.2 -o "$src/$f" "$base/$f" \
         || die "download failed: $base/$f"
     done
+    # The icon, which releases before it came lack: optional (the checksums list it if present).
+    curl -fsSL --proto '=https' --tlsv1.2 -o "$src/$icon" "$base/$icon" 2>/dev/null || rm -f "$src/$icon"
     # Catches corrupted or truncated downloads. (The sums come from the same release, so
     # this is not a defence against a compromised GitHub account.)
     (cd "$src" && sha256sum --quiet --strict -c SHA256SUMS) || die "checksum mismatch"
@@ -72,6 +75,7 @@ Or build from source: see https://github.com/$repo#building"
   got=$("$src/galley" --version) || die "the binary doesn't run here (missing libraries?)"
 
   local bindir=$prefix/bin appdir=$prefix/share/applications
+  local icondir=$prefix/share/icons/hicolor/scalable/apps
   mkdir -p "$bindir" "$appdir"
   # Copy beside the target, then rename over it: atomic, and running instances keep the old
   # file instead of seeing a half-written one.
@@ -80,6 +84,14 @@ Or build from source: see https://github.com/$repo#building"
   mv -f "$bindir/.galley.new" "$bindir/galley"
   sed "s|@BIN@|$bindir/galley|g" "$src/galley.desktop.in" > "$appdir/.galley.desktop.new"
   mv -f "$appdir/.galley.desktop.new" "$appdir/galley.desktop"
+  if [[ -f $src/$icon ]]; then
+    mkdir -p "$icondir"
+    cp "$src/$icon" "$icondir/.$icon.new"
+    mv -f "$icondir/.$icon.new" "$icondir/$icon"
+    if command -v gtk-update-icon-cache >/dev/null && [[ -f $prefix/share/icons/hicolor/index.theme ]]; then
+      gtk-update-icon-cache -q "$prefix/share/icons/hicolor" 2>/dev/null || true
+    fi
+  fi
   if command -v update-desktop-database >/dev/null; then
     update-desktop-database "$appdir" 2>/dev/null || true
   fi
@@ -87,6 +99,7 @@ Or build from source: see https://github.com/$repo#building"
   say "installed $got"
   say "  $bindir/galley"
   say "  $appdir/galley.desktop"
+  [[ -f $src/$icon ]] && say "  $icondir/$icon"
   say "To make it the default for Markdown files:"
   say "  xdg-mime default galley.desktop text/markdown text/x-markdown"
 }

@@ -239,6 +239,8 @@ fn show(
             settings.set_gtk_interface_color_scheme(scheme);
         }
     }
+    // The icon theme finds it where the installers put it (hicolor, named after the app id).
+    gtk::Window::set_default_icon_name(APP_ID);
     window.set_title(Some(title));
     window.set_default_size(DEFAULT_WIDTH, DEFAULT_HEIGHT);
     probe.attach(window);

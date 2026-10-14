@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
+  <!-- Galley: a ship whose sail is a paragraph, on its own ground so it reads on light and
+       dark panels alike. -->
+  <rect x="1" y="1" width="46" height="46" rx="10" fill="#e9eff7" stroke="#1f3b63" stroke-width="1.5"/>
+  <!-- Mast. -->
+  <path d="M15 7 V31" stroke="#1f3b63" stroke-width="2" stroke-linecap="round"/>
+  <!-- The sail: lines of text growing longer towards the boom. -->
+  <path d="M18 9 H22 M18 13.5 H26 M18 18 H30 M18 22.5 H34 M18 27 H37" stroke="#3f6aa6" stroke-width="2.6" stroke-linecap="round"/>
+  <!-- A long, low hull, its ends rounded like everything else. -->
+  <path d="M7.2 30.6 H40.8 Q42.4 30.6 41.8 32.1 Q39.8 36.4 36 38 H12 Q8.2 36.4 6.2 32.1 Q5.6 30.6 7.2 30.6 Z" fill="#1f3b63"/>
+  <!-- Oars. -->
+  <path d="M13 38 L11 42.5 M18.5 38 L16.5 42.5 M24 38 L22 42.5 M29.5 38 L27.5 42.5 M35 38 L33 42.5" stroke="#1f3b63" stroke-width="2" stroke-linecap="round"/>
+</svg>

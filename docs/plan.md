@@ -83,7 +83,8 @@ docs/                   plan.md, claude-notes.md, perf-baseline.md
 LICENSE, README.md      MIT; what it is, how to build and install it, licences of others' material
 data/                   galley.desktop.in, and the icon io.github.odclcslkrpb5k.Galley.svg
 docs/logo/              the logo (icon and "Galley" in Source Code Pro SemiBold, as outlines),
-                        light and dark, for the README
+                        light and dark, for the README; social-preview.{svg,png}, 1280 x 640,
+                        for GitHub's Settings (uploaded by hand: there is no API for it)
 crates/app/build.rs     the shipped grammar set; grammars-excluded.txt lists those left out (§7)
 ```
 

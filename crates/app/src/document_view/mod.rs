@@ -102,6 +102,16 @@ impl DocumentView {
         self.imp().probe_highlights()
     }
 
+    /// The file shown, if any.
+    pub(crate) fn path(&self) -> Option<PathBuf> {
+        self.imp().path.borrow().clone()
+    }
+
+    /// Shows another file in this view (dropped, or chosen with Ctrl+O), from its top.
+    pub(crate) fn open(&self, path: PathBuf) {
+        self.imp().open_file(path);
+    }
+
     /// Lays out the first screen for an expected widget size; see `imp::DocumentView::prepare`.
     pub(crate) fn prepare(&self, width: f64, height: f64) {
         self.imp().prepare(width, height);
@@ -109,6 +119,11 @@ impl DocumentView {
 }
 
 /// The leaf a `#fragment` names, by the same rule as `Document::anchor_leaf`.
+/// Opens a file in a new viewer window, with these options (`--offline`, `--theme`).
+pub(crate) fn open_in_new_window(path: &std::path::Path, args: &[String]) -> Result<(), String> {
+    imp::open_in_viewer(path, None, args).map_err(|error| error.to_string())
+}
+
 pub(crate) fn anchor_leaf(anchors: &HashMap<String, LeafId>, fragment: &str) -> Option<LeafId> {
     anchors.get(anchor_name(fragment)).copied()
 }

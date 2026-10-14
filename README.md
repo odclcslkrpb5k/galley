@@ -92,7 +92,12 @@ gate's build of a pushed commit.
 ```sh
 galley README.md
 galley --anchor=installation README.md
+galley
 ```
+
+With no file (as from the applications menu), the window shows the logo and waits: drop a
+Markdown file on it, or press Ctrl+O. Dropping a file on any window opens it there; drop
+several and the rest open in windows of their own.
 
 `galley --help` lists the options and keys:
 
@@ -103,6 +108,7 @@ galley --anchor=installation README.md
 | Ctrl+R or F5 | reload |
 | Alt+Left or Backspace, the mouse's back button | go back after following a link |
 | Alt+Right, the mouse's forward button | go forward again |
+| Ctrl+O | open another file in the window |
 | Ctrl+E | open the file in your text editor |
 
 `--theme=light|dark` overrides the desktop's choice. `--offline` fetches no remote images.

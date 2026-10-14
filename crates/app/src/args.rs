@@ -9,7 +9,9 @@ use crate::navigation;
 use crate::renderer::Renderer;
 
 pub(crate) const USAGE: &str = "\
-usage: galley [OPTIONS] [--] FILE
+usage: galley [OPTIONS] [--] [FILE]
+
+With no FILE, the window waits for one: drop a Markdown file on it, or press Ctrl+O.
 
   --help                    show this and exit
   --version                 show the build (its commit) and exit
@@ -42,6 +44,8 @@ options:
   --click-at=X,Y            with --exit-after-first-frame, click there after the first frame
                             (links outside the document are reported, not opened), then
                             report and screenshot the next frame
+  --drop=PATH               with --exit-after-first-frame, open PATH as a file dropped on the
+                            window would be, then report and screenshot once it is shown
   --empty-window            show no document, for measuring GTK's startup floor (no FILE)
   --check-heights           when the height worker finishes, compare its heights with layouts
                             made here, report mismatches and exit
@@ -56,6 +60,8 @@ keys:
   Alt+Left, Backspace       back to where a link inside the document was followed from (the
                             mouse's back button too)
   Alt+Right                 forward again (the mouse's forward button too)
+  Ctrl+O                    open another file in the window (or drop one on it; more than one
+                            dropped, the rest open in windows of their own)
   Ctrl+E                    open the file in the text editor (plain text's default application)
   Ctrl+plus, Ctrl+minus, Ctrl+0, Ctrl+wheel
                             text size
@@ -82,6 +88,8 @@ pub(crate) struct Args {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Mode {
     Document,
+    /// No FILE: the logo, and a window waiting for a file to be dropped or chosen.
+    Welcome,
     /// No document: GTK's startup floor (docs/perf-baseline.md).
     EmptyWindow,
     /// Print the usage and exit.
@@ -125,6 +133,8 @@ pub(crate) struct ProbeArgs {
     pub(crate) rewrite_with: Option<PathBuf>,
     /// Report the view's state this long after the first frame.
     pub(crate) report_after: Option<Duration>,
+    /// A file opened after the first frame as a dropped one is.
+    pub(crate) drop: Option<PathBuf>,
 }
 
 #[derive(Debug, PartialEq, Eq, thiserror::Error)]
@@ -147,8 +157,7 @@ pub(crate) enum UsageError {
     BadKeys,
     #[error("--report-after needs a whole number of seconds")]
     BadReportAfter,
-    #[error("no FILE given")]
-    MissingFile,
+
     #[error("more than one FILE given")]
     ExtraFile,
 }
@@ -215,6 +224,7 @@ pub(crate) fn parse(args: impl IntoIterator<Item = OsString>) -> Result<Args, Us
                     .ok_or(UsageError::BadZoom)?;
             }
             ("--rewrite-with", Some(path)) => probe.rewrite_with = Some(PathBuf::from(path)),
+            ("--drop", Some(path)) => probe.drop = Some(PathBuf::from(path)),
             ("--report-after", Some(seconds)) => {
                 let seconds = seconds
                     .parse::<u64>()
@@ -241,7 +251,7 @@ pub(crate) fn parse(args: impl IntoIterator<Item = OsString>) -> Result<Args, Us
     }
 
     if file.is_none() && mode == Mode::Document {
-        return Err(UsageError::MissingFile);
+        mode = Mode::Welcome;
     }
     Ok(Args {
         file,
@@ -403,6 +413,19 @@ mod tests {
     }
 
     #[test]
+    fn no_file_is_the_welcome() {
+        let args = parse_strs(&[]).expect("valid");
+        assert_eq!((args.mode, args.file), (Mode::Welcome, None));
+        let args = parse_strs(&["--theme=dark", "--drop=a.md"]).expect("valid");
+        assert_eq!(args.mode, Mode::Welcome);
+        assert_eq!(args.probe.drop, Some(PathBuf::from("a.md")));
+        assert_eq!(
+            parse_strs(&["a.md"]).map(|args| args.mode),
+            Ok(Mode::Document)
+        );
+    }
+
+    #[test]
     fn the_empty_window_needs_no_file() {
         let args = parse_strs(&["--empty-window"]).expect("valid");
         assert_eq!(args.mode, Mode::EmptyWindow);
@@ -423,7 +446,6 @@ mod tests {
 
     #[test]
     fn refusals() {
-        assert_eq!(parse_strs(&[]), Err(UsageError::MissingFile));
         assert_eq!(parse_strs(&["a.md", "b.md"]), Err(UsageError::ExtraFile));
         assert_eq!(parse_strs(&["--t0=soon", "a.md"]), Err(UsageError::BadT0));
         assert_eq!(

@@ -342,3 +342,10 @@ Not repeated here, so there is one source each (an earlier copy here drifted fro
   .claude/hooks/guard-wait refuses unbounded polling loops; use
   `scripts/wait-for SECONDS COMMAND`, or `timeout N bash -c '...'`, and wait on something this
   session owns (a log line, a PID), never on global state.
+- 2026-10-14: No-file welcome and opening dropped files (user request). `galley` with no FILE
+  shows the logo and waits for a file (it printed the usage and exited, which made the menu
+  entry useless); any window opens a dropped file, or one chosen with Ctrl+O, in place.
+  `window.rs` owns the window's content; `DocumentView::open` reuses the reload machinery and
+  commits the new path only once the file is read (a failed drop keeps the document and its
+  watch). Probe `--drop=PATH`; smoke: welcome light and dark, drops onto the welcome and onto
+  a document, a missing file. Test floor 163 -> 164.

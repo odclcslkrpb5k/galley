@@ -13,6 +13,7 @@ mod probe;
 mod render;
 mod renderer;
 mod units;
+mod window;
 
 use std::cell::{Cell, RefCell};
 use std::path::{Path, PathBuf};
@@ -54,6 +55,8 @@ type Loader = JoinHandle<Result<Loaded, LoadError>>;
 /// What `show` needs of the arguments.
 #[derive(Debug, Clone)]
 struct Showing {
+    /// With no file: the welcome (and with `--empty-window`, nothing).
+    welcome: bool,
     file: Option<PathBuf>,
     anchor: Option<String>,
     offline: bool,
@@ -64,6 +67,7 @@ struct Showing {
 impl From<&Args> for Showing {
     fn from(args: &Args) -> Self {
         Self {
+            welcome: args.mode == Mode::Welcome,
             file: args.file.clone(),
             anchor: args.anchor.clone(),
             offline: args.offline,
@@ -87,7 +91,7 @@ fn main() -> ExitCode {
         Mode::Help => Some(args::USAGE.to_owned()),
         Mode::Version => Some(format!("galley {VERSION}")),
         Mode::Licenses => Some(LICENSES.to_owned()),
-        Mode::Document | Mode::EmptyWindow => None,
+        Mode::Document | Mode::Welcome | Mode::EmptyWindow => None,
     };
     if let Some(text) = text {
         return if output::print_line(text) {
@@ -108,9 +112,15 @@ fn main() -> ExitCode {
     // (docs/plan.md §4.4).
     let loader: Option<Loader> = match (args.mode, args.file.clone()) {
         (Mode::Document, Some(path)) => Some(thread::spawn(move || load(&path))),
-        (Mode::Document | Mode::EmptyWindow | Mode::Help | Mode::Version | Mode::Licenses, _) => {
-            None
-        }
+        (
+            Mode::Document
+            | Mode::Welcome
+            | Mode::EmptyWindow
+            | Mode::Help
+            | Mode::Version
+            | Mode::Licenses,
+            _,
+        ) => None,
     };
     let probe = Probe::new(
         args.probe.clone(),
@@ -221,6 +231,7 @@ fn show(
     probe: &Rc<Probe>,
 ) -> Result<(), LoadError> {
     let Showing {
+        welcome,
         file,
         anchor,
         offline,
@@ -246,7 +257,22 @@ fn show(
     probe.attach(window);
     window.present();
     probe.presented();
-    if let Some(loader) = loader {
+    // `--empty-window` measures GTK alone: no content, nothing to drop on.
+    let content = (loader.is_some() || *welcome).then(|| {
+        window::Content::new(
+            window,
+            *offline,
+            *zoom,
+            viewer_args(*offline, *theme),
+            probe,
+        )
+    });
+    if let Some(content) = &content
+        && loader.is_none()
+    {
+        content.show_welcome();
+    }
+    if let (Some(loader), Some(content)) = (loader, content) {
         // Fonts load on first use, 3-15 ms each; load them while the loader finishes.
         render::text::warm_up(window, &|| loader.is_finished(), &mut |bytes| {
             probe.layout_created(bytes);
@@ -282,30 +308,7 @@ fn show(
             },
             Rc::clone(probe),
         );
-        // The view draws its own scroll indicator (render/indicator.rs says why).
-        let scrolled = gtk::ScrolledWindow::builder()
-            .hscrollbar_policy(gtk::PolicyType::Never)
-            .vscrollbar_policy(gtk::PolicyType::External)
-            .child(&view)
-            .build();
-        probe.set_scroll_target(scrolled.vadjustment());
-        let (looking, clicking, stating, counting, colouring, pressing) = (
-            view.clone(),
-            view.clone(),
-            view.clone(),
-            view.clone(),
-            view.clone(),
-            view.clone(),
-        );
-        probe.set_view(probe::ViewProbe {
-            link_at: Box::new(move |x, y| looking.link_label_at(x, y)),
-            click_at: Box::new(move |x, y| clicking.probe_click(x, y)),
-            state: Box::new(move || stating.probe_state()),
-            images: Box::new(move || counting.probe_images()),
-            highlights: Box::new(move || colouring.probe_highlights()),
-            press: Box::new(move |key| pressing.probe_press(key)),
-        });
-        window.set_child(Some(&scrolled));
+        content.show_view(&view);
         if probe.prepare_enabled() {
             view.prepare(f64::from(DEFAULT_WIDTH), f64::from(DEFAULT_HEIGHT));
         }

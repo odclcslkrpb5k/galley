@@ -442,6 +442,23 @@ added later without changing the model.
     application for plain text is used (`links::editor`, tested). With none, a notice.
   - **Smoke:** back and forward after following a link; Ctrl+E handing the file to a stand-in
     editor in a desktop of its own (XDG directories), and a notice without one.
+- **No file, dropped files, Ctrl+O** (user requests, after the icon):
+  - **The welcome:** with no FILE (the applications menu runs `galley` with none) the window
+    shows the logo (`docs/logo`, embedded, drawn by `gtk::Svg`; light or dark from the text
+    colour the theme gives, as the view's palette decides) and how to open a file, instead of
+    printing the usage and exiting. `--empty-window` stays the bare measurement floor.
+  - **Opening in place** (`window.rs`, `DocumentView::open`): a file dropped on the window
+    (`gtk::DropTarget` for a `gdk::FileList`, local paths only) or chosen with Ctrl+O
+    (`gtk::FileDialog`, Markdown filter first, starting beside the file shown) is read on a
+    thread as a reload is. Only once it has been read does it become the view's file: titled,
+    shown from its top, watched in place of the old one. A file that cannot be read leaves a
+    notice and the document as it was. More than one dropped: the first opens here, the rest
+    in windows of their own, with the inherited options.
+  - **Smoke:** `--drop=PATH` opens a file through the same path after the first frame: on the
+    welcome, on a document moved to its end first (shown from the top, titled, its height),
+    and a missing one (a notice, the document kept). The drop gesture itself (GTK's
+    `DropTarget` handing over a file list) is not driven: Xvfb has no drag source to drive
+    it with.
 - **The view's own scrolling and GTK's kinetic scrolling.** `GtkScrolledWindow` scrolls the
   wheel from its own copy of the position, which it does not update while a fling or a bounce
   back (after scrolling past an end) runs; the deceleration sets the position every frame

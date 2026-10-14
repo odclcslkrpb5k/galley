@@ -106,7 +106,7 @@ pub(crate) struct DocumentView {
     indicator_hover: Cell<bool>,
     indicator_drag: Cell<Option<f64>>,
     /// The document's file, which its relative links start from.
-    path: RefCell<Option<PathBuf>>,
+    pub(super) path: RefCell<Option<PathBuf>>,
     /// The paint to show at the top once the view has a size (`--anchor`).
     start: Cell<Option<usize>>,
     /// Where the view was before each jump to a link inside the document, for going back.
@@ -1767,7 +1767,7 @@ fn same_file(a: &Path, b: &Path) -> bool {
 
 /// Opens a Markdown file in a new viewer window, at `fragment` if given, with this viewer's
 /// options `inherited`.
-fn open_in_viewer(
+pub(super) fn open_in_viewer(
     path: &Path,
     fragment: Option<&str>,
     inherited: &[String],

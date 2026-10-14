@@ -48,6 +48,10 @@ pub(in crate::document_view) struct Reload {
     again: bool,
     /// The last read was empty where there was text: being read once more.
     confirming: bool,
+    /// Another file being opened in this view (dropped, or chosen with Ctrl+O): read in place
+    /// of this one, and only when it has been read does it become the view's file (a failure
+    /// leaves this one shown and watched).
+    fresh: Option<PathBuf>,
 }
 
 /// What a change event means.
@@ -88,6 +92,27 @@ fn delay(change: Change, first: Instant, now: Instant) -> Duration {
 }
 
 impl DocumentView {
+    /// Shows another file in this view (dropped, or chosen with Ctrl+O): read on a thread as a
+    /// reload is, then shown from its top. The old file is no longer watched; the new one is
+    /// from the next frame.
+    pub(in crate::document_view) fn open_file(&self, path: PathBuf) {
+        let path = std::path::absolute(&path).unwrap_or(path);
+        {
+            // A reload of this file waiting or being read is no longer wanted.
+            let mut reload = self.reload.borrow_mut();
+            if let Some((source, _first)) = reload.soon.take() {
+                source.remove();
+            }
+            if let Some((_reader, poll)) = reload.reading.take() {
+                poll.remove();
+            }
+            reload.again = false;
+            reload.confirming = false;
+            reload.fresh = Some(path);
+        }
+        self.reload();
+    }
+
     /// Starts watching the file, once, after the first frame (setting up inotify is not free).
     pub(in crate::document_view) fn watch(&self) {
         let Some(path) = self.path.borrow().clone() else {
@@ -141,7 +166,8 @@ impl DocumentView {
 
     /// Reads the file again on a thread (Ctrl+R, F5, or a change); `reload_poll` shows it.
     pub(in crate::document_view) fn reload(&self) {
-        let Some(path) = self.path.borrow().clone() else {
+        let fresh = self.reload.borrow().fresh.clone();
+        let Some(path) = fresh.or_else(|| self.path.borrow().clone()) else {
             return;
         };
         if self.reload.borrow().reading.is_some() {
@@ -185,10 +211,20 @@ impl DocumentView {
         let Some((reader, _poll)) = self.reload.borrow_mut().reading.take() else {
             return glib::ControlFlow::Break;
         };
-        match reader.join().unwrap_or(Err(LoadError::LoaderPanicked)) {
-            Ok(document) => self.loaded(document),
-            Err(LoadError::Read(std::io::ErrorKind::NotFound)) => self.notice(&Message::Removed),
-            Err(error) => self.notice(&Message::Reload(error)),
+        let fresh = self.reload.borrow_mut().fresh.take();
+        match (
+            reader.join().unwrap_or(Err(LoadError::LoaderPanicked)),
+            fresh,
+        ) {
+            (Ok(document), Some(path)) => self.opened(path, document),
+            (Ok(document), None) => self.loaded(document),
+            (Err(error), Some(path)) => {
+                self.notice(&Message::CannotOpen(path.display().to_string(), error));
+            }
+            (Err(LoadError::Read(std::io::ErrorKind::NotFound)), None) => {
+                self.notice(&Message::Removed);
+            }
+            (Err(error), None) => self.notice(&Message::Reload(error)),
         }
         if std::mem::take(&mut self.reload.borrow_mut().again) {
             self.reload();
@@ -218,19 +254,45 @@ impl DocumentView {
             return;
         }
         self.clear_notice();
-        self.replace_document(document);
+        self.replace_document(document, false);
+    }
+
+    /// Makes another file, now read, the view's: titled, shown from its top, and watched in
+    /// place of the old one from the next frame.
+    fn opened(&self, path: PathBuf, document: Loaded) {
+        if let Some(window) = self.obj().root().and_downcast::<gtk::Window>() {
+            let name = path.file_name().map_or_else(
+                || path.display().to_string(),
+                |name| name.to_string_lossy().into_owned(),
+            );
+            window.set_title(Some(&name));
+        }
+        self.path.replace(Some(path));
+        {
+            let mut reload = self.reload.borrow_mut();
+            if let Some(monitor) = reload.monitor.take() {
+                monitor.cancel();
+            }
+            reload.watched = false;
+        }
+        self.clear_notice();
+        self.replace_document(document, true);
     }
 
     /// Shows a reloaded document in place of the current one: same zoom, same options, and the
-    /// paint (by position) at the top kept there.
-    fn replace_document(&self, loaded: Loaded) {
+    /// paint (by position) at the top kept there; a `fresh` one (another file) from its top.
+    fn replace_document(&self, loaded: Loaded, fresh: bool) {
         let kept = {
             let document = self.document.borrow();
             let Some(doc) = document.as_ref() else {
                 return;
             };
             let top = self.viewport().map_or(0, |(top, _page)| top);
-            let paint = doc.positions.anchor(top - doc.margin()).unwrap_or(0);
+            let paint = if fresh {
+                0
+            } else {
+                doc.positions.anchor(top - doc.margin()).unwrap_or(0)
+            };
             (paint, std::rc::Rc::clone(&doc.probe))
         };
         let (paint, probe) = kept;

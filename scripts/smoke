@@ -295,6 +295,33 @@ if [[ "$(field clicked "$noticed")" != missing:nowhere || "$(field notices "$not
   fail=1
 fi
 
+# No FILE: the welcome, with the logo. A file dropped on it, or on a document, opens in that
+# window, titled with its name and shown from its top (keys pressed first moved the old one to
+# its end); one that cannot be read leaves a notice and the document as it was.
+probe_run welcome --screenshot="$screens/welcome.png"
+probe_run welcome_dark --theme=dark --screenshot="$screens/welcome-dark.png"
+probe_run dropped --drop="$links" --screenshot="$screens/dropped.png"
+probe_run replaced --press=End --drop="$links" "$readme"
+probe_run refused --drop=target/fixtures/no-such.md "$readme"
+if [[ "$(field leaves "$welcome")" != 0 || "$(field theme "$welcome_dark")" != dark ]]; then
+  echo "smoke: the welcome did not come up, light and dark, with no document: $welcome / $welcome_dark" >&2
+  fail=1
+fi
+for run in "$dropped" "$replaced"; do
+  if [[ "$(field dropped "$run")" != true || "$(field reloads "$run")" != 1 || "$(field notices "$run")" != 0 ]] ||
+    [[ "$(field title "$run")" != '"links.md"' || "$(field top_leaf "$run")" != 0 ]] ||
+    [[ "$(field document_height "$run")" != "$(field document_height "$clicked")" ]]; then
+    echo "smoke: a dropped file was not shown from its top in the window: $run / $clicked" >&2
+    fail=1
+  fi
+done
+if [[ "$(field notices "$refused")" != 1 || "$(field reloads "$refused")" != 0 ]] ||
+  [[ "$(field title "$refused")" != "\"$(basename "$readme")\"" ]] ||
+  [[ "$(field document_height "$refused")" != "$(field document_height "$paged")" ]]; then
+  echo "smoke: a dropped file that cannot be read did not leave a notice and the document: $refused / $paged" >&2
+  fail=1
+fi
+
 # The GL fallback (--renderer=gl): it must really be GL, reach a first frame and scroll without
 # layout in frames.
 gl_fixture=target/fixtures/readme-200kb.md

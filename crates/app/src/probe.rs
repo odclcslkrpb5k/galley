@@ -87,6 +87,8 @@ pub(crate) struct Probe {
     scroll: RefCell<ScrollRecord>,
     /// For --link-at and --click-at: the document view, once there is one.
     view: RefCell<Option<ViewProbe>>,
+    /// For --drop: what opens dropped files.
+    opener: RefCell<Option<Opener>>,
     /// For --click-at and --wait-images: the report so far, finished and printed after a later
     /// frame.
     deferred: RefCell<Option<String>>,
@@ -106,6 +108,15 @@ pub(crate) struct ViewProbe {
     pub(crate) highlights: Box<dyn Fn() -> (HighlightCounts, usize)>,
     /// Presses a key (`ctrl+plus`); describes what it did.
     pub(crate) press: Box<dyn Fn(&str) -> String>,
+}
+
+/// Opens files as dropping them on the window does.
+pub(crate) struct Opener(pub(crate) Box<dyn Fn(Vec<PathBuf>)>);
+
+impl std::fmt::Debug for Opener {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("Opener")
+    }
 }
 
 impl std::fmt::Debug for ViewProbe {
@@ -162,6 +173,7 @@ impl Probe {
             scroll_target: RefCell::new(None),
             scroll: RefCell::new(ScrollRecord::default()),
             view: RefCell::new(None),
+            opener: RefCell::new(None),
             deferred: RefCell::new(None),
         })
     }
@@ -186,6 +198,10 @@ impl Probe {
 
     pub(crate) fn set_view(&self, view: ViewProbe) {
         self.view.replace(Some(view));
+    }
+
+    pub(crate) fn set_opener(&self, opener: Opener) {
+        self.opener.replace(Some(opener));
     }
 
     pub(crate) fn set_scroll_target(&self, adjustment: gtk::Adjustment) {
@@ -330,6 +346,7 @@ impl Probe {
             || !self.args.press.is_empty()
             || self.args.rewrite_with.is_some()
             || self.args.report_after.is_some()
+            || self.args.drop.is_some()
             || self.args.wait_images
             || self.args.wait_highlights
         {
@@ -341,8 +358,8 @@ impl Probe {
         self.finish(window, report);
     }
 
-    /// Clicks, presses keys and rewrites the file as asked, after the first frame; adds what
-    /// each did to `report`.
+    /// Clicks, presses keys, drops a file and rewrites the file as asked, after the first frame;
+    /// adds what each did to `report`.
     fn act_after_first_frame(&self, mut report: String) -> String {
         if let Some((x, y)) = self.args.click_at {
             let clicked = self.view.borrow().as_ref().map_or_else(
@@ -363,6 +380,15 @@ impl Probe {
                 },
             );
             report = format!("{report} pressed={}", pressed.join(","));
+        }
+        // Last: keys pressed first act on the file shown before.
+        if let Some(path) = &self.args.drop {
+            let opener = self.opener.borrow();
+            let dropped = opener.as_ref().is_some_and(|opener| {
+                (opener.0)(vec![path.clone()]);
+                true
+            });
+            report = format!("{report} dropped={dropped}");
         }
         report
     }
@@ -429,6 +455,10 @@ impl Probe {
         if self.args.report_after.is_some() && !self.report_due.get() {
             return;
         }
+        // Shown, or refused with a notice.
+        if self.args.drop.is_some() && self.reloads.get() == 0 && self.notices.get() == 0 {
+            return;
+        }
         let Some(mut report) = self.deferred.take() else {
             return;
         };
@@ -436,6 +466,7 @@ impl Probe {
             || !self.args.press.is_empty()
             || self.args.rewrite_with.is_some()
             || self.args.report_after.is_some()
+            || self.args.drop.is_some()
         {
             let (height, top) = view.as_ref().map(|view| (view.state)()).unwrap_or_default();
             report = format!(
@@ -445,6 +476,9 @@ impl Probe {
             );
             if self.args.rewrite_with.is_some() {
                 report = format!("{report} rewritten={}", self.rewritten.get());
+            }
+            if self.args.drop.is_some() {
+                report = format!("{report} title={:?}", window.title().unwrap_or_default());
             }
         }
         if self.args.wait_images {

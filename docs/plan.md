@@ -550,7 +550,12 @@ built in M1 (`builder.rs`, tokens from `html5gum` via `html.rs`):
   are rejected in O(1); depth is capped at 256 (`Notice::HtmlTooDeep`). Closing a Markdown
   container closes HTML opened inside it; an HTML container closed while Markdown containers
   inside it are open closes as soon as they do.
-- `img` → image object (alt, size from `width`/`height`); `a href` → link; `br` → hard break;
+- `img` → image object (alt, size from `width`/`height`); `align="left|right"` on images that
+  stand alone in their paragraph puts that paragraph at that side. GitHub floats them, with
+  the text after wrapping beside; here they keep a row of their own, because wrapping would
+  make a leaf's width depend on the heights before it, and the height worker, the first
+  screen and scrolling all rely on every leaf's height being its own (user's choice,
+  2026-10-14). An aligned image beside text is not moved. `a href` → link; `br` → hard break;
   `hr` → thematic break; `picture` → its `img` fallback.
 - `p`, `div`, `center`, `h1`-`h6` and other block tags end the text before them; `align` →
   `Leaf::align`. `h1`-`h6` → heading leaves with GitHub slugs (from the text as written).

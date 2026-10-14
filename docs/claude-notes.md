@@ -349,3 +349,8 @@ Not repeated here, so there is one source each (an earlier copy here drifted fro
   commits the new path only once the file is read (a failed drop keeps the document and its
   watch). Probe `--drop=PATH`; smoke: welcome light and dark, drops onto the welcome and onto
   a document, a missing file. Test floor 163 -> 164.
+- 2026-10-14: `<img align="right">` was ignored (user report, Quoin's README icon). GitHub
+  floats it; the user chose the cheap fidelity: a paragraph of nothing but images that share
+  a left or right `align` takes that side, on its own row (builder `images_align`, tested).
+  True floats were declined: they make leaf widths depend on earlier heights, against goals
+  1 and 2. Test floor raised by one.

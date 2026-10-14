@@ -78,6 +78,8 @@ pub(crate) struct Builder {
     untitled: Option<DetailsId>,
     /// Names from raw `<a id>` and `<a name>` tags, for the next leaf.
     pending_anchors: Vec<String>,
+    /// Each image's `align` (`left` or `right`, from an HTML `<img>`), by `ImageId`.
+    image_aligns: Vec<Option<Align>>,
     /// An open raw HTML `<table>`.
     html_table: Option<HtmlTable>,
     next_details: usize,
@@ -119,6 +121,7 @@ impl Builder {
             summary: None,
             untitled: None,
             pending_anchors: Vec::new(),
+            image_aligns: Vec::new(),
             html_table: None,
             next_details: 0,
             slugger,
@@ -362,6 +365,7 @@ impl Builder {
     fn add_image(&mut self, image: Image) -> ImageId {
         let id = ImageId::new(self.doc.images.len());
         self.doc.images.push(image);
+        self.image_aligns.push(None);
         id
     }
 
@@ -650,6 +654,9 @@ impl Builder {
             "br" => Some(Void::Break),
             "img" => html_image(token).map(|image| {
                 let id = self.add_image(image);
+                if let Some(align) = self.image_aligns.last_mut() {
+                    *align = token.attribute("align").and_then(image_align);
+                }
                 Void::Object(InlineObject::Image(id))
             }),
             _ => None,
@@ -979,11 +986,39 @@ impl Builder {
     /// A paragraph, as one leaf or, past `LEAF_TEXT_BYTES`, several.
     fn push_paragraph(&mut self, inlines: Inlines) {
         for part in split_inlines(inlines, LEAF_TEXT_BYTES) {
-            self.push_leaf(LeafKind::Paragraph(part));
+            let align = self.images_align(&part);
+            self.push_leaf_aligned(LeafKind::Paragraph(part), align);
         }
     }
 
+    /// The side `<img align="left|right">` puts a paragraph of nothing but such images at.
+    /// GitHub floats them, text wrapping beside; here they keep a row of their own, so that every
+    /// leaf's height stays its own (docs/plan.md §5.1). `None` if there is text, an image without
+    /// `align`, or images that disagree.
+    fn images_align(&self, inlines: &Inlines) -> Option<Align> {
+        let only_images = inlines
+            .text
+            .chars()
+            .all(|c| c == Inlines::OBJECT || c.is_whitespace());
+        if !only_images {
+            return None;
+        }
+        let mut aligns = inlines
+            .objects
+            .iter()
+            .map(|(_offset, object)| match object {
+                InlineObject::Image(id) => self.image_aligns.get(id.index()).copied().flatten(),
+            });
+        let first = aligns.next().flatten()?;
+        aligns.all(|align| align == Some(first)).then_some(first)
+    }
+
     fn push_leaf(&mut self, kind: LeafKind) -> LeafId {
+        self.push_leaf_aligned(kind, None)
+    }
+
+    /// Pushes a leaf, aligned as the HTML around it says unless `align` says otherwise.
+    fn push_leaf_aligned(&mut self, kind: LeafKind, align: Option<Align>) -> LeafId {
         // Raw anchors belong to this leaf, not to a table or summary pushed before it here.
         let anchors = std::mem::take(&mut self.pending_anchors);
         // A cell holds lines of text; anything else in it (a code block, a list) ends the table
@@ -1008,7 +1043,7 @@ impl Builder {
         self.doc.leaves.push(Leaf {
             kind,
             context: self.open.last().copied(),
-            align: self.html.align(),
+            align: align.unwrap_or_else(|| self.html.align()),
         });
         for slug in anchors {
             self.doc.anchors.push(Anchor { slug, leaf: id });
@@ -1209,6 +1244,16 @@ fn html_style(name: &str) -> Option<Style> {
         "del" | "s" | "strike" => Some(Style::STRIKETHROUGH),
         "ins" | "u" => Some(Style::UNDERLINE),
         "mark" => Some(Style::HIGHLIGHT),
+        _ => None,
+    }
+}
+
+/// An `<img>`'s `align`: only `left` and `right` place it (the others align it vertically
+/// within its line).
+fn image_align(value: &str) -> Option<Align> {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "right" => Some(Align::End),
+        "left" => Some(Align::Start),
         _ => None,
     }
 }
@@ -1791,6 +1836,35 @@ mod tests {
         builder.end_container(item);
         let doc = builder.finish();
         assert_eq!(texts(&doc), vec![""]);
+    }
+
+    #[test]
+    fn images_aligned_alone_take_their_side() {
+        let mut builder = builder();
+        // As Quoin's README: an icon floated right after the heading.
+        builder.html_block("<img src=\"icon.svg\" width=\"96\" align=\"right\">");
+        // Inside a centred block, `align` on the images wins (GitHub floats them).
+        builder.html_block("<p align=\"center\"><img src=\"a.png\" align=\"left\"> <img src=\"b.png\" align=\"LEFT\"></p>");
+        // Not alone: text, an image without `align`, images that disagree, `middle`.
+        builder.html_block("<p><img src=\"a.png\" align=\"right\"> text</p>");
+        builder.html_block("<p><img src=\"a.png\" align=\"right\"><img src=\"b.png\"></p>");
+        builder.html_block(
+            "<p><img src=\"a.png\" align=\"right\"><img src=\"b.png\" align=\"left\"></p>",
+        );
+        builder.html_block("<div align=\"center\"><img src=\"a.png\" align=\"middle\"></div>");
+        let doc = builder.finish();
+        let aligns: Vec<Align> = doc.leaves.iter().map(|leaf| leaf.align).collect();
+        assert_eq!(
+            aligns,
+            [
+                Align::End,
+                Align::Start,
+                Align::Start,
+                Align::Start,
+                Align::Start,
+                Align::Center
+            ]
+        );
     }
 
     #[test]

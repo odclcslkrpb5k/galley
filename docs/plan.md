@@ -478,7 +478,7 @@ added later without changing the model.
   - **Probe and smoke:** `--menu-at`, `--copy`, `--clipboard-to` (the clipboard read back as
     another program reads it) and `copy_button=` in the report. The smoke run clicks the
     button, copies inline code, a link's address and the document; and right-clicks for real
-    (xdotool), choosing with Down and Return.
+    (xdotool), choosing with Return (the menu opens on its first item).
 - **The view's own scrolling and GTK's kinetic scrolling.** `GtkScrolledWindow` scrolls the
   wheel from its own copy of the position, which it does not update while a fling or a bounce
   back (after scrolling past an end) runs; the deceleration sets the position every frame

@@ -349,8 +349,8 @@ if [[ "$(field menu "$by_link")" != Copy_link_address* || "$(cat "$copying/link"
   echo "smoke: the copy menu did not copy a link's address: $by_link" >&2
   fail=1
 fi
-# For real (xdotool): a right-click on the inline code opens the menu; Down and Return choose
-# its first item. Then the pointer rests on the code block, for the screenshot of its button.
+# For real (xdotool): a right-click on the inline code opens the menu, its first item already
+# selected; Return chooses it (with no menu open, Return copies nothing). Then the pointer rests on the code block, for the screenshot of its button.
 real_log=$(mktemp)
 timeout 60 "$bin" --offline --exit-after-first-frame --report-after=5 --clipboard-to="$copying/real" \
   --screenshot="$screens/copy-button.png" "$copyfix" >"$real_log" 2>&1 &
@@ -360,7 +360,7 @@ if window=$(timeout 20 xdotool search --sync --onlyvisible --name 'copy\.md' | h
   sleep 0.5
   xdotool mousemove $((X + 120)) $((Y + 44)) click 3
   sleep 0.5
-  xdotool key Down key Return
+  xdotool key Return
   sleep 0.5
   if [[ "$button" =~ ^([0-9]+),([0-9]+)$ ]]; then
     xdotool mousemove $((X + ${BASH_REMATCH[1]} - 200)) $((Y + ${BASH_REMATCH[2]}))

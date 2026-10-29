@@ -9,6 +9,7 @@ use gtk::prelude::*;
 use gtk::subclass::prelude::*;
 use gtk::{gio, glib, graphene, gsk, pango};
 
+use crate::copying;
 use crate::highlighting::{HighlightCounts, Highlighting};
 use crate::images::{Gallery, ImageCounts, ImageState, TEXTURE_BUDGET};
 use crate::links::{self, Opening};
@@ -23,8 +24,10 @@ use crate::render::paint::{self, BarColor, LeafPaint, Target};
 use crate::render::positions::{Positions, Spot};
 use crate::render::text::{self, ColumnWidths, Content, Measured, Palette, TextSetup, Typesetter};
 use crate::units;
-use galley_core::units::{DetailsId, ImageId, LeafId, TableId};
+use galley_core::units::{CodeBlockId, DetailsId, ImageId, LeafId, TableId};
+use std::ops::Range;
 
+mod copy;
 mod notice;
 mod reload;
 
@@ -123,6 +126,8 @@ pub(crate) struct DocumentView {
     reload: RefCell<reload::Reload>,
     /// A message shown at the bottom of the view for a while (`notice.rs`).
     notice: RefCell<Option<notice::Shown>>,
+    /// The code blocks' copy buttons and the right-click menu (`copy.rs`).
+    copying: RefCell<copy::Copying>,
 }
 
 // By hand: gtk::ScrollablePolicy has no Default.
@@ -158,6 +163,7 @@ impl Default for DocumentView {
             viewer_args: RefCell::default(),
             reload: RefCell::default(),
             notice: RefCell::default(),
+            copying: RefCell::default(),
         }
     }
 }
@@ -199,6 +205,10 @@ struct Doc {
     /// Each table's pieces (paints), to lay out again together when an image in its column
     /// sample arrives (its columns may widen).
     tables: HashMap<TableId, Vec<usize>>,
+    /// Every code block's text, and its paints: what its copy button copies, and where the
+    /// button goes.
+    code_texts: Vec<String>,
+    code_blocks: HashMap<CodeBlockId, Range<usize>>,
     /// The image table's version when the height worker's job began (`--check-heights`
     /// compares only heights measured with every image's size in).
     job_images: u64,
@@ -219,6 +229,11 @@ impl ObjectSubclass for DocumentView {
 
 #[glib::derived_properties]
 impl ObjectImpl for DocumentView {
+    fn dispose(&self) {
+        // The menu is the view's child.
+        self.drop_menu();
+    }
+
     fn constructed(&self) {
         self.parent_constructed();
         let widget = self.obj();
@@ -245,6 +260,18 @@ impl ObjectImpl for DocumentView {
         let click = gtk::GestureClick::new();
         // Any button: the primary opens links, the "back" mouse button goes back.
         click.set_button(0);
+        // The secondary button opens the copy menu as it goes down, as menus do.
+        click.connect_pressed(glib::clone!(
+            #[weak(rename_to = view)]
+            widget,
+            move |gesture, _presses, x, y| {
+                if gesture.current_button() == gtk::gdk::BUTTON_SECONDARY
+                    && !view.imp().on_indicator(x)
+                {
+                    view.imp().show_menu(x, y);
+                }
+            }
+        ));
         click.connect_released(glib::clone!(
             #[weak(rename_to = view)]
             widget,
@@ -286,6 +313,7 @@ impl ObjectImpl for DocumentView {
             }
         ));
         widget.add_controller(motion);
+        self.add_copy_actions();
         let settings = widget.settings();
         for name in TEXT_SETTINGS {
             settings.connect_notify_local(
@@ -345,6 +373,7 @@ impl WidgetImpl for DocumentView {
                 .map(|doc| units::px_to_f64(doc.top_of(paint)))
         });
         self.configure_vadjustment(value);
+        self.allocate_menu();
     }
 
     fn snapshot(&self, snapshot: &gtk::Snapshot) {
@@ -395,8 +424,10 @@ impl WidgetImpl for DocumentView {
             doc.palette.foreground.with_alpha(0.85),
             doc.palette.inverse(),
         );
+        let palette = doc.palette;
         doc.probe.document_drawn(doc.paints.len());
         drop(document);
+        self.draw_copy_button(snapshot, palette);
         self.draw_indicator(snapshot, indicator_color);
         self.draw_notice(snapshot, notice_colors);
         if resized {
@@ -419,6 +450,7 @@ impl DocumentView {
             details,
             images,
             code,
+            code_texts,
             path,
             start,
             offline,
@@ -434,6 +466,7 @@ impl DocumentView {
         // While --check-heights compares layouts, images load only if it waits for them.
         let images_enabled = !probe.checking_heights() || probe.waits_for_images();
         let tables = table_pieces(&paints);
+        let code_blocks = copying::code_block_ranges(&paints);
         let mut gallery = Gallery::new(images, &paints, path.clone(), offline, images_enabled);
         // Likewise highlighting; `--wait-highlights` highlights everything.
         let mut highlighting = Highlighting::new(
@@ -487,6 +520,8 @@ impl DocumentView {
             gallery,
             highlighting,
             tables,
+            code_texts,
+            code_blocks,
             job_images: 0,
             worker: Some(worker),
             worker_heights: Vec::new(),
@@ -1161,6 +1196,7 @@ impl DocumentView {
             Some(Pointed::Link(target)) => target.label(),
             Some(Pointed::Image(image)) => format!("image:{}", image.index()),
             Some(Pointed::Summary(details)) => format!("summary:{}", details.index()),
+            Some(Pointed::CopyCode(block)) => format!("copy:{}", block.index()),
             None => "none".to_owned(),
         };
         if let Some(pointed) = pointed {
@@ -1198,6 +1234,10 @@ impl DocumentView {
 
     /// What a click at a point would do: follow a link, or open or close a `<details>`.
     fn pointed_at(&self, x: f64, y: f64) -> Option<Pointed> {
+        // The copy button is drawn over the code.
+        if let Some(block) = self.copy_button_at(x, y) {
+            return Some(Pointed::CopyCode(block));
+        }
         match self.hit_at(x, y) {
             Some(Hit::Link(target)) => return Some(Pointed::Link(target)),
             Some(Hit::Image(image)) => return Some(Pointed::Image(image)),
@@ -1224,12 +1264,16 @@ impl DocumentView {
         if at.is_some() && self.in_motion() {
             return;
         }
+        self.hover_code(at);
         let pointed = at.and_then(|(x, y)| self.pointed_at(x, y));
         if *self.hovered.borrow() == pointed {
             return;
         }
         let widget = self.obj();
-        let clickable = matches!(pointed, Some(Pointed::Link(_) | Pointed::Summary(_)));
+        let clickable = matches!(
+            pointed,
+            Some(Pointed::Link(_) | Pointed::Summary(_) | Pointed::CopyCode(_))
+        );
         widget.set_cursor_from_name(clickable.then_some("pointer"));
         let path = self.path.borrow();
         let tooltip = match &pointed {
@@ -1239,6 +1283,7 @@ impl DocumentView {
                 .borrow()
                 .as_ref()
                 .and_then(|doc| image_note(&doc.gallery, *image)),
+            Some(Pointed::CopyCode(_)) => Some("Copy".to_owned()),
             Some(Pointed::Summary(_)) | None => None,
         };
         widget.set_tooltip_text(tooltip.as_deref());
@@ -1327,6 +1372,10 @@ impl DocumentView {
             Pointed::Image(_) => Ok(()),
             Pointed::Summary(details) => {
                 self.toggle(details);
+                Ok(())
+            }
+            Pointed::CopyCode(block) => {
+                self.copy_code(block);
                 Ok(())
             }
             Pointed::Link(Target::Leaf(leaf)) => {
@@ -1672,6 +1721,8 @@ enum Pointed {
     Image(ImageId),
     /// The summary of this `<details>`: opens or closes it.
     Summary(DetailsId),
+    /// A code block's copy button.
+    CopyCode(CodeBlockId),
 }
 
 /// What is at a point of a leaf.
@@ -1834,7 +1885,26 @@ impl Doc {
         let typesetter = self.typesetter(context.clone());
         let probe = Rc::clone(&self.probe);
         let mut counted = |bytes: usize| probe.layout_created(bytes);
+        let (measured, geometry) = self.hit_layout(context, leaf)?;
+        typesetter
+            .link_at(paint, measured, geometry, (x, y), &mut counted)
+            .map(Hit::Link)
+            .or_else(|| Typesetter::image_at(paint, measured, geometry, (x, y)).map(Hit::Image))
+    }
+
+    /// Leaf `leaf` laid out for hit-testing: the pointer moves over one leaf at a time, so the
+    /// last is kept.
+    fn hit_layout(
+        &mut self,
+        context: &pango::Context,
+        leaf: usize,
+    ) -> Option<(&Measured, &LeafGeometry)> {
         if self.hit.as_ref().is_none_or(|(at, _, _)| *at != leaf) {
+            let paints = Arc::clone(&self.paints);
+            let paint = paints.get(leaf)?;
+            let typesetter = self.typesetter(context.clone());
+            let probe = Rc::clone(&self.probe);
+            let mut counted = |bytes: usize| probe.layout_created(bytes);
             let measured = typesetter.measure(paint, self.width, &mut self.columns, &mut counted);
             let geometry =
                 self.setup
@@ -1842,11 +1912,9 @@ impl Doc {
                     .geometry(paint, measured.height, measured.grid(), self.width);
             self.hit = Some((leaf, measured, geometry));
         }
-        let (_leaf, measured, geometry) = self.hit.as_ref()?;
-        typesetter
-            .link_at(paint, measured, geometry, (x, y), &mut counted)
-            .map(Hit::Link)
-            .or_else(|| Typesetter::image_at(paint, measured, geometry, (x, y)).map(Hit::Image))
+        self.hit
+            .as_ref()
+            .map(|(_leaf, measured, geometry)| (measured, geometry))
     }
 
     /// The scroll value that puts a paint's top at the top of the view. It is then the anchor,

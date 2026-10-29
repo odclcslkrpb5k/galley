@@ -82,6 +82,7 @@ impl Content {
             view.clone(),
             view.clone(),
         );
+        let (menus, copying, buttons) = (view.clone(), view.clone(), view.clone());
         self.probe.set_view(probe::ViewProbe {
             link_at: Box::new(move |x, y| looking.link_label_at(x, y)),
             click_at: Box::new(move |x, y| clicking.probe_click(x, y)),
@@ -89,6 +90,9 @@ impl Content {
             images: Box::new(move || counting.probe_images()),
             highlights: Box::new(move || colouring.probe_highlights()),
             press: Box::new(move |key| pressing.probe_press(key)),
+            menu_at: Box::new(move |x, y| menus.probe_menu(x, y)),
+            copy: Box::new(move |index| copying.probe_copy(index)),
+            copy_button: Box::new(move || buttons.probe_copy_button()),
         });
         self.window.set_child(Some(&scrolled));
         self.view.replace(Some(view.clone()));
@@ -144,6 +148,7 @@ impl Content {
                     details: Vec::new(),
                     images: Vec::new(),
                     code: HashMap::new(),
+                    code_texts: Vec::new(),
                     path: None,
                     start: None,
                     offline: self.offline,

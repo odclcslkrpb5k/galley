@@ -302,6 +302,7 @@ impl DocumentView {
             details,
             images,
             code,
+            code_texts,
         } = loaded;
         // Taken first: a borrow inside the call below would last through it, and
         // `set_document` replaces these.
@@ -314,6 +315,7 @@ impl DocumentView {
                 details,
                 images,
                 code,
+                code_texts,
                 path,
                 start: Some(Start::Paint(paint)),
                 offline: self.offline.get(),

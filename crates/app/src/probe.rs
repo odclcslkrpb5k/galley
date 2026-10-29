@@ -89,6 +89,9 @@ pub(crate) struct Probe {
     view: RefCell<Option<ViewProbe>>,
     /// For --drop: what opens dropped files.
     opener: RefCell<Option<Opener>>,
+    /// For --clipboard-to: the clipboard has been read and written out (and whether that
+    /// worked).
+    clipboard_read: Cell<Option<bool>>,
     /// For --click-at and --wait-images: the report so far, finished and printed after a later
     /// frame.
     deferred: RefCell<Option<String>>,
@@ -108,6 +111,12 @@ pub(crate) struct ViewProbe {
     pub(crate) highlights: Box<dyn Fn() -> (HighlightCounts, usize)>,
     /// Presses a key (`ctrl+plus`); describes what it did.
     pub(crate) press: Box<dyn Fn(&str) -> String>,
+    /// The copy menu's items at a point.
+    pub(crate) menu_at: Box<dyn Fn(f64, f64) -> String>,
+    /// Copies as the menu's item N does; whether there was one.
+    pub(crate) copy: Box<dyn Fn(usize) -> bool>,
+    /// The centre of the first code block's copy button in view.
+    pub(crate) copy_button: Box<dyn Fn() -> Option<(i64, i64)>>,
 }
 
 /// Opens files as dropping them on the window does.
@@ -174,6 +183,7 @@ impl Probe {
             scroll: RefCell::new(ScrollRecord::default()),
             view: RefCell::new(None),
             opener: RefCell::new(None),
+            clipboard_read: Cell::new(None),
             deferred: RefCell::new(None),
         })
     }
@@ -340,6 +350,10 @@ impl Probe {
         // Measure first: the screenshot and report are not part of startup.
         let report = self.startup_report(window);
         let report = self.act_after_first_frame(report);
+        // With --report-after, real input (xdotool) comes first: the clipboard is read then.
+        if self.args.report_after.is_none() {
+            self.read_clipboard(window);
+        }
         self.rewrite_soon(window);
         self.report_later(window);
         if self.args.click_at.is_some()
@@ -347,6 +361,7 @@ impl Probe {
             || self.args.rewrite_with.is_some()
             || self.args.report_after.is_some()
             || self.args.drop.is_some()
+            || self.args.clipboard_to.is_some()
             || self.args.wait_images
             || self.args.wait_highlights
         {
@@ -381,6 +396,18 @@ impl Probe {
             );
             report = format!("{report} pressed={}", pressed.join(","));
         }
+        if let Some((x, y)) = self.args.menu_at {
+            let view = self.view.borrow();
+            let menu = view.as_ref().map_or_else(
+                || "no-view".to_owned(),
+                |view| (view.menu_at)(f64::from(x), f64::from(y)),
+            );
+            report = format!("{report} menu={menu}");
+            if let Some(index) = self.args.copy {
+                let copied = view.as_ref().is_some_and(|view| (view.copy)(index));
+                report = format!("{report} copied={copied}");
+            }
+        }
         // Last: keys pressed first act on the file shown before.
         if let Some(path) = &self.args.drop {
             let opener = self.opener.borrow();
@@ -393,6 +420,29 @@ impl Probe {
         report
     }
 
+    /// For --clipboard-to: reads the clipboard as another program would, and writes its text
+    /// out; the report waits for it.
+    fn read_clipboard(self: &Rc<Self>, window: &gtk::Window) {
+        let Some(path) = self.args.clipboard_to.clone() else {
+            return;
+        };
+        let probe = Rc::clone(self);
+        let window = window.clone();
+        window.clipboard().read_text_async(
+            gtk::gio::Cancellable::NONE,
+            glib::clone!(
+                #[strong]
+                window,
+                move |text| {
+                    let text = text.ok().flatten().map(|text| text.to_string());
+                    let written = text.is_some_and(|text| std::fs::write(&path, text).is_ok());
+                    probe.clipboard_read.set(Some(written));
+                    window.queue_draw();
+                }
+            ),
+        );
+    }
+
     /// For --report-after: a frame to report from, that long after the first.
     fn report_later(self: &Rc<Self>, window: &gtk::Window) {
         let Some(after) = self.args.report_after else {
@@ -401,6 +451,7 @@ impl Probe {
         let probe = Rc::clone(self);
         let window = window.clone();
         glib::timeout_add_local_once(after, move || {
+            probe.read_clipboard(&window);
             probe.report_due.set(true);
             window.queue_draw();
         });
@@ -455,6 +506,9 @@ impl Probe {
         if self.args.report_after.is_some() && !self.report_due.get() {
             return;
         }
+        if self.args.clipboard_to.is_some() && self.clipboard_read.get().is_none() {
+            return;
+        }
         // Shown, or refused with a notice.
         if self.args.drop.is_some() && self.reloads.get() == 0 && self.notices.get() == 0 {
             return;
@@ -480,6 +534,9 @@ impl Probe {
             if self.args.drop.is_some() {
                 report = format!("{report} title={:?}", window.title().unwrap_or_default());
             }
+        }
+        if let Some(written) = self.clipboard_read.get() {
+            report = format!("{report} clipboard_written={written}");
         }
         if self.args.wait_images {
             let ImageCounts {
@@ -543,11 +600,17 @@ impl Probe {
             );
             format!(" link_at={label}")
         });
+        let button = self
+            .view
+            .borrow()
+            .as_ref()
+            .and_then(|view| (view.copy_button)())
+            .map_or_else(String::new, |(x, y)| format!(" copy_button={x},{y}"));
         format!(
             "first_frame_us={since_t0} since_main_us={} gtk_ready_us={} presented_us={} \
              loader_wait_us={} layouts_created={} laid_out_before_first_frame={} \
              bytes_laid_out_before_first_frame={} width_resets_before_first_frame={} leaves={} \
-             renderer={} theme={}{link}",
+             renderer={} theme={}{link}{button}",
             micros(self.main_started.elapsed()),
             optional_micros(self.gtk_ready.get()),
             optional_micros(self.presented.get()),

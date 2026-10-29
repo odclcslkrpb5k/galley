@@ -14,6 +14,7 @@
 #   missing.md  a link to an anchor that does not exist, filling the first lines (smoke:
 #                clicking it shows a notice)
 #   details.md  a closed <details> whose summary is the first line (smoke: --click-at)
+#   copy.md     inline code starting the first line, then a code block (smoke: copying)
 #   wide-table.md  a table of 100 columns and 300 rows (pieces must stay small to scroll)
 #   code.md      code in several languages (named, aliased, a shell session, a language with
 #                no grammar, none named, math, a line too long to highlight), long enough to
@@ -108,6 +109,20 @@ run() { printf "%${2}s" '' | tr ' ' "$1"; }
   for ((i = 1; i <= 80; i++)); do printf 'nowhere '; done
   printf '](#nowhere)\n'
 } >"$out/missing.md"
+
+# Inline code where the smoke run right-clicks (the first line's start), then a code block.
+cat >"$out/copy.md" <<'MD'
+`copy-me-inline-code` and then some text.
+
+```sh
+curl -fsSL https://example.com/install.sh | bash
+echo done
+```
+
+| a | b |
+|---|---|
+| 1 | `x` |
+MD
 
 # A closed <details> first: clicking its summary must open it.
 {

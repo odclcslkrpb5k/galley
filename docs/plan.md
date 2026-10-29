@@ -459,6 +459,26 @@ added later without changing the model.
     and a missing one (a notice, the document kept). The drop gesture itself (GTK's
     `DropTarget` handing over a file list) is not driven: Xvfb has no drag source to drive
     it with.
+- **Copying** (user request; their choice of options A and B, 2026-10-29: copying, not
+  selecting, is the goal, and a README's install command is nearly all of it):
+  - **Copy button:** a code block shows one at its top right while the pointer is over it,
+    drawn by the view (`document_view/imp/copy.rs`); it stays at the top of the view while
+    the block's top is scrolled past, so a long block's button is in reach. It copies the
+    block's text from the core (a block's paints may be cut inside a very long line, so they
+    are not joined), without the final newline, and shows a tick for 1.5 s.
+  - **Right-click menu** (`gtk::PopoverMenu`, a child of the view): what is under the
+    pointer, most specific first (`copying.rs`, pure and tested): the inline code (or key, or
+    math) or code block; the link's address (a URL as written, a relative path made absolute
+    as following it would, `#name` inside the document); the image's address; the paragraph
+    or heading as shown (no Markdown punctuation, images left out); in a table the row and the
+    whole table as tab-separated lines. Last, the document's Markdown as the file has it now.
+  - **Not done:** selecting part of the text (option C), kept for if this is not enough;
+    HTML on the clipboard. When the window closes, X11 loses what it copied unless a
+    clipboard manager (Xubuntu's has one) keeps it.
+  - **Probe and smoke:** `--menu-at`, `--copy`, `--clipboard-to` (the clipboard read back as
+    another program reads it) and `copy_button=` in the report. The smoke run clicks the
+    button, copies inline code, a link's address and the document; and right-clicks for real
+    (xdotool), choosing with Down and Return.
 - **The view's own scrolling and GTK's kinetic scrolling.** `GtkScrolledWindow` scrolls the
   wheel from its own copy of the position, which it does not update while a fling or a bounce
   back (after scrolling past an end) runs; the deceleration sets the position every frame
@@ -937,7 +957,7 @@ replaces review.)
 - **M6 viewer features.** Reload on
   change (`gio::FileMonitor`); keyboard navigation; zoom; dark mode; `.desktop` file and MIME
   association; install to `~/.local`. *Done 2026-10-12:* §4.5 "As built in M6".
-- **After v1:** text selection and copy, find (Ctrl+F), accessibility (`AccessibleTextImpl`).
+- **After v1:** text selection (copying is done: §4.5 "Copying"), find (Ctrl+F), accessibility (`AccessibleTextImpl`).
 
 ## 11. Decisions from the user
 

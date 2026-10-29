@@ -569,18 +569,79 @@ fn link_in_layout(
     links: &[LinkSpan],
     (x, y): (i64, i64),
 ) -> Option<Target> {
-    if links.is_empty() || x < 0 || y < 0 || y >= i64::from(layout.pixel_size().1) {
+    if links.is_empty() {
+        return None;
+    }
+    let index = index_in_layout(layout, (x, y))?;
+    links
+        .iter()
+        .find(|link| (link.start..link.end).contains(&index))
+        .map(|link| link.target.clone())
+}
+
+/// The byte of a layout's text under `(x, y)` (layout coordinates), if a character is there.
+fn index_in_layout(layout: &pango::Layout, (x, y): (i64, i64)) -> Option<usize> {
+    if x < 0 || y < 0 || y >= i64::from(layout.pixel_size().1) {
         return None;
     }
     let (inside, index, _trailing) = layout.xy_to_index(
         units::to_pango_units(units::px_to_f64(x)),
         units::to_pango_units(units::px_to_f64(y)),
     );
-    let index = usize::try_from(index).ok().filter(|_| inside)?;
-    links
-        .iter()
-        .find(|link| (link.start..link.end).contains(&index))
-        .map(|link| link.target.clone())
+    usize::try_from(index).ok().filter(|_| inside)
+}
+
+/// Where a point falls in a laid-out leaf's text.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub(crate) struct TextPoint {
+    /// For a table piece: the row (of the piece's rows) and cell the point is in.
+    pub(crate) row: Option<usize>,
+    pub(crate) cell: Option<usize>,
+    /// The byte of the text (a table's: the cell's) under the point, if a character is there.
+    pub(crate) byte: Option<usize>,
+}
+
+/// Where `(x, y)` (leaf coordinates) falls in a laid-out leaf: the character under it, and in a
+/// table the row and cell (the last whose top-left corner is above and left of it).
+pub(crate) fn text_at(
+    measured: &Measured,
+    geometry: &LeafGeometry,
+    (x, y): (i64, i64),
+) -> TextPoint {
+    match &measured.content {
+        Content::Text(layout) => TextPoint {
+            byte: index_in_layout(layout, (x - geometry.text_x, y - geometry.text_y)),
+            ..TextPoint::default()
+        },
+        Content::Table { cells, .. } => {
+            let row = geometry.cells.iter().rposition(|origins| {
+                origins
+                    .iter()
+                    .map(|&(_left, top)| top)
+                    .min()
+                    .is_some_and(|top| top <= y)
+            });
+            let Some(row) = row else {
+                return TextPoint::default();
+            };
+            let origins = geometry
+                .cells
+                .get(row)
+                .map(Vec::as_slice)
+                .unwrap_or_default();
+            let cell = origins.iter().rposition(|&(left, _top)| left <= x);
+            let byte = cell.and_then(|cell| {
+                let (left, top) = *origins.get(cell)?;
+                let layout = cells.get(row)?.get(cell)?.as_ref()?;
+                index_in_layout(layout, (x - left, y - top))
+            });
+            TextPoint {
+                row: Some(row),
+                cell,
+                byte,
+            }
+        }
+    }
 }
 
 /// Loads the fonts documents use (body, bold, italic, headings, code, markers) by laying out a

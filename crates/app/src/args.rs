@@ -46,6 +46,10 @@ options:
                             report and screenshot the next frame
   --drop=PATH               with --exit-after-first-frame, open PATH as a file dropped on the
                             window would be, then report and screenshot once it is shown
+  --menu-at=X,Y             with --exit-after-first-frame, report the copy menu's items there
+  --copy=N                  with --menu-at, copy as the menu's item N (from 0) does
+  --clipboard-to=PATH       with --exit-after-first-frame, write the clipboard's text to PATH
+                            after acting (or at --report-after), then report
   --empty-window            show no document, for measuring GTK's startup floor (no FILE)
   --check-heights           when the height worker finishes, compare its heights with layouts
                             made here, report mismatches and exit
@@ -60,6 +64,8 @@ keys:
   Alt+Left, Backspace       back to where a link inside the document was followed from (the
                             mouse's back button too)
   Alt+Right                 forward again (the mouse's forward button too)
+  right-click               copy: the code, link, image, paragraph or table row there, or the
+                            whole document (code blocks also have a copy button)
   Ctrl+O                    open another file in the window (or drop one on it; more than one
                             dropped, the rest open in windows of their own)
   Ctrl+E                    open the file in the text editor (plain text's default application)
@@ -135,6 +141,11 @@ pub(crate) struct ProbeArgs {
     pub(crate) report_after: Option<Duration>,
     /// A file opened after the first frame as a dropped one is.
     pub(crate) drop: Option<PathBuf>,
+    /// A point to report the copy menu's items at, and the item to copy.
+    pub(crate) menu_at: Option<(i32, i32)>,
+    pub(crate) copy: Option<usize>,
+    /// Where to write the clipboard's text once the probe has acted.
+    pub(crate) clipboard_to: Option<PathBuf>,
 }
 
 #[derive(Debug, PartialEq, Eq, thiserror::Error)]
@@ -157,6 +168,8 @@ pub(crate) enum UsageError {
     BadKeys,
     #[error("--report-after needs a whole number of seconds")]
     BadReportAfter,
+    #[error("--copy needs a menu item's number, from 0")]
+    BadCopy,
 
     #[error("more than one FILE given")]
     ExtraFile,
@@ -196,20 +209,8 @@ pub(crate) fn parse(args: impl IntoIterator<Item = OsString>) -> Result<Args, Us
             None => (arg.as_str(), None),
         };
         match (name, value) {
-            ("--exit-after-first-frame", None) => probe.exit_after_first_frame = true,
-            ("--bench-scroll", None) => probe.bench_scroll = true,
-            ("--check-heights", None) => probe.check_heights = true,
-            ("--no-prepare", None) => probe.no_prepare = true,
-            ("--wait-images", None) => probe.wait_images = true,
-            ("--wait-highlights", None) => probe.wait_highlights = true,
             ("--application", None) => startup = Startup::Application,
-            ("--t0", Some(value)) => {
-                let nanos = value
-                    .parse::<u64>()
-                    .map_err(|_not_a_number| UsageError::BadT0)?;
-                probe.t0 = Some(Duration::from_nanos(nanos));
-            }
-            ("--screenshot", Some(path)) => probe.screenshot = Some(PathBuf::from(path)),
+            _ if probe_option(&mut probe, name, value)? => {}
             ("--anchor", Some(name)) => anchor = Some(name.to_owned()),
             ("--offline", None) => offline = true,
             ("--theme", Some("system")) => theme = Theme::System,
@@ -223,22 +224,6 @@ pub(crate) fn parse(args: impl IntoIterator<Item = OsString>) -> Result<Args, Us
                     .and_then(navigation::zoom_from_percent)
                     .ok_or(UsageError::BadZoom)?;
             }
-            ("--rewrite-with", Some(path)) => probe.rewrite_with = Some(PathBuf::from(path)),
-            ("--drop", Some(path)) => probe.drop = Some(PathBuf::from(path)),
-            ("--report-after", Some(seconds)) => {
-                let seconds = seconds
-                    .parse::<u64>()
-                    .map_err(|_not_a_number| UsageError::BadReportAfter)?;
-                probe.report_after = Some(Duration::from_secs(seconds));
-            }
-            ("--press", Some(keys)) => {
-                probe.press = keys.split(',').map(str::trim).map(str::to_owned).collect();
-                if probe.press.iter().any(String::is_empty) {
-                    return Err(UsageError::BadKeys);
-                }
-            }
-            ("--link-at", Some(point)) => probe.link_at = Some(parse_point(point)?),
-            ("--click-at", Some(point)) => probe.click_at = Some(parse_point(point)?),
             ("--empty-window", None) => mode = Mode::EmptyWindow,
             ("--help", None) => mode = Mode::Help,
             ("--version", None) => mode = Mode::Version,
@@ -264,6 +249,52 @@ pub(crate) fn parse(args: impl IntoIterator<Item = OsString>) -> Result<Args, Us
         startup,
         probe,
     })
+}
+
+/// A measurement option (`ProbeArgs`): sets it and says so, or says it is not one.
+fn probe_option(
+    probe: &mut ProbeArgs,
+    name: &str,
+    value: Option<&str>,
+) -> Result<bool, UsageError> {
+    match (name, value) {
+        ("--exit-after-first-frame", None) => probe.exit_after_first_frame = true,
+        ("--bench-scroll", None) => probe.bench_scroll = true,
+        ("--check-heights", None) => probe.check_heights = true,
+        ("--no-prepare", None) => probe.no_prepare = true,
+        ("--wait-images", None) => probe.wait_images = true,
+        ("--wait-highlights", None) => probe.wait_highlights = true,
+        ("--t0", Some(value)) => {
+            let nanos = value
+                .parse::<u64>()
+                .map_err(|_not_a_number| UsageError::BadT0)?;
+            probe.t0 = Some(Duration::from_nanos(nanos));
+        }
+        ("--screenshot", Some(path)) => probe.screenshot = Some(PathBuf::from(path)),
+        ("--rewrite-with", Some(path)) => probe.rewrite_with = Some(PathBuf::from(path)),
+        ("--drop", Some(path)) => probe.drop = Some(PathBuf::from(path)),
+        ("--menu-at", Some(point)) => probe.menu_at = Some(parse_point(point)?),
+        ("--copy", Some(index)) => {
+            probe.copy = Some(index.parse().map_err(|_not_a_number| UsageError::BadCopy)?);
+        }
+        ("--clipboard-to", Some(path)) => probe.clipboard_to = Some(PathBuf::from(path)),
+        ("--report-after", Some(seconds)) => {
+            let seconds = seconds
+                .parse::<u64>()
+                .map_err(|_not_a_number| UsageError::BadReportAfter)?;
+            probe.report_after = Some(Duration::from_secs(seconds));
+        }
+        ("--press", Some(keys)) => {
+            probe.press = keys.split(',').map(str::trim).map(str::to_owned).collect();
+            if probe.press.iter().any(String::is_empty) {
+                return Err(UsageError::BadKeys);
+            }
+        }
+        ("--link-at", Some(point)) => probe.link_at = Some(parse_point(point)?),
+        ("--click-at", Some(point)) => probe.click_at = Some(parse_point(point)?),
+        _ => return Ok(false),
+    }
+    Ok(true)
 }
 
 /// `X,Y` in whole pixels.
@@ -410,6 +441,16 @@ mod tests {
             parse_strs(&["--", "a.md", "--"]),
             Err(UsageError::ExtraFile)
         );
+    }
+
+    #[test]
+    fn copy_options() {
+        let args = parse_strs(&["--menu-at=10,20", "--copy=2", "--clipboard-to=out", "a.md"])
+            .expect("valid");
+        assert_eq!(args.probe.menu_at, Some((10, 20)));
+        assert_eq!(args.probe.copy, Some(2));
+        assert_eq!(args.probe.clipboard_to, Some(PathBuf::from("out")));
+        assert_eq!(parse_strs(&["--copy=x", "a.md"]), Err(UsageError::BadCopy));
     }
 
     #[test]

@@ -24,7 +24,7 @@ use galley_core::model::{
     LEAF_TEXT_BYTES, Leaf, LeafKind, LinkTarget, Marker, Style,
 };
 use galley_core::units::{
-    ContextId, DetailsId, FootnoteId, ImageId, LeafId, LinkId, RowNo, TableId,
+    CodeBlockId, ContextId, DetailsId, FootnoteId, ImageId, LeafId, LinkId, RowNo, TableId,
 };
 
 use super::highlight::{self, CodeSpan, TokenClass};
@@ -75,6 +75,9 @@ pub(crate) struct LeafPaint {
     pub(crate) table: Option<TablePaint>,
     /// Set for code in a named language: where its text is in its block, for highlighting.
     pub(crate) code: Option<CodeSpan>,
+    /// Set for every piece of a code block (named language or not): the block its copy button
+    /// copies.
+    pub(crate) code_block: Option<CodeBlockId>,
     pub(crate) font: FontRole,
     pub(crate) align: Align,
     /// Distance of the text from the left margin.
@@ -122,6 +125,7 @@ impl LeafPaint {
             links: Vec::new(),
             table: None,
             code: None,
+            code_block: None,
             images: Vec::new(),
             font,
             align: Align::Start,
@@ -484,6 +488,7 @@ impl Painter<'_> {
             links: Vec::new(),
             table: None,
             code: None,
+            code_block: None,
             images: Vec::new(),
             font: FontRole::Body,
             align: leaf.align(),
@@ -533,6 +538,7 @@ impl Painter<'_> {
                     .unwrap_or_default()
                     .clone_into(&mut paint.text);
                 paint.font = FontRole::Code;
+                paint.code_block = Some(*block);
                 paint.code = code
                     .filter(|code| highlight::language(code.info()).is_some())
                     .and_then(|code| code.line_start(lines.start))
@@ -1084,6 +1090,7 @@ fn piece(paint: &LeafPaint, first: bool, last: bool) -> LeafPaint {
         links: Vec::new(),
         table: None,
         code: None,
+        code_block: paint.code_block,
         images: Vec::new(),
         font: paint.font,
         align: paint.align,

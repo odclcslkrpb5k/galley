@@ -32,6 +32,8 @@ pub(crate) struct Opened {
     pub(crate) images: Vec<ImageInfo>,
     /// The code to highlight.
     pub(crate) code: HashMap<CodeBlockId, CodeSource>,
+    /// Every code block's text, for copying.
+    pub(crate) code_texts: Vec<String>,
     /// The document's file, which relative links and images start from.
     pub(crate) path: Option<PathBuf>,
     /// What to show at the top first.
@@ -84,6 +86,21 @@ impl DocumentView {
     /// what it did.
     pub(crate) fn probe_press(&self, key: &str) -> String {
         self.imp().probe_press(key)
+    }
+
+    /// For --menu-at: the copy menu's labels at a point.
+    pub(crate) fn probe_menu(&self, x: f64, y: f64) -> String {
+        self.imp().probe_menu(x, y)
+    }
+
+    /// For --copy: copies the menu's item `index`; whether there was one.
+    pub(crate) fn probe_copy(&self, index: usize) -> bool {
+        self.imp().probe_copy(index)
+    }
+
+    /// The centre of the first code block's copy button in view.
+    pub(crate) fn probe_copy_button(&self) -> Option<(i64, i64)> {
+        self.imp().probe_copy_button()
     }
 
     /// The document's height and the paint at the top of the view.

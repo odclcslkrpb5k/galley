@@ -26,6 +26,8 @@ pub(crate) struct Loaded {
     pub(crate) details: Vec<bool>,
     pub(crate) images: Vec<render::image::ImageInfo>,
     pub(crate) code: HashMap<CodeBlockId, render::highlight::CodeSource>,
+    /// Every code block's text, for copying.
+    pub(crate) code_texts: Vec<String>,
 }
 
 /// Reads, parses and paints the document: everything up to Pango, off the main thread.
@@ -37,11 +39,13 @@ pub(crate) fn load(path: &Path) -> Result<Loaded, LoadError> {
     let details = render::paint::details_open(&doc);
     let images = render::paint::image_infos(&doc);
     let code = render::highlight::code_sources(&doc);
+    let code_texts = crate::copying::code_texts(&doc);
     Ok(Loaded {
         paints,
         anchors,
         details,
         images,
         code,
+        code_texts,
     })
 }

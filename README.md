@@ -109,7 +109,14 @@ several and the rest open in windows of their own.
 | Alt+Left or Backspace, the mouse's back button | go back after following a link |
 | Alt+Right, the mouse's forward button | go forward again |
 | Ctrl+O | open another file in the window |
+| right-click | copy what is there (see below) |
 | Ctrl+E | open the file in your text editor |
+
+Copying: a code block shows a copy button at its top right while the pointer is over it. A
+right-click offers what is under the pointer: the inline code or code block, the link's or
+image's address, the paragraph or heading, the table row or the whole table (tab-separated, as
+spreadsheets paste it), and the whole document as Markdown. Text is copied as shown, without
+Markdown's punctuation. There is no selecting part of a paragraph.
 
 `--theme=light|dark` overrides the desktop's choice. `--offline` fetches no remote images.
 

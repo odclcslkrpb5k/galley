@@ -2,6 +2,8 @@
 
 mod appearance;
 mod args;
+mod copying;
+
 mod document_view;
 mod highlighting;
 mod images;
@@ -296,6 +298,7 @@ fn show(
                 details: document.details,
                 images: document.images,
                 code: document.code,
+                code_texts: document.code_texts,
                 // Absolute, so `/path` links find the repository above it whatever the working
                 // directory was.
                 path: file

@@ -32,6 +32,8 @@ pub(in crate::document_view) enum Message {
     Unwatched(String),
     #[error("cannot open {0}: {1}")]
     CannotOpen(String, LoadError),
+    #[error("cannot copy {0}: {1:?}")]
+    Copy(String, std::io::ErrorKind),
     #[error("no application to edit text with (set one for plain text files)")]
     NoEditor,
     #[error("cannot open the file in {0}: {1}")]

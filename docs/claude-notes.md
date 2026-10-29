@@ -362,3 +362,11 @@ Not repeated here, so there is one source each (an earlier copy here drifted fro
   with nesting, quotes, loose lists and adjacent lists. Learned: an edit script's Python
   string turned `\n` in Rust test strings into real newlines; write edit scripts as raw
   strings (Administer: wsedit cannot tell an intended newline from an escape).
+- 2026-10-29: Copying (user request: options A and B of four; "copying is the goal, not
+  selecting"). A code block's copy button (hover, sticky at the top of a long block, a tick
+  after) and a right-click menu of what is under the pointer (`copying.rs` pure and tested;
+  `document_view/imp/copy.rs` the view's part). Probe `--menu-at`, `--copy`,
+  `--clipboard-to`, `copy_button=`; smoke clicks the button, copies through the menu, and
+  right-clicks for real with xdotool. args.rs's parser passed clippy's 100-line limit:
+  measurement options moved to `probe_option`. The scratchpad (and wsedit.py) had been
+  cleared since the last session; rewritten, with all edits to a file applied or none.

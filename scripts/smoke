@@ -323,6 +323,59 @@ if [[ "$(field notices "$refused")" != 1 || "$(field reloads "$refused")" != 0 ]
   fail=1
 fi
 
+# Copying. A code block's copy button (where the report says it is) copies the block; the menu
+# at the inline code offers it first, and the document's Markdown last; at a link, its address.
+# The clipboard is read back as another program would read it.
+copying=$(mktemp -d)
+copyfix=target/fixtures/copy.md
+probe_run located "$copyfix"
+button=$(field copy_button "$located")
+probe_run by_button --click-at="${button:-0,0}" --clipboard-to="$copying/button" "$copyfix"
+probe_run by_menu --menu-at=120,44 --copy=0 --clipboard-to="$copying/inline" "$copyfix"
+probe_run whole --menu-at=120,44 --copy=2 --clipboard-to="$copying/whole" "$copyfix"
+probe_run by_link --menu-at=120,44 --copy=0 --clipboard-to="$copying/link" target/fixtures/missing.md
+if [[ "$(field clicked "$by_button")" != copy:0 ]] ||
+  [[ "$(cat "$copying/button" 2>/dev/null)" != $'curl -fsSL https://example.com/install.sh | bash\necho done' ]]; then
+  echo "smoke: the copy button (at ${button:-nowhere}) did not copy the code block: $by_button" >&2
+  fail=1
+fi
+if [[ "$(field menu "$by_menu")" != 'Copy_code|Copy_paragraph|Copy_document_as_Markdown' ]] ||
+  [[ "$(cat "$copying/inline" 2>/dev/null)" != copy-me-inline-code ]] ||
+  ! cmp -s "$copying/whole" "$copyfix"; then
+  echo "smoke: the copy menu did not copy the inline code and the document: $by_menu / $whole" >&2
+  fail=1
+fi
+if [[ "$(field menu "$by_link")" != Copy_link_address* || "$(cat "$copying/link" 2>/dev/null)" != '#nowhere' ]]; then
+  echo "smoke: the copy menu did not copy a link's address: $by_link" >&2
+  fail=1
+fi
+# For real (xdotool): a right-click on the inline code opens the menu; Down and Return choose
+# its first item. Then the pointer rests on the code block, for the screenshot of its button.
+real_log=$(mktemp)
+timeout 60 "$bin" --offline --exit-after-first-frame --report-after=5 --clipboard-to="$copying/real" \
+  --screenshot="$screens/copy-button.png" "$copyfix" >"$real_log" 2>&1 &
+real_pid=$!
+if window=$(timeout 20 xdotool search --sync --onlyvisible --name 'copy\.md' | head -1) && [[ -n "$window" ]]; then
+  eval "$(xdotool getwindowgeometry --shell "$window")"
+  sleep 0.5
+  xdotool mousemove $((X + 120)) $((Y + 44)) click 3
+  sleep 0.5
+  xdotool key Down key Return
+  sleep 0.5
+  if [[ "$button" =~ ^([0-9]+),([0-9]+)$ ]]; then
+    xdotool mousemove $((X + ${BASH_REMATCH[1]} - 200)) $((Y + ${BASH_REMATCH[2]}))
+  fi
+fi
+wait "$real_pid" || true
+real=$(cat "$real_log")
+rm -f "$real_log"
+n=$((n + 1))
+if [[ "$(cat "$copying/real" 2>/dev/null)" != copy-me-inline-code ]]; then
+  echo "smoke: a real right-click and Return did not copy the inline code: $real" >&2
+  fail=1
+fi
+rm -rf "$copying"
+
 # The GL fallback (--renderer=gl): it must really be GL, reach a first frame and scroll without
 # layout in frames.
 gl_fixture=target/fixtures/readme-200kb.md

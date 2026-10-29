@@ -91,7 +91,7 @@ The Galley binary is MIT (LICENSE) and is built with the crates and syntax gramm
 | rustls-native-certs | 0.8.4 | Apache-2.0 OR ISC OR MIT |
 | rustls-pki-types | 1.15.1 | MIT OR Apache-2.0 |
 | rustls-platform-verifier | 0.7.1 | MIT OR Apache-2.0 |
-| rustls-webpki | 0.103.15 | ISC |
+| rustls-webpki | 0.103.16 | ISC |
 | same-file | 1.0.6 | Unlicense/MIT |
 | serde | 1.0.229 | MIT OR Apache-2.0 |
 | serde_core | 1.0.229 | MIT OR Apache-2.0 |
@@ -4451,7 +4451,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### rustls-webpki 0.103.15 (LICENSE)
+### rustls-webpki 0.103.16 (LICENSE)
 
 ```text
 Except as otherwise noted, this project is licensed under the following

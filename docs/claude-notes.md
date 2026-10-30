@@ -370,3 +370,10 @@ Not repeated here, so there is one source each (an earlier copy here drifted fro
   right-clicks for real with xdotool. args.rs's parser passed clippy's 100-line limit:
   measurement options moved to `probe_option`. The scratchpad (and wsedit.py) had been
   cleared since the last session; rewritten, with all edits to a file applied or none.
+- 2026-10-29: The copy menu, drawn by the view (user report: GtkPopoverMenu under their
+  Classic-1.0 theme, an OPEN LOOK repaint, came out in dotted bevels and sometimes scrolled).
+  `imp/menu.rs`: geometry pure and tested (`Menu::arranged`), layouts made when it opens;
+  pointer, keys, and closing on a click elsewhere, a user scroll, a resize or zoom. Engineer
+  over Administer: the theme cannot leak in, rather than CSS asking it not to. `--menu-at`
+  now opens the real menu and reports the next frame (a same-frame screenshot drew nothing);
+  smoke chooses by keys and by a real click on the item.

@@ -466,7 +466,12 @@ added later without changing the model.
     the block's top is scrolled past, so a long block's button is in reach. It copies the
     block's text from the core (a block's paints may be cut inside a very long line, so they
     are not joined), without the final newline, and shows a tick for 1.5 s.
-  - **Right-click menu** (`gtk::PopoverMenu`, a child of the view): what is under the
+  - **Right-click menu**, drawn by the view (`imp/menu.rs`) like its copy buttons and
+    notices: GTK's popover took the desktop theme's popover style (a retro theme drew it in
+    dotted bevels) and sometimes scrolled two items (user report). Sized to its items and kept
+    inside the view (it opens up or left near an edge); the pointer highlights and chooses,
+    Up, Down, Home, End, Return and Escape work, and a click elsewhere, scrolling, a resize or
+    zoom closes it. It offers what is under the
     pointer, most specific first (`copying.rs`, pure and tested): the inline code (or key, or
     math) or code block; the link's address (a URL as written, a relative path made absolute
     as following it would, `#name` inside the document); the image's address; the paragraph
@@ -478,7 +483,7 @@ added later without changing the model.
   - **Probe and smoke:** `--menu-at`, `--copy`, `--clipboard-to` (the clipboard read back as
     another program reads it) and `copy_button=` in the report. The smoke run clicks the
     button, copies inline code, a link's address and the document; and right-clicks for real
-    (xdotool), choosing with Return (the menu opens on its first item).
+    (xdotool), choosing once with Down and Return and once with a click on the item.
 - **The view's own scrolling and GTK's kinetic scrolling.** `GtkScrolledWindow` scrolls the
   wheel from its own copy of the position, which it does not update while a fling or a bounce
   back (after scrolling past an end) runs; the deceleration sets the position every frame

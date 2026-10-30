@@ -361,6 +361,7 @@ impl Probe {
             || self.args.rewrite_with.is_some()
             || self.args.report_after.is_some()
             || self.args.drop.is_some()
+            || self.args.menu_at.is_some()
             || self.args.clipboard_to.is_some()
             || self.args.wait_images
             || self.args.wait_highlights

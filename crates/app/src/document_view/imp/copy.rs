@@ -7,7 +7,7 @@ use std::time::Duration;
 
 use gtk::prelude::*;
 use gtk::subclass::prelude::*;
-use gtk::{gdk, gio, glib, gsk};
+use gtk::{glib, gsk};
 
 use super::{DocumentView, Hit, Message, graphene_rect};
 use crate::copying::{self, Choice, Under};
@@ -37,50 +37,11 @@ pub(in crate::document_view) struct Copying {
     copied: Option<(CodeBlockId, glib::SourceId)>,
     /// What the open (or last) menu offers.
     choices: Vec<Choice>,
-    menu: Option<gtk::PopoverMenu>,
+    /// The open menu (`menu.rs`).
+    pub(super) menu: Option<super::menu::Menu>,
 }
 
 impl DocumentView {
-    /// The menu's actions (`copy.choice(N)`, `copy.document`).
-    pub(in crate::document_view) fn add_copy_actions(&self) {
-        let widget = self.obj();
-        let group = gio::SimpleActionGroup::new();
-        let choice = gio::SimpleAction::new("choice", Some(glib::VariantTy::UINT32));
-        choice.connect_activate(glib::clone!(
-            #[weak(rename_to = view)]
-            widget,
-            move |_action, parameter| {
-                if let Some(index) = parameter.and_then(u32::from_variant) {
-                    view.imp()
-                        .copy_choice(usize::try_from(index).unwrap_or(usize::MAX));
-                }
-            }
-        ));
-        group.add_action(&choice);
-        let document = gio::SimpleAction::new("document", None);
-        document.connect_activate(glib::clone!(
-            #[weak(rename_to = view)]
-            widget,
-            move |_action, _parameter| view.imp().copy_document()
-        ));
-        group.add_action(&document);
-        widget.insert_action_group("copy", Some(&group));
-    }
-
-    /// Unparents the menu (the view is going away).
-    pub(in crate::document_view) fn drop_menu(&self) {
-        if let Some(menu) = self.copying.borrow_mut().menu.take() {
-            menu.unparent();
-        }
-    }
-
-    /// Gives the menu its size, when the view is given its own.
-    pub(in crate::document_view) fn allocate_menu(&self) {
-        if let Some(menu) = self.copying.borrow().menu.as_ref() {
-            menu.present();
-        }
-    }
-
     /// The code block under the pointer at `at` (or none, the pointer gone) shows its button.
     pub(in crate::document_view) fn hover_code(&self, at: Option<(f64, f64)>) {
         let block = at.and_then(|(_x, y)| self.code_block_at(y));
@@ -292,43 +253,23 @@ impl DocumentView {
             return;
         }
         let labels = self.prepare_menu(x, y);
-        let model = gio::Menu::new();
-        let here = gio::Menu::new();
-        let whole = gio::Menu::new();
-        for (index, label) in labels.iter().enumerate() {
-            if *label == COPY_DOCUMENT {
-                whole.append(Some(label), Some("copy.document"));
-            } else {
-                let item = gio::MenuItem::new(Some(label), None);
-                let index = u32::try_from(index).unwrap_or(u32::MAX);
-                item.set_action_and_target_value(Some("copy.choice"), Some(&index.to_variant()));
-                here.append_item(&item);
-            }
+        let separated = labels.len() > 1 && labels.last() == Some(&COPY_DOCUMENT);
+        self.open_menu(&labels, separated, (x, y));
+    }
+
+    /// Copies the menu's item `index`: a choice, or past them the whole document. Whether
+    /// there was such an item.
+    pub(in crate::document_view) fn copy_item(&self, index: usize) -> bool {
+        let choices = self.copying.borrow().choices.len();
+        if index < choices {
+            self.copy_choice(index);
+            true
+        } else if index == choices && self.path.borrow().is_some() {
+            self.copy_document();
+            true
+        } else {
+            false
         }
-        model.append_section(None, &here);
-        model.append_section(None, &whole);
-        let widget = self.obj();
-        let menu = self
-            .copying
-            .borrow_mut()
-            .menu
-            .get_or_insert_with(|| {
-                let menu = gtk::PopoverMenu::from_model(None::<&gio::MenuModel>);
-                menu.set_parent(&*widget);
-                menu.set_has_arrow(false);
-                menu.set_halign(gtk::Align::Start);
-                menu
-            })
-            .clone();
-        menu.set_menu_model(Some(&model));
-        let (x, y) = (units::round_px(x), units::round_px(y));
-        menu.set_pointing_to(Some(&gdk::Rectangle::new(
-            i32::try_from(x).unwrap_or(0),
-            i32::try_from(y).unwrap_or(0),
-            1,
-            1,
-        )));
-        menu.popup();
     }
 
     /// Copies the menu's choice `index`.
@@ -359,32 +300,33 @@ impl DocumentView {
         }
     }
 
-    /// For --menu-at: the menu's labels at a point (spaces as `_`), remembered for --copy.
+    /// For --menu-at: opens the menu at a point, as a right-click does; its labels (spaces as
+    /// `_`) and the centre of its first item.
     pub(in crate::document_view) fn probe_menu(&self, x: f64, y: f64) -> String {
+        self.show_menu(x, y);
         let labels: Vec<String> = self
-            .prepare_menu(x, y)
+            .copying
+            .borrow()
+            .choices
             .iter()
+            .map(|choice| choice.label)
+            .chain(self.path.borrow().is_some().then_some(COPY_DOCUMENT))
             .map(|label| label.replace(' ', "_"))
             .collect();
+        let first = self
+            .menu_item_centre(0)
+            .map_or_else(|| "none".to_owned(), |(x, y)| format!("{x},{y}"));
         if labels.is_empty() {
-            "none".to_owned()
+            "none menu_item0=none".to_owned()
         } else {
-            labels.join("|")
+            format!("{} menu_item0={first}", labels.join("|"))
         }
     }
 
-    /// For --copy: copies the menu's item `index`, as choosing it does.
+    /// For --copy: chooses the open menu's item `index`, as the pointer or keys do.
     pub(in crate::document_view) fn probe_copy(&self, index: usize) -> bool {
-        let choices = self.copying.borrow().choices.len();
-        if index < choices {
-            self.copy_choice(index);
-            true
-        } else if index == choices && self.path.borrow().is_some() {
-            self.copy_document();
-            true
-        } else {
-            false
-        }
+        self.close_menu();
+        self.copy_item(index)
     }
 
     /// For the probe: the centre of the copy button of the first code block in view.

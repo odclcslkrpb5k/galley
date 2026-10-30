@@ -28,6 +28,7 @@ use galley_core::units::{CodeBlockId, DetailsId, ImageId, LeafId, TableId};
 use std::ops::Range;
 
 mod copy;
+mod menu;
 mod notice;
 mod reload;
 
@@ -126,8 +127,10 @@ pub(crate) struct DocumentView {
     reload: RefCell<reload::Reload>,
     /// A message shown at the bottom of the view for a while (`notice.rs`).
     notice: RefCell<Option<notice::Shown>>,
-    /// The code blocks' copy buttons and the right-click menu (`copy.rs`).
+    /// The code blocks' copy buttons and the right-click menu (`copy.rs`, `menu.rs`).
     copying: RefCell<copy::Copying>,
+    /// A press closed the menu: its release does nothing else.
+    swallow_release: Cell<bool>,
 }
 
 // By hand: gtk::ScrollablePolicy has no Default.
@@ -164,6 +167,7 @@ impl Default for DocumentView {
             reload: RefCell::default(),
             notice: RefCell::default(),
             copying: RefCell::default(),
+            swallow_release: Cell::new(false),
         }
     }
 }
@@ -229,11 +233,6 @@ impl ObjectSubclass for DocumentView {
 
 #[glib::derived_properties]
 impl ObjectImpl for DocumentView {
-    fn dispose(&self) {
-        // The menu is the view's child.
-        self.drop_menu();
-    }
-
     fn constructed(&self) {
         self.parent_constructed();
         let widget = self.obj();
@@ -265,9 +264,11 @@ impl ObjectImpl for DocumentView {
             #[weak(rename_to = view)]
             widget,
             move |gesture, _presses, x, y| {
-                if gesture.current_button() == gtk::gdk::BUTTON_SECONDARY
-                    && !view.imp().on_indicator(x)
-                {
+                let button = gesture.current_button();
+                if view.imp().menu_press(button, x, y) {
+                    return;
+                }
+                if button == gtk::gdk::BUTTON_SECONDARY && !view.imp().on_indicator(x) {
                     view.imp().show_menu(x, y);
                 }
             }
@@ -313,7 +314,6 @@ impl ObjectImpl for DocumentView {
             }
         ));
         widget.add_controller(motion);
-        self.add_copy_actions();
         let settings = widget.settings();
         for name in TEXT_SETTINGS {
             settings.connect_notify_local(
@@ -373,7 +373,8 @@ impl WidgetImpl for DocumentView {
                 .map(|doc| units::px_to_f64(doc.top_of(paint)))
         });
         self.configure_vadjustment(value);
-        self.allocate_menu();
+        // It was placed for the old size.
+        self.close_menu();
     }
 
     fn snapshot(&self, snapshot: &gtk::Snapshot) {
@@ -430,6 +431,7 @@ impl WidgetImpl for DocumentView {
         self.draw_copy_button(snapshot, palette);
         self.draw_indicator(snapshot, indicator_color);
         self.draw_notice(snapshot, notice_colors);
+        self.draw_menu(snapshot, palette);
         if resized {
             self.schedule_reconfigure();
         }
@@ -462,6 +464,7 @@ impl DocumentView {
         let old = self.document.borrow_mut().take();
         self.history.replace(navigation::History::default());
         self.hovered.replace(None);
+        self.copying.borrow_mut().menu = None;
         self.viewer_args.replace(viewer_args);
         // While --check-heights compares layouts, images load only if it waits for them.
         let images_enabled = !probe.checking_heights() || probe.waits_for_images();
@@ -632,6 +635,7 @@ impl DocumentView {
             return;
         };
         self.zoom.set(next);
+        self.close_menu();
         self.refresh_setup();
     }
 
@@ -882,6 +886,8 @@ impl DocumentView {
 
     fn scrolled(&self) {
         if !self.adjusting.get() {
+            // Scrolled by the user: the menu was for what was under the pointer.
+            self.close_menu();
             self.last_scroll.set(Some(Instant::now()));
             self.schedule_settle();
         }
@@ -1261,6 +1267,9 @@ impl DocumentView {
     /// goes. Not while scrolling: the content moves under a still pointer, and laying out the
     /// leaf it is over would cost frames.
     fn hover(&self, at: Option<(f64, f64)>) {
+        if self.menu_hover(at) {
+            return;
+        }
         if at.is_some() && self.in_motion() {
             return;
         }
@@ -1291,6 +1300,9 @@ impl DocumentView {
     }
 
     fn clicked(&self, button: u32, presses: i32, x: f64, y: f64) {
+        if self.menu_release(x, y) {
+            return;
+        }
         match button {
             gtk::gdk::BUTTON_PRIMARY if presses == 1 && !self.on_indicator(x) => {
                 if let Some(pointed) = self.pointed_at(x, y) {
@@ -1309,6 +1321,9 @@ impl DocumentView {
         key: gtk::gdk::Key,
         modifiers: gtk::gdk::ModifierType,
     ) -> glib::Propagation {
+        if let Some(propagation) = self.menu_key(key) {
+            return propagation;
+        }
         let Some(action) = navigation::action(key, modifiers) else {
             return glib::Propagation::Proceed;
         };

@@ -46,7 +46,8 @@ options:
                             report and screenshot the next frame
   --drop=PATH               with --exit-after-first-frame, open PATH as a file dropped on the
                             window would be, then report and screenshot once it is shown
-  --menu-at=X,Y             with --exit-after-first-frame, report the copy menu's items there
+  --menu-at=X,Y             with --exit-after-first-frame, open the copy menu there, then
+                            report its items and screenshot the next frame
   --copy=N                  with --menu-at, copy as the menu's item N (from 0) does
   --clipboard-to=PATH       with --exit-after-first-frame, write the clipboard's text to PATH
                             after acting (or at --report-after), then report
